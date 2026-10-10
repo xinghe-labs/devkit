@@ -3,9 +3,10 @@ node_modules/
 .pnpm-store/
 
 # 构建产物
+# 注意：不要忽略 build/ —— 它是 electron-builder 的 buildResources 目录（放图标），
+# 需要入库。electron-vite 的产物在 out/，electron-builder 的产物在 release/。
 out/
 dist/
-build/
 release/
 *.tsbuildinfo
 
