@@ -1,0 +1,34 @@
+/**
+ * IPC 通道白名单。
+ * 主进程只注册这里列出的通道，预加载只暴露这里列出的通道 —— 两侧共用同一份常量，
+ * 避免出现"渲染进程调了一个主进程没实现的通道"这种运行时才发现的问题。
+ */
+export const IPC = {
+  /** 应用与运行环境信息 */
+  appInfo: 'app:info',
+
+  /** 读取清单（含校验错误） */
+  manifestList: 'manifest:list',
+
+  /** 执行环境检测 */
+  detectRun: 'detect:run',
+
+  /** 读取/设置界面语言 */
+  localeGet: 'locale:get',
+  localeSet: 'locale:set',
+
+  /** 读取日志尾部 / 打开日志目录 */
+  logTail: 'log:tail',
+  logOpenDir: 'log:open-dir',
+
+  /** 渲染进程完成挂载后回执，主进程据此确认三端链路已通 */
+  rendererReady: 'app:renderer-ready',
+
+  /** 主进程 → 渲染进程 推送日志 */
+  logLine: 'log:line'
+} as const
+
+export type IpcChannel = (typeof IPC)[keyof typeof IPC]
+
+/** 只能由主进程主动推送、渲染进程只能监听的通道 */
+export const IPC_PUSH_CHANNELS: readonly IpcChannel[] = [IPC.logLine] as const

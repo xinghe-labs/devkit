@@ -1,0 +1,42 @@
+# electron-builder 配置
+# 说明：M0 阶段不配置 publish（自动更新在 M4 接入），避免出现假的仓库地址。
+
+appId: io.github.devkit
+productName: devkit
+copyright: Copyright © 2026 devkit contributors
+
+directories:
+  buildResources: build
+  output: release
+
+# 只打包构建产物，不把源码、清单源文件、node_modules 塞进去
+files:
+  - out/**
+  - package.json
+
+# 清单走 extraResources，运行时从 process.resourcesPath/manifest 读取，
+# 这样热更新与用户手工替换清单都不需要重新打包 asar
+extraResources:
+  - from: resources/manifest
+    to: manifest
+    filter:
+      - '**/*'
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: devkit
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

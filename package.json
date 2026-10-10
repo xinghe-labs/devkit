@@ -1,0 +1,68 @@
+{
+  "name": "devkit",
+  "version": "0.1.0",
+  "description": "一键开发环境部署器 — 在全新的 Windows 电脑上一键安装、配置并自检开发环境",
+  "keywords": [
+    "windows",
+    "dev-environment",
+    "installer",
+    "electron",
+    "one-click"
+  ],
+  "homepage": "https://github.com/",
+  "license": "MIT",
+  "private": true,
+  "packageManager": "pnpm@10.26.2",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder --win",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "manifest:check": "tsx scripts/check-manifest.ts",
+    "detect": "tsx scripts/detect-report.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "ajv": "^8.20.0",
+    "antd": "^6.6.5",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "i18next": "^26.4.2",
+    "prettier": "^3.9.9",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-i18next": "^17.0.16",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^7.1.12",
+    "vitest": "^5.0.3",
+    "zustand": "^5.0.15"
+  }
+}

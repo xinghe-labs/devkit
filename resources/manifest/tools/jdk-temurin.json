@@ -1,0 +1,37 @@
+{
+  "id": "jdk-temurin",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "Eclipse Temurin JDK", "en-US": "Eclipse Temurin JDK" },
+  "description": {
+    "zh-CN": "OpenJDK 的免费发行版，可自由分发（本项目不使用 Oracle JDK）。",
+    "en-US": "A freely redistributable OpenJDK build (this project does not use Oracle JDK)."
+  },
+  "homepage": "https://adoptium.net",
+  "license": { "spdx": "GPL-2.0-with-classpath-exception", "redistributable": true },
+  "detect": {
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Eclipse Temurin" },
+        "versionFrom": "DisplayVersion"
+      },
+      {
+        "hive": "HKCU",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Eclipse Temurin" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "刻意不用 java -version 判定：装了 Oracle JDK 或其它发行版也会命中，会把它们误报成 Temurin。版本信息 M2 补齐。",
+    "en-US": "Deliberately does not use java -version: that would also match Oracle JDK or other distributions and misreport them as Temurin. Version info to be filled in M2."
+  }
+}

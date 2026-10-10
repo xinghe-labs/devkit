@@ -1,0 +1,31 @@
+{
+  "id": "postgresql",
+  "category": "database",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "PostgreSQL", "en-US": "PostgreSQL" },
+  "description": {
+    "zh-CN": "功能完整的关系型数据库，默认端口 5432。",
+    "en-US": "Full-featured relational database, default port 5432."
+  },
+  "homepage": "https://www.postgresql.org",
+  "license": { "spdx": "PostgreSQL", "redistributable": true },
+  "detect": {
+    "commands": [{ "cmd": "psql", "args": ["--version"], "expectRegex": "psql \\(PostgreSQL\\) \\d+" }],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^PostgreSQL \\d" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "安装后需要注册为 Windows 服务，因此是系统级安装。版本信息 M2 补齐。",
+    "en-US": "Registers a Windows service, hence machine scope. Version info to be filled in M2."
+  }
+}

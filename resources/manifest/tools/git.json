@@ -1,0 +1,41 @@
+{
+  "id": "git",
+  "category": "tool",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "Git", "en-US": "Git" },
+  "description": {
+    "zh-CN": "分布式版本控制，含 Git Bash 与 Git LFS。",
+    "en-US": "Distributed version control with Git Bash and Git LFS."
+  },
+  "homepage": "https://git-scm.com",
+  "license": { "spdx": "GPL-2.0-only", "redistributable": true },
+  "detect": {
+    "commands": [{ "cmd": "git", "args": ["--version"], "expectRegex": "git version \\d+" }],
+    "files": ["%ProgramFiles%\\Git\\cmd\\git.exe"],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Git" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "2.56.0.windows.2",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "releaseDate": "2026-10-05",
+      "installScope": "machine"
+    }
+  ],
+  "notes": {
+    "zh-CN": "版本号取自 git-for-windows/git 的最新 Release tag。",
+    "en-US": "Version taken from the latest git-for-windows/git release tag."
+  }
+}

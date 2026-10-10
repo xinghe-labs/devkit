@@ -1,0 +1,109 @@
+import { create } from 'zustand'
+import type {
+  AppInfo,
+  DetectionResult,
+  Locale,
+  ManifestLoadError,
+  ToolCategory,
+  ToolManifest
+} from '@shared/types'
+import { DEFAULT_LOCALE } from '@shared/types'
+import { changeLanguage } from '../i18n'
+
+export type CategoryFilter = ToolCategory | 'all'
+
+interface AppState {
+  info: AppInfo | null
+  locale: Locale
+  tools: ToolManifest[]
+  manifestErrors: ManifestLoadError[]
+  manifestDir: string
+  detections: Record<string, DetectionResult>
+  detecting: boolean
+  selected: Record<string, boolean>
+  selectedVersions: Record<string, string>
+  activeCategory: CategoryFilter
+  query: string
+  fatalError: string | null
+
+  bootstrap: () => Promise<void>
+  refreshDetection: () => Promise<void>
+  changeLocale: (locale: Locale) => Promise<void>
+  toggleTool: (toolId: string, checked: boolean) => void
+  setSelectedVersion: (toolId: string, version: string) => void
+  selectCategory: (category: CategoryFilter) => void
+  setQuery: (query: string) => void
+  clearSelection: () => void
+  setInfo: (info: AppInfo) => void
+  setFatalError: (message: string | null) => void
+}
+
+export const useAppStore = create<AppState>()((set, get) => ({
+  info: null,
+  locale: DEFAULT_LOCALE,
+  tools: [],
+  manifestErrors: [],
+  manifestDir: '',
+  detections: {},
+  detecting: false,
+  selected: {},
+  selectedVersions: {},
+  activeCategory: 'all',
+  query: '',
+  fatalError: null,
+
+  setInfo: (info) => set({ info, locale: info.locale }),
+
+  setFatalError: (message) => set({ fatalError: message }),
+
+  /** 启动流程：读清单 → 跑检测。任一步失败都落到 fatalError，界面给出可读提示。 */
+  bootstrap: async () => {
+    try {
+      const result = await window.devkit.listManifests()
+      set({
+        tools: result.tools,
+        manifestErrors: result.errors,
+        manifestDir: result.dir,
+        fatalError: null
+      })
+    } catch (error) {
+      set({ fatalError: (error as Error).message })
+      return
+    }
+    await get().refreshDetection()
+  },
+
+  refreshDetection: async () => {
+    if (get().tools.length === 0) return
+    set({ detecting: true })
+    try {
+      const results = await window.devkit.runDetection({})
+      const detections: Record<string, DetectionResult> = {}
+      for (const result of results) detections[result.toolId] = result
+      set({ detections, fatalError: null })
+    } catch (error) {
+      set({ fatalError: (error as Error).message })
+    } finally {
+      set({ detecting: false })
+    }
+  },
+
+  changeLocale: async (locale) => {
+    // 先落盘再切界面：即使切换语言时崩溃，下次启动也是用户选的语言
+    await window.devkit.setLocale(locale)
+    await changeLanguage(locale)
+    set({ locale })
+  },
+
+  toggleTool: (toolId, checked) =>
+    set((state) => ({ selected: { ...state.selected, [toolId]: checked } })),
+
+  setSelectedVersion: (toolId, version) =>
+    set((state) => ({ selectedVersions: { ...state.selectedVersions, [toolId]: version } })),
+
+  selectCategory: (category) => set({ activeCategory: category }),
+
+  setQuery: (query) => set({ query }),
+
+  clearSelection: () => set({ selected: {} })
+}))

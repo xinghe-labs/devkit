@@ -1,0 +1,48 @@
+{
+  "id": "nodejs",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "Node.js", "en-US": "Node.js" },
+  "description": {
+    "zh-CN": "JavaScript 运行时，自带 npm。前端与 Node 后端开发的基础。",
+    "en-US": "JavaScript runtime with npm bundled. Foundation for frontend and Node backend work."
+  },
+  "homepage": "https://nodejs.org",
+  "license": { "spdx": "MIT", "redistributable": true },
+  "detect": {
+    "commands": [{ "cmd": "node", "args": ["-v"], "expectRegex": "v\\d+\\.\\d+" }],
+    "files": ["%ProgramFiles%\\nodejs\\node.exe"],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Node\\.js" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "24.21.0",
+      "channel": "lts",
+      "recommended": true,
+      "arch": "x64",
+      "releaseDate": "2026-09-07",
+      "installScope": "machine"
+    },
+    {
+      "version": "24.20.0",
+      "channel": "lts",
+      "arch": "x64",
+      "releaseDate": "2026-08-26",
+      "installScope": "machine"
+    }
+  ],
+  "notes": {
+    "zh-CN": "版本号取自 nodejs.org 官方 dist/index.json 的 LTS 通道；官方只提供 MSI，因此为系统级安装。下载地址与 SHA-256 待 M1 补齐。",
+    "en-US": "Versions from the official nodejs.org dist/index.json (LTS channel). The official installer is MSI-only, hence machine scope. URL and SHA-256 to be added in M1."
+  }
+}

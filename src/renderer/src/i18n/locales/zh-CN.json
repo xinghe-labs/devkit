@@ -1,0 +1,87 @@
+{
+  "app": {
+    "name": "devkit",
+    "tagline": "一键开发环境部署器",
+    "detecting": "正在检测本机环境…"
+  },
+  "common": {
+    "search": "搜索软件",
+    "all": "全部",
+    "loading": "加载中…",
+    "close": "关闭",
+    "yes": "是",
+    "no": "否",
+    "unknown": "未知",
+    "none": "无"
+  },
+  "header": {
+    "language": "语言",
+    "logDir": "日志目录",
+    "manifestErrors": "清单问题",
+    "settings": "设置"
+  },
+  "summary": {
+    "installed": "已安装",
+    "missing": "待安装",
+    "pathIssue": "PATH 未生效",
+    "available": "可用清单",
+    "selected": "已选"
+  },
+  "category": {
+    "runtime": "语言运行时",
+    "build": "构建工具",
+    "database": "数据库",
+    "container": "容器与虚拟化",
+    "editor": "编辑器 / IDE",
+    "tool": "常用工具"
+  },
+  "status": {
+    "not-installed": "未安装",
+    "installed": "已安装",
+    "version-mismatch": "版本不同",
+    "path-missing": "已装但 PATH 未生效",
+    "error": "检测出错"
+  },
+  "tool": {
+    "recommended": "推荐",
+    "version": "版本",
+    "noVersions": "版本信息待补充",
+    "detectOnly": "仅检测",
+    "size": "体积",
+    "requiresAdmin": "需管理员",
+    "requiresReboot": "需重启",
+    "license": "许可证",
+    "installedVersion": "已装 {{version}}",
+    "recommendedVersion": "推荐 {{version}}",
+    "evidence": "检测依据",
+    "homepage": "官网",
+    "dependsOn": "依赖",
+    "tierL1": "可离线分发",
+    "tierL2": "不可再分发",
+    "tierL3": "仅引导官网"
+  },
+  "action": {
+    "install": "开始安装",
+    "installDisabled": "安装功能将在 M1 里程碑实现",
+    "redetect": "重新检测",
+    "openLogDir": "打开日志目录",
+    "clearSelection": "清空选择",
+    "selectAll": "全选本类"
+  },
+  "log": {
+    "title": "运行日志",
+    "empty": "暂无日志",
+    "pauseScroll": "暂停滚动",
+    "resumeScroll": "继续滚动"
+  },
+  "empty": {
+    "tools": "没有匹配的软件",
+    "manifest": "没有可用的清单"
+  },
+  "error": {
+    "title": "清单校验失败",
+    "hint": "以下清单未通过 JSON Schema 校验，已跳过加载。修复后重新检测即可。",
+    "detectFailed": "检测失败：{{message}}",
+    "loadFailed": "初始化失败：{{message}}"
+  }
+}

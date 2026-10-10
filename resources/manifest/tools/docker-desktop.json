@@ -1,0 +1,32 @@
+{
+  "id": "docker-desktop",
+  "category": "container",
+  "tier": "L2",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "Docker Desktop", "en-US": "Docker Desktop" },
+  "description": {
+    "zh-CN": "本地容器运行环境。依赖 WSL2，安装后需要重启。",
+    "en-US": "Local container runtime. Requires WSL2 and a reboot after install."
+  },
+  "homepage": "https://www.docker.com/products/docker-desktop/",
+  "license": { "spdx": "LicenseRef-Docker-Subscription", "redistributable": false },
+  "detect": {
+    "commands": [{ "cmd": "docker", "args": ["--version"], "expectRegex": "Docker version \\d+" }],
+    "files": ["%ProgramFiles%\\Docker\\Docker\\Docker Desktop.exe"],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Docker Desktop" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "受 Docker Subscription Service Agreement 约束：大企业 / 政府商业使用需付费订阅。本项目只引导官方下载，不打包、不内置、不进离线包。",
+    "en-US": "Governed by the Docker Subscription Service Agreement: paid subscription required for large organisations and government commercial use. This project only points to the official download; it is never bundled or included in offline packages."
+  }
+}

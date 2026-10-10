@@ -1,0 +1,23 @@
+{
+  "id": "wsl2",
+  "category": "container",
+  "tier": "L2",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "WSL2", "en-US": "WSL2" },
+  "description": {
+    "zh-CN": "Windows 上的 Linux 子系统（第二版），Docker Desktop 与 Linux 工具链的前置条件。",
+    "en-US": "Windows Subsystem for Linux (v2). Prerequisite for Docker Desktop and Linux toolchains."
+  },
+  "homepage": "https://learn.microsoft.com/windows/wsl/",
+  "license": { "spdx": "LicenseRef-Microsoft-Windows", "redistributable": false },
+  "detect": {
+    "commands": [{ "cmd": "wsl", "args": ["--version"], "expectRegex": "\\d+\\.\\d+\\.\\d+" }],
+    "files": ["%SystemRoot%\\System32\\wsl.exe"]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "属于 Windows 可选功能，通过 wsl --install 启用，不是可下载的安装包，因此不进离线包。启用后通常需要重启。",
+    "en-US": "A Windows optional feature enabled via wsl --install rather than a downloadable installer, so it is excluded from offline bundles. Enabling usually requires a reboot."
+  }
+}

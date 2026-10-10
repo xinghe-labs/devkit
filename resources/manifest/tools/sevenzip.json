@@ -1,0 +1,31 @@
+{
+  "id": "sevenzip",
+  "category": "tool",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "7-Zip", "en-US": "7-Zip" },
+  "description": {
+    "zh-CN": "开源压缩 / 解压工具。",
+    "en-US": "Open-source file archiver."
+  },
+  "homepage": "https://www.7-zip.org",
+  "license": { "spdx": "LGPL-2.0-or-later", "redistributable": true },
+  "detect": {
+    "files": ["%ProgramFiles%\\7-Zip\\7z.exe"],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "7-Zip" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "7z.exe 不带参数运行会打印帮助且退出码为 0，无法用命令判定版本，因此只走文件与注册表检测。",
+    "en-US": "Running 7z.exe without arguments prints help and exits 0, so a command probe cannot detect the version. Detection uses files and registry only."
+  }
+}

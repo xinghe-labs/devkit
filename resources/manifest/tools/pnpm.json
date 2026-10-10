@@ -1,0 +1,23 @@
+{
+  "id": "pnpm",
+  "category": "tool",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "pnpm", "en-US": "pnpm" },
+  "description": {
+    "zh-CN": "磁盘占用小、安装速度快的 Node 包管理器。",
+    "en-US": "Fast, disk-efficient package manager for Node."
+  },
+  "homepage": "https://pnpm.io",
+  "license": { "spdx": "MIT", "redistributable": true },
+  "detect": {
+    "commands": [{ "cmd": "pnpm", "args": ["-v"], "expectRegex": "\\d+\\.\\d+" }],
+    "files": ["%LOCALAPPDATA%\\pnpm\\pnpm.exe"]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "通常由 corepack 或独立安装器提供，具体安装方式在 M2 确定。",
+    "en-US": "Usually provided by corepack or the standalone installer; the install method will be decided in M2."
+  }
+}

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint / typecheck / manifest / test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+        env:
+          # 校验任务不需要 Electron 运行时二进制（约 250MB），跳过下载以加速 CI。
+          # 发布任务（release.yml，M4 加入）必须去掉这个变量。
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: 清单校验（JSON Schema + 语义约束）
+        run: pnpm manifest:check
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 代码规范
+        run: pnpm lint
+
+      - name: 单元测试
+        run: pnpm test

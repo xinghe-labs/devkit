@@ -1,0 +1,87 @@
+{
+  "app": {
+    "name": "devkit",
+    "tagline": "One-click development environment deployer",
+    "detecting": "Scanning this machine…"
+  },
+  "common": {
+    "search": "Search tools",
+    "all": "All",
+    "loading": "Loading…",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No",
+    "unknown": "Unknown",
+    "none": "None"
+  },
+  "header": {
+    "language": "Language",
+    "logDir": "Log folder",
+    "manifestErrors": "Manifest issues",
+    "settings": "Settings"
+  },
+  "summary": {
+    "installed": "Installed",
+    "missing": "Missing",
+    "pathIssue": "PATH issue",
+    "available": "Available",
+    "selected": "Selected"
+  },
+  "category": {
+    "runtime": "Runtimes",
+    "build": "Build tools",
+    "database": "Databases",
+    "container": "Containers",
+    "editor": "Editors / IDEs",
+    "tool": "Utilities"
+  },
+  "status": {
+    "not-installed": "Not installed",
+    "installed": "Installed",
+    "version-mismatch": "Different version",
+    "path-missing": "Installed but not on PATH",
+    "error": "Detection error"
+  },
+  "tool": {
+    "recommended": "Recommended",
+    "version": "Version",
+    "noVersions": "Version info pending",
+    "detectOnly": "Detect only",
+    "size": "Size",
+    "requiresAdmin": "Needs admin",
+    "requiresReboot": "Needs reboot",
+    "license": "License",
+    "installedVersion": "Installed {{version}}",
+    "recommendedVersion": "Recommended {{version}}",
+    "evidence": "Evidence",
+    "homepage": "Homepage",
+    "dependsOn": "Requires",
+    "tierL1": "Redistributable",
+    "tierL2": "No redistribution",
+    "tierL3": "Official site only"
+  },
+  "action": {
+    "install": "Install selected",
+    "installDisabled": "Installing arrives in milestone M1",
+    "redetect": "Re-scan",
+    "openLogDir": "Open log folder",
+    "clearSelection": "Clear selection",
+    "selectAll": "Select all in category"
+  },
+  "log": {
+    "title": "Runtime log",
+    "empty": "No logs yet",
+    "pauseScroll": "Pause scroll",
+    "resumeScroll": "Resume scroll"
+  },
+  "empty": {
+    "tools": "No matching tools",
+    "manifest": "No usable manifests"
+  },
+  "error": {
+    "title": "Manifest validation failed",
+    "hint": "The manifests below failed JSON Schema validation and were skipped. Fix them and re-scan.",
+    "detectFailed": "Detection failed: {{message}}",
+    "loadFailed": "Initialization failed: {{message}}"
+  }
+}

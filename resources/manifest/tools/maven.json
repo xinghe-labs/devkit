@@ -1,0 +1,31 @@
+{
+  "id": "maven",
+  "category": "build",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "Apache Maven", "en-US": "Apache Maven" },
+  "description": {
+    "zh-CN": "Java 项目的依赖管理与构建工具。",
+    "en-US": "Dependency management and build tool for Java projects."
+  },
+  "homepage": "https://maven.apache.org",
+  "license": { "spdx": "Apache-2.0", "redistributable": true },
+  "detect": {
+    "commands": [{ "cmd": "mvn", "args": ["-v"], "expectRegex": "Apache Maven \\d+" }],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Apache Maven" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "mvn 是 .cmd 脚本，检测时会走 cmd.exe 回退路径。版本信息 M2 补齐。",
+    "en-US": "mvn is a .cmd shim, so detection goes through the cmd.exe fallback path. Version info to be filled in M2."
+  }
+}

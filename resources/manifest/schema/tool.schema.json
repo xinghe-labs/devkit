@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/devkit/resources/manifest/schema/tool.schema.json",
+  "title": "devkit tool manifest",
+  "description": "单个软件的清单。新增软件只需新增一个 JSON，不需要改代码（SPEC NFR-4）。",
+  "type": "object",
+  "required": ["id", "category", "tier", "status", "name", "description", "detect", "versions"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,39}$",
+      "description": "全局唯一，同时用作文件名与依赖引用键"
+    },
+    "category": {
+      "enum": ["runtime", "build", "database", "container", "editor", "tool"]
+    },
+    "tier": {
+      "enum": ["L1", "L2", "L3"],
+      "description": "许可证分级，决定能否进离线包（SPEC §8）"
+    },
+    "status": {
+      "enum": ["detect-only", "ready"],
+      "description": "detect-only 表示安装信息尚未补齐；ready 时 Schema 强制要求 source.sha256 与 install.template"
+    },
+    "provider": {
+      "enum": ["direct", "scoop", "winget"]
+    },
+    "name": { "$ref": "#/definitions/localizedText" },
+    "description": { "$ref": "#/definitions/localizedText" },
+    "notes": { "$ref": "#/definitions/localizedText" },
+    "homepage": {
+      "type": "string",
+      "pattern": "^https://",
+      "description": "只接受 https，不允许 http 或 file"
+    },
+    "license": {
+      "type": "object",
+      "required": ["spdx", "redistributable"],
+      "additionalProperties": false,
+      "properties": {
+        "spdx": { "type": "string", "minLength": 1 },
+        "redistributable": { "type": "boolean" }
+      }
+    },
+    "detect": { "$ref": "#/definitions/detectSpec" },
+    "versions": {
+      "type": "array",
+      "description": "允许为空数组：表示该工具当前只支持检测",
+      "items": { "$ref": "#/definitions/versionSpec" }
+    }
+  },
+  "definitions": {
+    "localizedText": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+
+    "commandSpec": {
+      "type": "object",
+      "required": ["cmd"],
+      "additionalProperties": false,
+      "properties": {
+        "cmd": { "type": "string", "minLength": 1 },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "expectRegex": {
+          "type": "string",
+          "minLength": 1,
+          "description": "stdout 与 stderr 合并后必须匹配此正则；不填则要求退出码为 0"
+        }
+      }
+    },
+
+    "registryRule": {
+      "type": "object",
+      "required": ["hive", "view", "path", "match"],
+      "additionalProperties": false,
+      "properties": {
+        "hive": { "enum": ["HKLM", "HKCU"] },
+        "view": { "enum": ["32", "64"] },
+        "path": { "type": "string", "minLength": 1 },
+        "match": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "versionFrom": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "detectSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/commandSpec" }
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "registry": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/registryRule" }
+        }
+      }
+    },
+
+    "sourceSpec": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "pattern": "^https://" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+
+    "mirrorSpec": {
+      "type": "object",
+      "required": ["name", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "pattern": "^https://" }
+      }
+    },
+
+    "installSpec": {
+      "type": "object",
+      "required": ["type", "template"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["msi", "exe-nsis", "exe-inno", "zip"] },
+        "template": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "只能引用代码内置的白名单模板，清单无权自定义命令行（SPEC FR-15）"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+
+    "uninstallSpec": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["registry", "custom", "none"] },
+        "template": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+      }
+    },
+
+    "versionSpec": {
+      "type": "object",
+      "required": ["version", "channel", "arch", "installScope"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "channel": { "enum": ["lts", "stable", "beta"] },
+        "recommended": { "type": "boolean" },
+        "arch": { "const": "x64" },
+        "releaseDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "sizeBytes": { "type": "integer", "minimum": 0 },
+        "installScope": {
+          "enum": ["user", "machine"],
+          "description": "逐项声明，不存在全局默认（SPEC §9）"
+        },
+        "requiresReboot": { "type": "boolean" },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,39}$" }
+        },
+        "source": { "$ref": "#/definitions/sourceSpec" },
+        "mirrors": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/mirrorSpec" }
+        },
+        "install": { "$ref": "#/definitions/installSpec" },
+        "uninstall": { "$ref": "#/definitions/uninstallSpec" },
+        "configure": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "verify": { "$ref": "#/definitions/commandSpec" }
+      }
+    }
+  }
+}

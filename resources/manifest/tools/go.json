@@ -1,0 +1,32 @@
+{
+  "id": "go",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "Go", "en-US": "Go" },
+  "description": {
+    "zh-CN": "Go 语言工具链，自带 go mod。",
+    "en-US": "The Go toolchain with go mod bundled."
+  },
+  "homepage": "https://go.dev",
+  "license": { "spdx": "BSD-3-Clause", "redistributable": true },
+  "detect": {
+    "commands": [{ "cmd": "go", "args": ["version"], "expectRegex": "go version go\\d" }],
+    "files": ["%ProgramFiles%\\Go\\bin\\go.exe"],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Go Programming Language" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [],
+  "notes": {
+    "zh-CN": "版本信息待补：go.dev 的版本接口在清单采集时未返回数据，M2 补齐。",
+    "en-US": "Version info pending: the go.dev release endpoint returned no data when this manifest was collected. To be filled in M2."
+  }
+}

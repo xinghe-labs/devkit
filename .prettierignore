@@ -1,0 +1,13 @@
+node_modules/
+out/
+release/
+dist/
+coverage/
+
+# 清单是人工维护的数据文件，格式已由 JSON Schema 约束，不交给 prettier 重排
+resources/manifest/
+
+# 文档手写排版：prettier 的 CJK 表格填充会让中文表格在原文里更难读
+*.md
+
+pnpm-lock.yaml

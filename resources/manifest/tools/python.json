@@ -1,0 +1,64 @@
+{
+  "id": "python",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": { "zh-CN": "Python", "en-US": "Python" },
+  "description": {
+    "zh-CN": "通用编程语言运行时，自带 pip。",
+    "en-US": "General purpose language runtime with pip bundled."
+  },
+  "homepage": "https://www.python.org",
+  "license": { "spdx": "PSF-2.0", "redistributable": true },
+  "detect": {
+    "commands": [
+      { "cmd": "python", "args": ["--version"], "expectRegex": "Python \\d+\\.\\d+" },
+      { "cmd": "py", "args": ["-3", "--version"], "expectRegex": "Python \\d+\\.\\d+" }
+    ],
+    "registry": [
+      {
+        "hive": "HKCU",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Python \\d" },
+        "versionFrom": "DisplayVersion"
+      },
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "match": { "DisplayName": "^Python \\d" },
+        "versionFrom": "DisplayVersion"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "3.14.8",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "releaseDate": "2026-09-30",
+      "installScope": "user"
+    },
+    {
+      "version": "3.13.16",
+      "channel": "stable",
+      "arch": "x64",
+      "releaseDate": "2026-09-30",
+      "installScope": "user"
+    },
+    {
+      "version": "3.12.15",
+      "channel": "stable",
+      "arch": "x64",
+      "releaseDate": "2026-10-01",
+      "installScope": "user"
+    }
+  ],
+  "notes": {
+    "zh-CN": "先探测 PATH 上的 python（用户敲的就是这个），再退到 py 启动器。两者可能指向不同安装（实测过一台机器 python=3.13 而 py -3=3.11），以 python 为准更符合用户直觉。官方安装器默认用户级安装，无需管理员。版本号来自 endoflife.date。",
+    "en-US": "Probes python on PATH first (that is what users actually type), then falls back to the py launcher. The two can point at different installs — one machine had python=3.13 while py -3=3.11 — so preferring python matches user expectations. The official installer defaults to per-user scope. Versions from endoflife.date."
+  }
+}
