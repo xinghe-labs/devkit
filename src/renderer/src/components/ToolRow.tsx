@@ -62,17 +62,20 @@ export function ToolRow({
   }
 
   return (
-    <List.Item style={{ paddingInline: 12 }}>
-      <div style={{ display: 'flex', gap: 12, width: '100%', alignItems: 'flex-start' }}>
+    <List.Item>
+      <div style={{ display: 'flex', gap: 16, width: '100%', alignItems: 'flex-start' }}>
         <Checkbox
           checked={selected}
           onChange={(event) => onToggle(event.target.checked)}
           aria-label={localizedText(tool.name, locale, tool.id)}
+          style={{ marginTop: 3 }}
         />
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Space size={6} wrap>
-            <Text strong>{localizedText(tool.name, locale, tool.id)}</Text>
+          <Space size={8} wrap>
+            <Text strong style={{ fontSize: 15 }}>
+              {localizedText(tool.name, locale, tool.id)}
+            </Text>
             {tags}
           </Space>
 
@@ -85,7 +88,7 @@ export function ToolRow({
           ) : null}
         </div>
 
-        <div style={{ width: 200, textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ width: 210, textAlign: 'right', flexShrink: 0, paddingTop: 2 }}>
           {tool.versions.length > 1 ? (
             <Select
               size="small"
@@ -100,7 +103,7 @@ export function ToolRow({
               }))}
             />
           ) : (
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>
               {activeVersion ?? t('tool.noVersions')}
             </Text>
           )}

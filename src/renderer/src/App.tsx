@@ -3,18 +3,15 @@ import {
   Alert,
   Button,
   Card,
-  Col,
   ConfigProvider,
+  Divider,
   Empty,
   Input,
   Layout,
   List,
   Menu,
-  Row,
   Segmented,
-  Space,
   Spin,
-  Statistic,
   Tag,
   Tooltip,
   Typography
@@ -35,6 +32,20 @@ const { Header, Content, Footer } = Layout
 const { Text, Title } = Typography
 
 const ANTD_LOCALES = { 'zh-CN': zhCN, 'en-US': enUS } as const
+
+/**
+ * 工具栏上的紧凑计数。
+ * 刻意不用 Statistic：它自带 24px 的标题行和 margin，四个并排会吃掉约 90px 高度，
+ * 而这些数字只需要一眼扫到。
+ */
+function InlineStat({ label, value, tone }: { label: string; value: number; tone?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <span style={{ fontSize: 19, fontWeight: 600, lineHeight: 1, color: tone }}>{value}</span>
+      <span style={{ fontSize: 12.5, color: 'rgba(0, 0, 0, 0.45)' }}>{label}</span>
+    </div>
+  )
+}
 
 export default function App() {
   const { t } = useTranslation()
@@ -153,21 +164,26 @@ export default function App() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            paddingInline: 20,
+            gap: 10,
+            height: 52,
+            lineHeight: 'normal',
+            paddingInline: 16,
             background: '#fff',
             borderBottom: '1px solid #f0f0f0'
           }}
         >
-          <Title level={4} style={{ margin: 0 }}>
+          <Title level={5} style={{ margin: 0 }}>
             {t('app.name')}
           </Title>
-          <Text type="secondary">{t('app.tagline')}</Text>
-          {info ? <Tag>{`v${info.version}`}</Tag> : null}
+          <Text type="secondary" style={{ fontSize: 12.5 }}>
+            {t('app.tagline')}
+          </Text>
+          {info ? <Tag style={{ marginInline: 0 }}>{`v${info.version}`}</Tag> : null}
 
           <div style={{ flex: 1 }} />
 
           <Segmented
+            size="small"
             value={locale}
             onChange={(value) => void changeLocale(value as Locale)}
             options={[
@@ -182,10 +198,10 @@ export default function App() {
 
         <Content
           style={{
-            padding: 16,
+            padding: 12,
             display: 'flex',
             flexDirection: 'column',
-            gap: 12,
+            gap: 10,
             overflow: 'hidden'
           }}
         >
@@ -213,33 +229,40 @@ export default function App() {
             />
           ) : null}
 
-          <Row gutter={12}>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic title={t('summary.installed')} value={counts.installed} />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic title={t('summary.missing')} value={counts.missing} />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic title={t('summary.pathIssue')} value={counts.pathIssue} />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic title={t('summary.selected')} value={selectedCount} />
-              </Card>
-            </Col>
-          </Row>
+          {/* 一条工具栏吃掉原来的「四个统计卡 + 搜索框 + 操作按钮」，把纵向空间全部让给软件列表 */}
+          <Card size="small" styles={{ body: { padding: '8px 16px' } }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <InlineStat label={t('summary.installed')} value={counts.installed} tone="#389e0d" />
+              <Divider type="vertical" style={{ margin: 0, height: 18 }} />
+              <InlineStat label={t('summary.missing')} value={counts.missing} />
+              <Divider type="vertical" style={{ margin: 0, height: 18 }} />
+              <InlineStat label={t('summary.pathIssue')} value={counts.pathIssue} tone="#d46b08" />
+              <Divider type="vertical" style={{ margin: 0, height: 18 }} />
+              <InlineStat label={t('summary.selected')} value={selectedCount} tone="#1677ff" />
 
-          <div style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
+              <div style={{ flex: 1 }} />
+
+              <Input
+                size="small"
+                placeholder={t('common.search')}
+                allowClear
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                style={{ width: 220 }}
+              />
+              <Button size="small" loading={detecting} onClick={() => void refreshDetection()}>
+                {t('action.redetect')}
+              </Button>
+              <Button size="small" disabled={selectedCount === 0} onClick={clearSelection}>
+                {t('action.clearSelection')}
+              </Button>
+            </div>
+          </Card>
+
+          <div style={{ flex: 1, display: 'flex', gap: 10, minHeight: 0 }}>
             <Card
               size="small"
-              style={{ width: 220, flexShrink: 0 }}
+              style={{ width: 196, flexShrink: 0 }}
               styles={{ body: { padding: 4, height: '100%', overflowY: 'auto' } }}
             >
               <Menu
@@ -251,39 +274,19 @@ export default function App() {
               />
             </Card>
 
+            {/* 无标题无 extra：整张卡片就是列表，纵向空间全给内容 */}
             <Card
               size="small"
               style={{ flex: 1, minWidth: 0 }}
               styles={{
                 body: {
                   padding: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
                   height: '100%',
-                  minHeight: 0
+                  overflow: 'hidden'
                 }
               }}
-              title={
-                <Input
-                  placeholder={t('common.search')}
-                  allowClear
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  style={{ width: 280 }}
-                />
-              }
-              extra={
-                <Space>
-                  <Button size="small" loading={detecting} onClick={() => void refreshDetection()}>
-                    {t('action.redetect')}
-                  </Button>
-                  <Button size="small" disabled={selectedCount === 0} onClick={clearSelection}>
-                    {t('action.clearSelection')}
-                  </Button>
-                </Space>
-              }
             >
-              <div className="dk-scroll" style={{ flex: 1, minHeight: 0 }}>
+              <div className="dk-scroll" style={{ height: '100%' }}>
                 {detecting && tools.length === 0 ? (
                   <div style={{ padding: 40, textAlign: 'center' }}>
                     <Spin />
@@ -298,7 +301,7 @@ export default function App() {
                   />
                 ) : (
                   <List
-                    size="small"
+                    size="large"
                     dataSource={visibleTools}
                     renderItem={(tool) => (
                       <ToolRow
@@ -322,7 +325,7 @@ export default function App() {
 
         <Footer
           style={{
-            padding: '10px 20px',
+            padding: '8px 16px',
             background: '#fff',
             borderTop: '1px solid #f0f0f0',
             display: 'flex',
@@ -330,10 +333,12 @@ export default function App() {
             gap: 12
           }}
         >
-          <Text>
+          <Text style={{ fontSize: 13 }}>
             {t('summary.selected')} <Text strong>{selectedCount}</Text>
           </Text>
-          <Text type="secondary">{formatBytes(estimatedBytes)}</Text>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {formatBytes(estimatedBytes)}
+          </Text>
           <div style={{ flex: 1 }} />
           <Tooltip title={t('action.installDisabled')}>
             <span>
