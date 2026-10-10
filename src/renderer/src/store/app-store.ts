@@ -38,6 +38,18 @@ interface AppState {
   setFatalError: (message: string | null) => void
 }
 
+/**
+ * 启动流程与检测都只允许同时跑一次。
+ *
+ * 这两个闸门是必需的，不是防御性编程：
+ * React StrictMode 在开发模式下会故意把 effect 跑两遍以暴露副作用问题，
+ * 它确实抓到了 —— 不加闸门时清单加载与整轮环境检测各跑两次，
+ * 注册表被扫两遍（本机实测每次 2~9 秒），用户看到的就是启动明显变慢。
+ * 同一个闸门也顺便挡住了"重新检测"按钮连点导致的并发扫描。
+ */
+let bootstrapPromise: Promise<void> | null = null
+let detectionPromise: Promise<void> | null = null
+
 export const useAppStore = create<AppState>()((set, get) => ({
   info: null,
   locale: DEFAULT_LOCALE,
@@ -57,35 +69,53 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setFatalError: (message) => set({ fatalError: message }),
 
   /** 启动流程：读清单 → 跑检测。任一步失败都落到 fatalError，界面给出可读提示。 */
-  bootstrap: async () => {
-    try {
-      const result = await window.devkit.listManifests()
-      set({
-        tools: result.tools,
-        manifestErrors: result.errors,
-        manifestDir: result.dir,
-        fatalError: null
-      })
-    } catch (error) {
-      set({ fatalError: (error as Error).message })
-      return
-    }
-    await get().refreshDetection()
+  bootstrap: () => {
+    if (bootstrapPromise) return bootstrapPromise
+
+    const task = (async () => {
+      try {
+        const result = await window.devkit.listManifests()
+        set({
+          tools: result.tools,
+          manifestErrors: result.errors,
+          manifestDir: result.dir,
+          fatalError: null
+        })
+      } catch (error) {
+        set({ fatalError: (error as Error).message })
+        return
+      }
+      await get().refreshDetection()
+    })()
+
+    bootstrapPromise = task
+    return task
   },
 
-  refreshDetection: async () => {
-    if (get().tools.length === 0) return
-    set({ detecting: true })
-    try {
-      const results = await window.devkit.runDetection({})
-      const detections: Record<string, DetectionResult> = {}
-      for (const result of results) detections[result.toolId] = result
-      set({ detections, fatalError: null })
-    } catch (error) {
-      set({ fatalError: (error as Error).message })
-    } finally {
-      set({ detecting: false })
-    }
+  refreshDetection: () => {
+    if (detectionPromise) return detectionPromise
+
+    const task = (async () => {
+      if (get().tools.length === 0) return
+
+      set({ detecting: true })
+      try {
+        const results = await window.devkit.runDetection({})
+        const detections: Record<string, DetectionResult> = {}
+        for (const result of results) detections[result.toolId] = result
+        set({ detections, fatalError: null })
+      } catch (error) {
+        set({ fatalError: (error as Error).message })
+      } finally {
+        set({ detecting: false })
+      }
+    })()
+
+    // 完成后释放闸门，允许用户手动重新检测
+    detectionPromise = task.finally(() => {
+      detectionPromise = null
+    })
+    return detectionPromise
   },
 
   changeLocale: async (locale) => {
