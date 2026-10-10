@@ -24,11 +24,28 @@ export const IPC = {
   /** 渲染进程完成挂载后回执，主进程据此确认三端链路已通 */
   rendererReady: 'app:renderer-ready',
 
+  /** 安装：构建计划 + 预检 */
+  installPrepare: 'install:prepare',
+  /** 安装：开始执行 */
+  installStart: 'install:start',
+  /** 安装：取消 */
+  installCancel: 'install:cancel',
+  /** 读取/丢弃上次未完成的计划（FR-17 续跑） */
+  installPending: 'install:pending',
+  installDiscardPending: 'install:discard-pending',
+  /** 续跑上次未完成的计划（FR-17） */
+  installResume: 'install:resume',
+  /** 导出安装报告（FR-9） */
+  installExportReport: 'install:export-report',
+
   /** 主进程 → 渲染进程 推送日志 */
-  logLine: 'log:line'
+  logLine: 'log:line',
+
+  /** 主进程 → 渲染进程 推送安装进度 */
+  installProgress: 'install:progress'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
 
 /** 只能由主进程主动推送、渲染进程只能监听的通道 */
-export const IPC_PUSH_CHANNELS: readonly IpcChannel[] = [IPC.logLine] as const
+export const IPC_PUSH_CHANNELS: readonly IpcChannel[] = [IPC.logLine, IPC.installProgress] as const

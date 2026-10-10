@@ -1,7 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { DevkitApi } from '@shared/api'
 import { IPC } from '@shared/ipc'
-import type { DetectRequest, Locale, LogEntry } from '@shared/types'
+import type {
+  DetectRequest,
+  InstallProgressEvent,
+  Locale,
+  LogEntry,
+  PlanSelection
+} from '@shared/types'
 
 /**
  * 预加载脚本。
@@ -31,6 +37,29 @@ const api: DevkitApi = {
     ipcRenderer.on(IPC.logLine, handler)
     return () => {
       ipcRenderer.off(IPC.logLine, handler)
+    }
+  },
+
+  prepareInstall: (selections: PlanSelection[]) =>
+    ipcRenderer.invoke(IPC.installPrepare, { selections }),
+
+  startInstall: (planId: string) => ipcRenderer.invoke(IPC.installStart, planId),
+
+  cancelInstall: () => ipcRenderer.invoke(IPC.installCancel),
+
+  getPendingPlan: () => ipcRenderer.invoke(IPC.installPending),
+
+  discardPendingPlan: () => ipcRenderer.invoke(IPC.installDiscardPending),
+
+  resumeInstall: () => ipcRenderer.invoke(IPC.installResume),
+
+  exportInstallReport: () => ipcRenderer.invoke(IPC.installExportReport),
+
+  onInstallProgress: (listener: (event: InstallProgressEvent) => void) => {
+    const handler = (_event: unknown, payload: InstallProgressEvent): void => listener(payload)
+    ipcRenderer.on(IPC.installProgress, handler)
+    return () => {
+      ipcRenderer.off(IPC.installProgress, handler)
     }
   }
 }

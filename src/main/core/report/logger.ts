@@ -43,8 +43,9 @@ class Logger {
     const line = `[${entry.ts}] [${LEVEL_LABEL[level]}] [${scope}] ${message}\n`
     this.stream?.write(line)
 
-    // 开发期同步打到控制台，方便在没有 UI 的情况下排查启动问题
-    if (!this.stream || process.env.NODE_ENV !== 'production') {
+    // 开发期同步打到控制台，方便在没有 UI 的情况下排查启动问题。
+    // 跑单测时静默，否则每个下载/检测步骤都会往测试输出里刷日志。
+    if (!process.env.VITEST && (!this.stream || process.env.NODE_ENV !== 'production')) {
       const sink = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log
       sink(line.trimEnd())
     }

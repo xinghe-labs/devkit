@@ -62,7 +62,7 @@
   },
   "action": {
     "install": "Install selected",
-    "installDisabled": "Installing arrives in milestone M1",
+    "installDisabled": "Select at least one tool first",
     "redetect": "Re-scan",
     "openLogDir": "Open log folder",
     "clearSelection": "Clear selection",
@@ -83,5 +83,49 @@
     "hint": "The manifests below failed JSON Schema validation and were skipped. Fix them and re-scan.",
     "detectFailed": "Detection failed: {{message}}",
     "loadFailed": "Initialization failed: {{message}}"
+  },
+  "install": {
+    "title": "Install",
+    "preflightTitle": "Pre-install checks",
+    "preflightPassed": "All checks passed — ready to install",
+    "preflightBlocked": "Blocking issues found — cannot continue",
+    "preflightHint": "These checks report every reason that would fail up front, instead of letting you hit the wall halfway through.",
+    "start": "Start install",
+    "back": "Back to selection",
+    "running": "Installing",
+    "cancel": "Cancel",
+    "cancelRequested": "Cancel requested — finishing the current item…",
+    "close": "Close",
+    "exportReport": "Export report",
+    "reportExported": "Report saved to {{path}}",
+    "downloadSize": "About {{size}} to download",
+    "targetDir": "Install location",
+    "targetDirHint": "Per-user directory — no admin rights, no system PATH edits",
+    "overall": "Overall progress",
+    "itemList": "Tasks",
+    "finished": "Install run finished",
+    "check": {
+      "ok": "Pass",
+      "warn": "Notice",
+      "error": "Blocking"
+    },
+    "state": {
+      "pending": "Waiting",
+      "downloading": "Downloading",
+      "verifying": "Verifying",
+      "installing": "Installing",
+      "checking": "Self-check",
+      "success": "Success",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled"
+    },
+    "pending": {
+      "title": "An install run was left unfinished",
+      "body": "Plan {{id}} still has {{count}} unfinished items. Resuming re-runs only the unfinished ones; completed items are skipped.",
+      "resume": "Resume",
+      "discard": "Discard",
+      "invalid": "The previous install plan is no longer valid: {{reason}}. Please select again."
+    }
   }
 }

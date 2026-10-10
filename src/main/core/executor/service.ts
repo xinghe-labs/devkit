@@ -1,0 +1,154 @@
+import { app } from 'electron'
+import { indexById } from '@shared/manifest'
+import type {
+  InstallPlan,
+  InstallProgressEvent,
+  PendingPlanLoad,
+  PlanOptions,
+  PlanPreparation,
+  PlanSelection,
+  StartInstallResult
+} from '@shared/types'
+import { getDownloadDir, getVersionsRoot } from '../../utils/app-paths'
+import { loadManifests } from '../manifest'
+import { buildPlan, clearPendingPlan, loadPendingPlan } from '../plan'
+import { runPreflight } from '../preflight'
+import { loadConfig } from '../settings'
+import { logger } from '../report/logger'
+import { runPlan } from './index'
+
+/**
+ * 安装服务：持有当前计划与取消控制器，向 IPC 层暴露"准备 / 开始 / 取消"三个动作。
+ *
+ * 计划留在主进程而不是来回传给渲染进程 —— 渲染进程只需拿到 planId，
+ * 避免它有机会篡改即将执行的计划（渲染进程理论上不可信）。
+ */
+
+let currentPlan: InstallPlan | null = null
+let controller: AbortController | null = null
+let listener: ((event: InstallProgressEvent) => void) | null = null
+
+export function setInstallProgressListener(next: ((event: InstallProgressEvent) => void) | null): void {
+  listener = next
+}
+
+export function isInstalling(): boolean {
+  return controller !== null
+}
+
+function buildOptions(): PlanOptions {
+  const config = loadConfig()
+  return {
+    // M1a 只实现串行：并发安装的收益主要在 MSI/EXE 场景，属于 M1b
+    concurrency: 1,
+    mirrorPreference: config.mirrorPreference,
+    proxy: config.proxy,
+    createRestorePoint: config.createRestorePoint
+  }
+}
+
+export async function prepareInstall(selections: PlanSelection[]): Promise<PlanPreparation> {
+  const manifests = loadManifests()
+  const tools = manifests.tools
+  const versionsRoot = getVersionsRoot()
+
+  const plan = buildPlan({
+    selections,
+    tools,
+    options: buildOptions(),
+    devkitVersion: app.getVersion(),
+    manifestRevision: manifests.loadedAt.slice(0, 10),
+    versionsRoot
+  })
+
+  const preflight = await runPreflight({
+    plan,
+    tools: indexById(tools),
+    targetPath: versionsRoot
+  })
+
+  currentPlan = plan
+  logger.info('install', `已准备安装计划 ${plan.planId}：共 ${plan.items.length} 项`)
+  return { plan, preflight, problems: [] }
+}
+
+export function startInstall(planId: string): StartInstallResult {
+  if (!currentPlan) return { started: false, error: '没有待执行的安装计划，请重新选择' }
+  if (currentPlan.planId !== planId) {
+    return { started: false, error: '计划已失效（可能是应用重启过），请重新选择' }
+  }
+  if (controller) return { started: false, error: '已有安装任务正在进行中' }
+
+  const activeController = new AbortController()
+  controller = activeController
+
+  const plan = currentPlan
+  const { tools } = loadManifests()
+
+  void runPlan({
+    plan,
+    tools: indexById(tools),
+    downloadDir: getDownloadDir(),
+    signal: activeController.signal,
+    onUpdate: (event) => listener?.(event)
+  })
+    .then((finished) => {
+      logger.info(
+        'install',
+        `计划 ${finished.planId} 执行完毕：成功 ${finished.summary.success}，失败 ${finished.summary.failed}`
+      )
+    })
+    .catch((error: unknown) => {
+      logger.error('install', `安装流程异常终止：${(error as Error).message}`)
+      listener?.({ plan, currentItemId: null, detail: null })
+    })
+    .finally(() => {
+      controller = null
+    })
+
+  return { started: true }
+}
+
+export function cancelInstall(): boolean {
+  if (!controller) return false
+  logger.warn('install', '用户请求取消安装')
+  controller.abort()
+  return true
+}
+
+export function getPendingPlan(): PendingPlanLoad {
+  return loadPendingPlan()
+}
+
+export function discardPendingPlan(): void {
+  clearPendingPlan()
+  logger.info('install', '用户放弃了上次未完成的安装计划')
+}
+
+/** 续跑：把 pending 计划接过来当作当前计划 */
+export function adoptPendingPlan(plan: InstallPlan): void {
+  currentPlan = plan
+}
+
+/**
+ * 续跑上次未完成的安装（FR-17）。
+ * 应用重启后 currentPlan 是空的，所以要先把 pending.json 读出来接管。
+ */
+export function resumeInstall(): StartInstallResult {
+  if (controller) return { started: false, error: '已有安装任务正在进行中' }
+
+  const pending = loadPendingPlan()
+  if (pending.status === 'none') return { started: false, error: '没有可继续的安装计划' }
+  if (pending.status === 'invalid') {
+    return { started: false, error: `上次的安装计划已失效：${pending.reason}` }
+  }
+
+  adoptPendingPlan(pending.plan)
+  logger.info('install', `续跑安装计划 ${pending.plan.planId}`)
+  return startInstall(pending.plan.planId)
+}
+
+/** 导出报告时用：拿到当前计划与清单索引 */
+export function getCurrentPlan(): InstallPlan | null {
+  return currentPlan
+}

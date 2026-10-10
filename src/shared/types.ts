@@ -203,3 +203,134 @@ export interface DetectRequest {
   /** 不传或传空数组 = 检测全部 */
   toolIds?: string[]
 }
+
+/* ------------------------------------------------------------------ */
+/* 安装计划（SPEC §7.4）                                                */
+/* ------------------------------------------------------------------ */
+
+/** 镜像偏好。决定下载时哪个源排第一，其余按清单顺序排在其后 */
+export type MirrorPreference = 'official' | 'huaweicloud' | 'aliyun' | 'tuna' | 'ustc'
+
+export const MIRROR_PREFERENCES: readonly MirrorPreference[] = [
+  'official',
+  'huaweicloud',
+  'aliyun',
+  'tuna',
+  'ustc'
+] as const
+
+export type PlanItemState =
+  | 'pending'
+  | 'downloading'
+  | 'verifying'
+  | 'installing'
+  | 'checking'
+  | 'success'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled'
+
+export interface PlanItem {
+  id: string
+  version: string
+  tier: LicenseTier
+  installScope: InstallScope
+  requiresAdmin: boolean
+  requiresReboot: boolean
+  dependsOn: string[]
+  state: PlanItemState
+  attempts: number
+  error: string | null
+  /** 成功后的说明，例如"已安装，跳过" */
+  note: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  /** 实际安装目录，自检与卸载要用 */
+  installDir: string | null
+  /** 下载产物路径 */
+  archivePath: string | null
+}
+
+export interface PlanOptions {
+  concurrency: number
+  mirrorPreference: MirrorPreference
+  proxy: string | null
+  createRestorePoint: boolean
+}
+
+export interface PlanSummary {
+  total: number
+  success: number
+  failed: number
+  skipped: number
+  cancelled: number
+}
+
+export interface InstallPlan {
+  schemaVersion: 1
+  planId: string
+  createdAt: string
+  devkitVersion: string
+  manifestRevision: string
+  options: PlanOptions
+  items: PlanItem[]
+  summary: PlanSummary
+}
+
+/** 用户在选择页的勾选结果 */
+export interface PlanSelection {
+  toolId: string
+  version?: string
+}
+
+export interface PlanBuildError {
+  toolId: string
+  reason: string
+}
+
+/** 预检结果（FR-18） */
+export interface PreflightCheck {
+  id: string
+  level: 'ok' | 'warn' | 'error'
+  message: string
+}
+
+export interface PreflightResult {
+  /** 无 error 级问题则为 true */
+  ok: boolean
+  checks: PreflightCheck[]
+  totalDownloadBytes: number
+  requiresAdmin: boolean
+}
+
+/** install:prepare 的返回：计划 + 预检 + 构建期发现的问题 */
+export interface PlanPreparation {
+  plan: InstallPlan
+  preflight: PreflightResult
+  problems: PlanBuildError[]
+}
+
+export interface InstallProgressDetail {
+  received?: number
+  total?: number | null
+  source?: string
+}
+
+/** 主进程 → 渲染进程 推送的进度 */
+export interface InstallProgressEvent {
+  plan: InstallPlan
+  /** 正在处理的项目 id */
+  currentItemId: string | null
+  detail: InstallProgressDetail | null
+}
+
+/** pending.json 的读取结果（FR-17） */
+export type PendingPlanLoad =
+  | { status: 'none' }
+  | { status: 'ok'; plan: InstallPlan }
+  | { status: 'invalid'; reason: string }
+
+export interface StartInstallResult {
+  started: boolean
+  error?: string
+}

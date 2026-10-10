@@ -21,10 +21,12 @@ import zhCN from 'antd/locale/zh_CN'
 import { useTranslation } from 'react-i18next'
 import { localizedText, normalizeLocale } from '@shared/localized'
 import { pickRecommendedVersion } from '@shared/manifest'
-import { TOOL_CATEGORIES, type Locale, type ToolCategory } from '@shared/types'
+import { TOOL_CATEGORIES, type Locale, type PlanSelection, type ToolCategory } from '@shared/types'
+import { InstallFlow } from './components/InstallFlow'
 import { LogPanel } from './components/LogPanel'
 import { ToolRow } from './components/ToolRow'
 import { useAppStore, type CategoryFilter } from './store/app-store'
+import { useInstallStore } from './store/install-store'
 import { useLogStore } from './store/log-store'
 import { formatBytes } from './utils/format'
 
@@ -74,22 +76,33 @@ export default function App() {
   const appendLog = useLogStore((state) => state.append)
   const setAllLogs = useLogStore((state) => state.setAll)
 
+  const prepare = useInstallStore((state) => state.prepare)
+  const applyProgress = useInstallStore((state) => state.applyProgress)
+  const checkPending = useInstallStore((state) => state.checkPending)
+  const preparing = useInstallStore((state) => state.busy)
+
   useEffect(() => {
     let disposed = false
 
     void window.devkit.tailLog(500).then((entries) => {
       if (!disposed) setAllLogs(entries)
     })
-    const unsubscribe = window.devkit.onLogLine((entry) => {
+    const unsubscribeLog = window.devkit.onLogLine((entry) => {
       if (!disposed) appendLog(entry)
     })
+    const unsubscribeProgress = window.devkit.onInstallProgress((event) => {
+      if (!disposed) applyProgress(event)
+    })
+
     void bootstrap()
+    void checkPending()
 
     return () => {
       disposed = true
-      unsubscribe()
+      unsubscribeLog()
+      unsubscribeProgress()
     }
-  }, [appendLog, bootstrap, setAllLogs])
+  }, [appendLog, applyProgress, bootstrap, checkPending, setAllLogs])
 
   const counts = useMemo(() => {
     let installed = 0
@@ -142,6 +155,16 @@ export default function App() {
       total += spec?.sizeBytes ?? 0
     }
     return total
+  }, [tools, selected, selectedVersions])
+
+  const selections = useMemo(() => {
+    const result: PlanSelection[] = []
+    for (const tool of tools) {
+      if (selected[tool.id] !== true) continue
+      const version = selectedVersions[tool.id]
+      result.push(version ? { toolId: tool.id, version } : { toolId: tool.id })
+    }
+    return result
   }, [tools, selected, selectedVersions])
 
   const menuItems = useMemo(
@@ -340,14 +363,21 @@ export default function App() {
             {formatBytes(estimatedBytes)}
           </Text>
           <div style={{ flex: 1 }} />
-          <Tooltip title={t('action.installDisabled')}>
+          <Tooltip title={selectedCount === 0 ? t('action.installDisabled') : ''}>
             <span>
-              <Button type="primary" disabled>
+              <Button
+                type="primary"
+                disabled={selectedCount === 0}
+                loading={preparing}
+                onClick={() => void prepare(selections)}
+              >
                 {t('action.install')}
               </Button>
             </span>
           </Tooltip>
         </Footer>
+
+        <InstallFlow />
       </Layout>
     </ConfigProvider>
   )

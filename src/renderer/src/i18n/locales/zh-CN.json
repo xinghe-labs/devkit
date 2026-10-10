@@ -62,7 +62,7 @@
   },
   "action": {
     "install": "开始安装",
-    "installDisabled": "安装功能将在 M1 里程碑实现",
+    "installDisabled": "请先勾选要安装的软件",
     "redetect": "重新检测",
     "openLogDir": "打开日志目录",
     "clearSelection": "清空选择",
@@ -83,5 +83,49 @@
     "hint": "以下清单未通过 JSON Schema 校验，已跳过加载。修复后重新检测即可。",
     "detectFailed": "检测失败：{{message}}",
     "loadFailed": "初始化失败：{{message}}"
+  },
+  "install": {
+    "title": "安装",
+    "preflightTitle": "安装前预检",
+    "preflightPassed": "预检通过，可以开始安装",
+    "preflightBlocked": "存在阻断问题，无法继续",
+    "preflightHint": "预检会把注定失败的原因一次报完，而不是让你装到一半才发现。",
+    "start": "开始安装",
+    "back": "返回修改",
+    "running": "正在安装",
+    "cancel": "取消安装",
+    "cancelRequested": "已请求取消，正在收尾当前项目…",
+    "close": "关闭",
+    "exportReport": "导出报告",
+    "reportExported": "报告已保存到 {{path}}",
+    "downloadSize": "预计下载 {{size}}",
+    "targetDir": "安装位置",
+    "targetDirHint": "用户级目录，不需要管理员，不改系统 PATH",
+    "overall": "总体进度",
+    "itemList": "任务列表",
+    "finished": "安装流程结束",
+    "check": {
+      "ok": "通过",
+      "warn": "注意",
+      "error": "阻断"
+    },
+    "state": {
+      "pending": "等待",
+      "downloading": "下载中",
+      "verifying": "校验中",
+      "installing": "安装中",
+      "checking": "自检中",
+      "success": "成功",
+      "failed": "失败",
+      "skipped": "跳过",
+      "cancelled": "已取消"
+    },
+    "pending": {
+      "title": "上次有未完成的安装",
+      "body": "计划 {{id}} 还有 {{count}} 项未完成。继续只会重跑未成功的项，已成功的会跳过。",
+      "resume": "继续",
+      "discard": "放弃",
+      "invalid": "上次的安装计划已失效：{{reason}}。请重新选择。"
+    }
   }
 }

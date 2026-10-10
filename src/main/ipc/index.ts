@@ -1,12 +1,39 @@
-import { app, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { writeFile } from 'node:fs/promises'
+import { indexById } from '@shared/manifest'
 import { IPC } from '@shared/ipc'
-import type { AppInfo, DetectionResult, Locale, LogEntry, ManifestLoadResult } from '@shared/types'
+import type {
+  AppInfo,
+  DetectionResult,
+  Locale,
+  LogEntry,
+  ManifestLoadResult,
+  PendingPlanLoad,
+  PlanPreparation,
+  StartInstallResult
+} from '@shared/types'
 import { detectAll } from '../core/detect'
+import {
+  cancelInstall,
+  discardPendingPlan,
+  getCurrentPlan,
+  getPendingPlan,
+  prepareInstall,
+  resumeInstall,
+  startInstall
+} from '../core/executor/service'
 import { loadManifests } from '../core/manifest'
+import { renderPlanReport } from '../core/report/markdown'
 import { logger } from '../core/report/logger'
 import { getLocale, setLocale } from '../core/settings'
 import { getLogDir, getManifestDir } from '../utils/app-paths'
-import { asBoundedInt, asOptionalObject, asOptionalStringArray } from './validate'
+import {
+  asBoundedInt,
+  asNonEmptyString,
+  asOptionalObject,
+  asOptionalStringArray,
+  asPlanSelections
+} from './validate'
 
 type Handler<Args extends unknown[], Result> = (
   event: IpcMainInvokeEvent,
@@ -87,5 +114,43 @@ export function registerIpcHandlers(): void {
       setTimeout(() => app.quit(), Number.isFinite(delay) ? delay : 12000)
     }
     return true
+  })
+
+  handle(IPC.installPrepare, async (_event, payload: unknown): Promise<PlanPreparation> => {
+    const request = asOptionalObject(payload, 'install 请求')
+    const selections = asPlanSelections(request.selections, 'selections')
+    return prepareInstall(selections)
+  })
+
+  handle(IPC.installStart, (_event, planId: unknown): StartInstallResult =>
+    startInstall(asNonEmptyString(planId, 'planId'))
+  )
+
+  handle(IPC.installCancel, (): boolean => cancelInstall())
+
+  handle(IPC.installPending, (): PendingPlanLoad => getPendingPlan())
+
+  handle(IPC.installDiscardPending, (): boolean => {
+    discardPendingPlan()
+    return true
+  })
+
+  handle(IPC.installResume, (): StartInstallResult => resumeInstall())
+
+  handle(IPC.installExportReport, async (): Promise<string | null> => {
+    const plan = getCurrentPlan()
+    if (!plan) throw new Error('还没有可导出的安装报告')
+
+    const markdown = renderPlanReport(plan, indexById(loadManifests().tools), getLocale())
+    const result = await dialog.showSaveDialog({
+      title: '导出安装报告',
+      defaultPath: `devkit-report-${plan.planId}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+
+    if (result.canceled || !result.filePath) return null
+    await writeFile(result.filePath, markdown, 'utf8')
+    logger.info('report', `安装报告已导出：${result.filePath}`)
+    return result.filePath
   })
 }

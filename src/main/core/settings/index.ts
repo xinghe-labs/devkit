@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { normalizeLocale } from '@shared/localized'
-import { DEFAULT_LOCALE, type Locale } from '@shared/types'
+import { DEFAULT_LOCALE, type Locale, type MirrorPreference } from '@shared/types'
 import { getConfigFile } from '../../utils/app-paths'
 import { fileExists, readJsonFile, writeJsonFile } from '../../utils/fs'
 import { logger } from '../report/logger'
@@ -15,14 +15,22 @@ export interface UserConfig {
   concurrency: number
   /** 安装前创建系统还原点（FR-10） */
   createRestorePoint: boolean
+  /** 下载优先使用哪个源（FR-5） */
+  mirrorPreference: MirrorPreference
+  /** http://host:port；null = 跟随系统 */
+  proxy: string | null
 }
+
+const MIRRORS: readonly string[] = ['official', 'huaweicloud', 'aliyun', 'tuna', 'ustc']
 
 const DEFAULTS: UserConfig = {
   locale: DEFAULT_LOCALE,
   autoUpdate: true,
   manifestHotUpdate: true,
   concurrency: 1,
-  createRestorePoint: false
+  createRestorePoint: false,
+  mirrorPreference: 'official',
+  proxy: null
 }
 
 let cache: UserConfig | null = null
@@ -39,12 +47,17 @@ function systemLocale(): Locale {
 function sanitize(raw: unknown): UserConfig {
   const input = (raw ?? {}) as Partial<UserConfig>
   const concurrency = Number(input.concurrency)
+  const mirror = String(input.mirrorPreference ?? DEFAULTS.mirrorPreference)
+  const proxy = typeof input.proxy === 'string' && input.proxy.trim() !== '' ? input.proxy.trim() : null
+
   return {
     locale: normalizeLocale(input.locale ?? systemLocale()),
     autoUpdate: input.autoUpdate !== false,
     manifestHotUpdate: input.manifestHotUpdate !== false,
     concurrency: Number.isFinite(concurrency) ? Math.min(3, Math.max(1, concurrency)) : 1,
-    createRestorePoint: input.createRestorePoint === true
+    createRestorePoint: input.createRestorePoint === true,
+    mirrorPreference: MIRRORS.includes(mirror) ? (mirror as MirrorPreference) : 'official',
+    proxy
   }
 }
 

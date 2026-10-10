@@ -28,6 +28,26 @@ export function getConfigFile(): string {
   return join(getUserDataDir(), 'config.json')
 }
 
+/** 未完成安装计划的持久化位置（FR-17 重启续跑） */
+export function getPendingPlanFile(): string {
+  return join(getUserDataDir(), 'pending.json')
+}
+
+/**
+ * 用户级版本目录：%USERPROFILE%\.devkit\versions\<tool>\<version>\
+ *
+ * 装在这里而不是 Program Files，是「安装 ≠ 激活」原则的落地：
+ * 不需要管理员、不覆盖系统里已有的同名工具、不动 PATH。
+ */
+export function getVersionsRoot(): string {
+  return join(app.getPath('home'), '.devkit', 'versions')
+}
+
+/** 下载缓存目录（.part 断点文件也在这里） */
+export function getDownloadDir(): string {
+  return ensureDir(join(getUserDataDir(), 'downloads'))
+}
+
 export function getBackupDir(): string {
   return ensureDir(join(getUserDataDir(), 'backup'))
 }

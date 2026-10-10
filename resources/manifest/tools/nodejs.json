@@ -2,7 +2,7 @@
   "id": "nodejs",
   "category": "runtime",
   "tier": "L1",
-  "status": "detect-only",
+  "status": "ready",
   "provider": "direct",
   "name": { "zh-CN": "Node.js", "en-US": "Node.js" },
   "description": {
@@ -31,18 +31,78 @@
       "recommended": true,
       "arch": "x64",
       "releaseDate": "2026-09-07",
-      "installScope": "machine"
+      "sizeBytes": 37618919,
+      "installScope": "user",
+      "source": {
+        "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip",
+        "sha256": "158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/nodejs/v24.21.0/node-v24.21.0-win-x64.zip"
+        },
+        {
+          "name": "aliyun",
+          "url": "https://mirrors.aliyun.com/nodejs-release/v24.21.0/node-v24.21.0-win-x64.zip"
+        },
+        {
+          "name": "tuna",
+          "url": "https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v24.21.0/node-v24.21.0-win-x64.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": { "stripComponents": "1" }
+      },
+      "uninstall": { "type": "custom" },
+      "verify": {
+        "cmd": "{installDir}\\node.exe",
+        "args": ["-v"],
+        "expectRegex": "v24\\."
+      }
     },
     {
       "version": "24.20.0",
       "channel": "lts",
       "arch": "x64",
       "releaseDate": "2026-08-26",
-      "installScope": "machine"
+      "sizeBytes": 37539751,
+      "installScope": "user",
+      "source": {
+        "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-win-x64.zip",
+        "sha256": "6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/nodejs/v24.20.0/node-v24.20.0-win-x64.zip"
+        },
+        {
+          "name": "aliyun",
+          "url": "https://mirrors.aliyun.com/nodejs-release/v24.20.0/node-v24.20.0-win-x64.zip"
+        },
+        {
+          "name": "tuna",
+          "url": "https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v24.20.0/node-v24.20.0-win-x64.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": { "stripComponents": "1" }
+      },
+      "uninstall": { "type": "custom" },
+      "verify": {
+        "cmd": "{installDir}\\node.exe",
+        "args": ["-v"],
+        "expectRegex": "v24\\."
+      }
     }
   ],
   "notes": {
-    "zh-CN": "版本号取自 nodejs.org 官方 dist/index.json 的 LTS 通道；官方只提供 MSI，因此为系统级安装。下载地址与 SHA-256 待 M1 补齐。",
-    "en-US": "Versions from the official nodejs.org dist/index.json (LTS channel). The official installer is MSI-only, hence machine scope. URL and SHA-256 to be added in M1."
+    "zh-CN": "用官方 ZIP 而非 MSI：ZIP 解压到用户级版本目录，不需要管理员、不覆盖系统里已有的 Node、不写系统 PATH（安装 ≠ 激活）。SHA-256 取自官方 SHASUMS256.txt 并两次交叉验证一致。镜像实测速度差异极大：华为云 8.2 MB/s、官方源 191 KB/s、阿里云 162 KB/s；清华镜像滞后（只到 v24.1.0），因此 404 必须能被当成可回退错误。",
+    "en-US": "Uses the official ZIP instead of the MSI: it extracts into a per-user version directory — no admin rights, no clobbering an existing Node install, no system PATH edits (install != activate). SHA-256 comes from the official SHASUMS256.txt, cross-checked twice. Measured mirror speeds differ wildly: Huawei Cloud 8.2 MB/s vs 191 KB/s for the official host; TUNA lags (only up to v24.1.0), so a 404 must be treated as a recoverable error."
   }
 }

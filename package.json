@@ -30,7 +30,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "manifest:check": "tsx scripts/check-manifest.ts",
-    "detect": "tsx scripts/detect-report.ts"
+    "detect": "tsx scripts/detect-report.ts",
+    "install:tool": "tsx scripts/install-tool.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -43,6 +44,8 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^5.2.0",
     "ajv": "^8.20.0",
     "antd": "^6.6.5",
@@ -63,6 +66,8 @@
     "typescript-eslint": "^8.71.1",
     "vite": "^7.1.12",
     "vitest": "^5.0.3",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1",
     "zustand": "^5.0.15"
   }
 }

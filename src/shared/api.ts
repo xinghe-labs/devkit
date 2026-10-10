@@ -2,9 +2,14 @@ import type {
   AppInfo,
   DetectRequest,
   DetectionResult,
+  InstallProgressEvent,
   Locale,
   LogEntry,
-  ManifestLoadResult
+  ManifestLoadResult,
+  PendingPlanLoad,
+  PlanPreparation,
+  PlanSelection,
+  StartInstallResult
 } from './types'
 
 /**
@@ -34,4 +39,22 @@ export interface DevkitApi {
 
   /** 订阅实时日志，返回取消订阅函数 */
   onLogLine(listener: (entry: LogEntry) => void): () => void
+
+  /** 构建安装计划并跑预检（不执行任何安装） */
+  prepareInstall(selections: PlanSelection[]): Promise<PlanPreparation>
+  /** 开始执行安装；进度通过 onInstallProgress 推送 */
+  startInstall(planId: string): Promise<StartInstallResult>
+  cancelInstall(): Promise<boolean>
+
+  /** 读取上次未完成的计划（FR-17） */
+  getPendingPlan(): Promise<PendingPlanLoad>
+  discardPendingPlan(): Promise<boolean>
+  /** 续跑上次未完成的计划 */
+  resumeInstall(): Promise<StartInstallResult>
+
+  /** 导出安装报告为 Markdown；返回保存路径，用户取消则返回 null */
+  exportInstallReport(): Promise<string | null>
+
+  /** 订阅安装进度，返回取消订阅函数 */
+  onInstallProgress(listener: (event: InstallProgressEvent) => void): () => void
 }

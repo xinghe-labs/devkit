@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
 import { IPC } from '@shared/ipc'
 import { loadManifests } from './core/manifest'
+import { setInstallProgressListener } from './core/executor/service'
 import { logger } from './core/report/logger'
 import { registerIpcHandlers } from './ipc'
 import { getLogDir } from './utils/app-paths'
@@ -83,6 +84,13 @@ if (!app.requestSingleInstanceLock()) {
       logger.subscribe((entry) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(IPC.logLine, entry)
+        }
+      })
+
+      // 安装进度实时推送到渲染进程
+      setInstallProgressListener((event) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC.installProgress, event)
         }
       })
 
