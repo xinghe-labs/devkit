@@ -211,7 +211,9 @@
     "devkitModified": "devkit 已改",
     "revert": "还原",
     "revertConfirm": "确定还原这一项？",
-    "revertConfirmHint": "会写回 devkit 改动之前的原值（备份时间 {{at}}）。没有备份记录时不会执行。"
+    "revertConfirmHint": "会写回 devkit 改动之前的原值（备份时间 {{at}}）。没有备份记录时不会执行。",
+    "machinePathSync": "同步到机器级 PATH",
+    "machinePathRemove": "从机器级 PATH 移除"
   },
   "installed": {
     "title": "已安装（devkit 管理的版本目录）",

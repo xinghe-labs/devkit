@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import type { SystemConfigId, SystemConfigItem, SystemConfigRequest, SystemConfigResult } from '@shared/types'
 import { runCommand } from '../../utils/exec'
 import { getCurrentRoot } from '../../utils/app-paths'
-import { runElevated, toExecStep } from '../elevation'
+import { runElevated, toExecStep, toMachinePathStep } from '../elevation'
+import { readMachinePath } from '../activate/windows'
+import { readMachinePathState, syncMachinePath } from '../activate/machine-path'
 import { logger } from '../report/logger'
 import {
   clearBackupEntry,
@@ -179,7 +181,40 @@ export async function getSystemConfigStatus(): Promise<SystemConfigItem[]> {
     })
   )
 
-  // 5. SSH key
+  // 5. 机器级 PATH（「全局可用」，P1-2 之后新增）
+  //
+  // 只读诊断，不在这里改。要不要写由用户显式点 —— 写它要管理员权限，
+  // 而且 HKLM 的 PATH 是所有账号共享的，自动改会打架。
+  try {
+    const machine = await readMachinePathState()
+    const pendingCount = machine.pending.length
+    items.push(
+      withBackup({
+        id: 'machine-path',
+        label: { 'zh-CN': '全局可用（机器级 PATH）', 'en-US': 'Global availability (machine PATH)' },
+        requiresAdmin: true,
+        configured: machine.devkitEntries.length > 0 && pendingCount === 0,
+        detail:
+          machine.devkitEntries.length === 0
+            ? `机器级 PATH 共 ${machine.total} 条，其中没有 devkit 的条目`
+            : pendingCount > 0
+              ? `已放 ${machine.devkitEntries.length} 条，还有 ${pendingCount} 条待同步`
+              : `已放 ${machine.devkitEntries.length} 条，与已激活工具一致`,
+        hint: {
+          'zh-CN':
+            '把已激活工具的路径也写进机器级 PATH，让提权进程（管理员终端、服务）也能找到它们。' +
+            '需要管理员权限，且只对当前用户的提权进程有效；要让别的账号也能用，dataRoot 得放在共享位置。',
+          'en-US':
+            'Also writes activated tool paths into the machine PATH so elevated processes (admin shells, services) can find them. ' +
+            'Requires admin, and only helps elevated processes of this user — other accounts need dataRoot on a shared location.'
+        }
+      })
+    )
+  } catch (error) {
+    logger.warn('system', `读取机器级 PATH 状态失败：${(error as Error).message}`)
+  }
+
+  // 6. SSH key
   const keyPath = join(sshDir(), 'id_ed25519')
   const hasKey = existsSync(keyPath)
   items.push(
@@ -369,6 +404,47 @@ export async function applySystemConfig(request: SystemConfigRequest): Promise<S
         }
       }
 
+      case 'machine-path': {
+        const mode = request.machinePathMode === 'remove' ? 'remove' : 'add'
+
+        // 改之前先把机器 PATH 原文记下来（整串存，还原时整串写回）
+        const beforeRaw = await readMachinePath()
+        const beforeCount = beforeRaw.split(';').filter((entry) => entry.trim() !== '').length
+
+        const result = await syncMachinePath(mode, async (value) => {
+          const outcome = await runElevated([toMachinePathStep('写入机器级 PATH', value)])
+          return {
+            ok: outcome.ok,
+            error: outcome.cancelled ? '用户取消了管理员授权' : (outcome.error ?? null)
+          }
+        })
+
+        if (!result.ok) throw new Error(result.error ?? '同步机器级 PATH 失败')
+
+        // 真的改了才记账 —— 没改成就别留还原点
+        if (result.added.length > 0 || result.removed.length > 0) {
+          recordBackup({
+            id: 'machine-path',
+            kind: 'machine-path',
+            value: beforeRaw,
+            entryCount: beforeCount,
+            backedUpAt: new Date().toISOString()
+          })
+        }
+
+        return {
+          ok: true,
+          detail:
+            result.added.length > 0
+              ? `已加入 ${result.added.length} 条，机器级 PATH 现共 ${result.totalAfter} 条`
+              : result.removed.length > 0
+                ? `已移除 ${result.removed.length} 条，机器级 PATH 现共 ${result.totalAfter} 条`
+                : '机器级 PATH 无需改动',
+          error: null,
+          requiresAdmin: result.added.length > 0 || result.removed.length > 0
+        }
+      }
+
       case 'long-paths':
         return await setRegistryConfig(REG_LONG_PATHS)
 
@@ -501,6 +577,45 @@ export async function revertSystemConfig(id: SystemConfigId): Promise<SystemConf
         return { ok: true, detail: `执行策略已还原为 ${entry.value}`, error: null, requiresAdmin: false }
       }
 
+      case 'machine-path': {
+        const outcome = await runElevated([
+          toMachinePathStep('还原机器级 PATH', entry.value)
+        ])
+        if (!outcome.ok) {
+          throw new Error(outcome.cancelled ? '用户取消了管理员授权' : (outcome.error ?? '机器级 PATH 还原失败'))
+        }
+
+        // 复验：逐条比对，不只是"条数对得上"
+        const afterRaw = await readMachinePath()
+        const afterEntries = afterRaw
+          .split(';')
+          .map((item) => item.trim())
+          .filter((item) => item !== '')
+        const expected = entry.value
+          .split(';')
+          .map((item) => item.trim())
+          .filter((item) => item !== '')
+
+        const same =
+          afterEntries.length === expected.length &&
+          afterEntries.every((item, index) => item.toLowerCase() === expected[index].toLowerCase())
+
+        if (!same) {
+          throw new Error(
+            `还原后复验不通过：期望 ${expected.length} 条，实际 ${afterEntries.length} 条`
+          )
+        }
+
+        clearBackupEntry(id)
+        logger.info('system', `机器级 PATH 已还原为 devkit 改动之前的 ${expected.length} 条`)
+        return {
+          ok: true,
+          detail: `机器级 PATH 已还原（${expected.length} 条）`,
+          error: null,
+          requiresAdmin: true
+        }
+      }
+
       default:
         throw new Error(`不支持还原的记录类型：${String((entry as { kind?: string }).kind)}`)
     }
@@ -511,7 +626,7 @@ export async function revertSystemConfig(id: SystemConfigId): Promise<SystemConf
       ok: false,
       detail: null,
       error: message,
-      requiresAdmin: id === 'long-paths' || id === 'developer-mode'
+      requiresAdmin: id === 'long-paths' || id === 'developer-mode' || id === 'machine-path'
     }
   }
 }

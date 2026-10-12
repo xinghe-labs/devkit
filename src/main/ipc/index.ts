@@ -68,7 +68,8 @@ const SYSTEM_CONFIG_IDS: SystemConfigId[] = [
   'powershell-policy',
   'long-paths',
   'developer-mode',
-  'ssh-key'
+  'ssh-key',
+  'machine-path'
 ]
 import { checkForUpdate, downloadUpdate } from '../core/updater'
 import { getVscodeStatus, installVscodeExtensions, listVscodeExtensions } from '../core/vscode'
@@ -550,7 +551,11 @@ export function registerIpcHandlers(): void {
     const id = asNonEmptyString(request.id, 'id', 40) as SystemConfigId
     const gitName = typeof request.gitName === 'string' ? request.gitName : undefined
     const gitEmail = typeof request.gitEmail === 'string' ? request.gitEmail : undefined
-    return applySystemConfig({ id, gitName, gitEmail })
+    const machinePathMode =
+      request.machinePathMode === 'add' || request.machinePathMode === 'remove'
+        ? request.machinePathMode
+        : undefined
+    return applySystemConfig({ id, gitName, gitEmail, machinePathMode })
   })
 
   handle(IPC.systemRevert, async (_event, payload: unknown): Promise<SystemConfigResult> => {

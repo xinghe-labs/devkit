@@ -674,6 +674,7 @@ export type SystemConfigId =
   | 'long-paths'
   | 'developer-mode'
   | 'ssh-key'
+  | 'machine-path'
 
 export interface SystemConfigItem {
   id: SystemConfigId
@@ -700,6 +701,8 @@ export interface SystemConfigRequest {
   id: SystemConfigId
   gitName?: string
   gitEmail?: string
+  /** 仅 machine-path 用：add = 把已激活工具写进机器 PATH；remove = 移除 devkit 的条目 */
+  machinePathMode?: 'add' | 'remove'
 }
 
 export interface SystemConfigResult {

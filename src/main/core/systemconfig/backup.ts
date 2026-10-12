@@ -56,10 +56,21 @@ export interface ExecutionPolicyBackupEntry {
   backedUpAt: string
 }
 
+export interface MachinePathBackupEntry {
+  id: 'machine-path'
+  kind: 'machine-path'
+  /** 机器级 PATH 原文（整串，还原时整串写回） */
+  value: string
+  /** 条目数，仅用于展示 */
+  entryCount: number
+  backedUpAt: string
+}
+
 export type SystemConfigBackupEntry =
   | RegistryBackupEntry
   | GitConfigBackupEntry
   | ExecutionPolicyBackupEntry
+  | MachinePathBackupEntry
 
 export interface SystemConfigBackup {
   schemaVersion: number

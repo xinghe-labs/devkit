@@ -364,6 +364,29 @@ export function SettingsDrawer() {
                         {t('settings.apply')}
                       </Button>
                     </Space>
+                  ) : item.id === 'machine-path' ? (
+                    // 「全局可用」是显式动作，不是自动行为：写 HKLM 的 PATH 要管理员权限，
+                    // 而且所有账号共享，自动改会打架。所以给两个明确的按钮。
+                    <Space key="machine-path" size={4}>
+                      <Button
+                        size="small"
+                        type="primary"
+                        loading={busy}
+                        disabled={item.configured}
+                        onClick={() => void applySystemConfig({ id: 'machine-path', machinePathMode: 'add' })}
+                      >
+                        {t('settings.machinePathSync')}
+                      </Button>
+                      <Button
+                        size="small"
+                        loading={busy}
+                        onClick={() =>
+                          void applySystemConfig({ id: 'machine-path', machinePathMode: 'remove' })
+                        }
+                      >
+                        {t('settings.machinePathRemove')}
+                      </Button>
+                    </Space>
                   ) : (
                     <Button
                       key={item.id}

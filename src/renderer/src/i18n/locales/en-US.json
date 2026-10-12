@@ -211,7 +211,9 @@
     "devkitModified": "changed by devkit",
     "revert": "Revert",
     "revertConfirm": "Revert this item?",
-    "revertConfirmHint": "Writes back the value from before devkit changed it (backed up {{at}}). Refused if no backup exists."
+    "revertConfirmHint": "Writes back the value from before devkit changed it (backed up {{at}}). Refused if no backup exists.",
+    "machinePathSync": "Sync to machine PATH",
+    "machinePathRemove": "Remove from machine PATH"
   },
   "installed": {
     "title": "Installed (devkit-managed version dirs)",
