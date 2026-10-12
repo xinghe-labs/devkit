@@ -116,6 +116,16 @@ export function getCurrentRoot(): string {
   return join(getDataRoot(), 'current')
 }
 
+/**
+ * 更新包下载目录：<dataRoot>\updates\
+ *
+ * 放在 dataRoot 下而不是 %TEMP%：安装包有 100 MB 级，用户可能想留着
+ * （比如装完发现要给别人拷一份），放临时目录会被系统清掉。
+ */
+export function getUpdateDir(): string {
+  return ensureDir(join(getDataRoot(), 'updates'))
+}
+
 /** 预留给未来的 shim 目录：<dataRoot>\bin */
 export function getShimDir(): string {
   return join(getDataRoot(), 'bin')

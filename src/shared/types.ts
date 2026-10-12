@@ -583,12 +583,25 @@ export interface VscodeInstallResult {
   error: string | null
 }
 
+/** 更新包下载结果（FR-13） */
+export interface DownloadUpdateResult {
+  ok: boolean
+  filePath: string | null
+  bytes: number
+  /** 实际校验结果；索引里没给哈希时为 null */
+  verified: boolean | null
+  error: string | null
+}
+
 /** 更新检查结果（FR-13） */
 export interface UpdateInfo {
   hasUpdate: boolean
   currentVersion: string
   latestVersion: string | null
   downloadUrl: string | null
+  /** 期望的 SHA-256（来自更新索引；没有就为 null，下载时不强校验但会告警） */
+  downloadSha256: string | null
+  sizeBytes: number | null
   notes: string | null
   error: string | null
 }

@@ -95,6 +95,10 @@ export default function App() {
   const loadSettings = useManageStore((state) => state.loadSettings)
   const loadPresets = useManageStore((state) => state.loadPresets)
   const loadInstalled = useManageStore((state) => state.loadInstalled)
+  const checkUpdate = useManageStore((state) => state.checkUpdate)
+  const updateInfo = useManageStore((state) => state.updateInfo)
+  const updateDownloading = useManageStore((state) => state.updateDownloading)
+  const downloadAndInstallUpdate = useManageStore((state) => state.downloadAndInstallUpdate)
 
   useEffect(() => {
     if (!notice) return
@@ -121,6 +125,17 @@ export default function App() {
     void loadPresets()
     void loadInstalled()
 
+    // 启动时自动检查更新：只在这两件事都就绪后做（开关打开 + 配了更新源）。
+    // 刻意静默失败 —— 更新源不可达不该打扰用户。
+    void (async () => {
+      try {
+        const settings = await window.devkit.getSettings()
+        if (settings.autoUpdate && settings.updateFeedUrl) await checkUpdate()
+      } catch {
+        // 忽略：更新检查失败不影响使用
+      }
+    })()
+
     return () => {
       disposed = true
       unsubscribeLog()
@@ -131,6 +146,7 @@ export default function App() {
     applyProgress,
     bootstrap,
     checkPending,
+    checkUpdate,
     loadInstalled,
     loadPresets,
     loadSettings,
@@ -280,6 +296,25 @@ export default function App() {
                     ))}
                   </ul>
                 </div>
+              }
+            />
+          ) : null}
+
+          {updateInfo?.hasUpdate ? (
+            <Alert
+              type="info"
+              showIcon
+              message={t('update.available', { version: updateInfo.latestVersion ?? '' })}
+              description={t('update.hint')}
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  loading={updateDownloading}
+                  onClick={() => void downloadAndInstallUpdate()}
+                >
+                  {updateDownloading ? t('update.downloading') : t('update.downloadAndInstall')}
+                </Button>
               }
             />
           ) : null}

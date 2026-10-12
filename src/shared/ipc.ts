@@ -66,8 +66,10 @@ export const IPC = {
   vscodeList: 'vscode:list',
   vscodeInstall: 'vscode:install',
 
-  /** 更新检查（FR-13） */
+  /** 更新检查与半自动升级（FR-13） */
   updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
 
   /** 系统配置（FR-6） */
   systemStatus: 'system:status',

@@ -18,6 +18,17 @@ jobs:
     name: build / verify / publish
     runs-on: windows-latest
 
+    # 把 secret 提到 env 再在 if 里判断：GitHub Actions 的 secrets 上下文
+    # 在 step 级 if 里不可靠，用 env 是通行做法。
+    # 只要 SIGNPATH_API_TOKEN 没配，下面所有签名步骤都会整段跳过，产物仍是未签名的，
+    # 流水线不会因此变红。
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'devkit' }}
+      SIGNPATH_POLICY_SLUG: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+      SIGNPATH_ARTIFACT_CONFIG_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIG_SLUG || 'nsis-installer' }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -84,10 +95,73 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($process.ExitCode)" }
           Write-Host "冒烟测试通过"
 
+      # ---------------- 代码签名（SignPath，未配置时整段跳过） ----------------
+      # 为什么必须签：未签名的 exe 双击会被 SmartScreen 全屏拦截，而目标用户
+      # 正是「刚装完系统、第一件事就是下载这个 exe」的人 —— 到这里就流失了。
+      # 申请与配置步骤见 docs/CODE-SIGNING.md。
+
+      - name: 上传未签名产物（SignPath 需要先有 artifact）
+        if: env.SIGNPATH_API_TOKEN != ''
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: release/devkit-*-setup.exe
+          if-no-files-found: error
+
+      - name: 提交 SignPath 签名请求
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIG_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: 用签名后的产物替换未签名的那份
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem signed -Recurse -Filter 'devkit-*-setup.exe' | Select-Object -First 1
+          if (-not $signed) { throw '签名输出目录里没有找到 setup.exe' }
+          $target = Join-Path $PWD ('release/' + $signed.Name)
+          Copy-Item $signed.FullName $target -Force
+          Write-Host "已用签名后的产物替换：$target"
+
+          # 签名后体积会变，更新索引里的 SHA-256 必须重算，否则更新检查会拿到对不上的哈希
+          pnpm release:index
+
+      - name: 核对签名状态
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          # 用 .NET 直接读签名，不依赖 Get-AuthenticodeSignature
+          # （实测有些机器的 PowerShell 缺 Microsoft.PowerShell.Security 模块）
+          $exe = (Get-ChildItem release -Filter 'devkit-*-setup.exe' | Select-Object -First 1).FullName
+          try {
+            $cert = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($exe)
+            Write-Host "签名者：$($cert.Subject)"
+            Write-Host "有效期至：$($cert.GetExpirationDateString())"
+          } catch {
+            throw "产物仍未签名：$($_.Exception.Message)"
+          }
+
+      - name: 未配置签名（提示）
+        if: env.SIGNPATH_API_TOKEN == ''
+        run: |
+          Write-Host "::warning::SIGNPATH_API_TOKEN 未配置，本次产物未签名。"
+          Write-Host "未签名的 exe 会被 SmartScreen 拦截，详见 docs/CODE-SIGNING.md"
+
       - name: 发布到 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          # body_path 会与自动生成的变更记录合并：先放"请先读这一段"，再是提交列表
+          body_path: .github/release-notice.md
           generate_release_notes: true
           files: |
             release/devkit-*-setup.exe

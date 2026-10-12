@@ -38,6 +38,10 @@ interface ManageState {
   hotUpdateResult: HotUpdateResultView | null
   systemConfig: SystemConfigItem[]
   updateInfo: UpdateInfo | null
+  /** 已下载好的更新包路径；null = 还没下载 */
+  updateFilePath: string | null
+  /** 更新包是否正在下载 */
+  updateDownloading: boolean
   vscodeOpen: boolean
   vscodeStatus: VscodeStatus | null
   vscodeExtensions: VscodeExtension[]
@@ -75,6 +79,8 @@ interface ManageState {
   applySystemConfig: (request: SystemConfigRequest) => Promise<void>
 
   checkUpdate: () => Promise<void>
+  /** 下载更新包（校验 SHA-256）并直接拉起安装程序 */
+  downloadAndInstallUpdate: () => Promise<void>
 
   openVscode: (open: boolean) => void
   loadVscode: () => Promise<void>
@@ -96,6 +102,8 @@ export const useManageStore = create<ManageState>()((set, get) => ({
   hotUpdateResult: null,
   systemConfig: [],
   updateInfo: null,
+  updateFilePath: null,
+  updateDownloading: false,
   vscodeOpen: false,
   vscodeStatus: null,
   vscodeExtensions: [],
@@ -408,6 +416,38 @@ export const useManageStore = create<ManageState>()((set, get) => ({
       set({ notice: { kind: 'error', text: describeError(error) } })
     } finally {
       set({ busy: false })
+    }
+  },
+
+  downloadAndInstallUpdate: async () => {
+    const info = get().updateInfo
+    if (!info?.hasUpdate) {
+      set({ notice: { kind: 'info', text: '当前没有可安装的更新' } })
+      return
+    }
+
+    set({ updateDownloading: true, updateFilePath: null })
+    try {
+      const result = await window.devkit.downloadUpdate()
+      if (!result.ok || !result.filePath) {
+        throw new Error(result.error ?? '下载更新包失败')
+      }
+
+      set({ updateFilePath: result.filePath })
+      await window.devkit.installUpdate(result.filePath)
+
+      set({
+        notice: {
+          kind: 'success',
+          text:
+            '安装包已打开，请按提示完成安装（devkit 会在安装完成后关闭）。' +
+            (result.verified === false ? ' 注意：更新源未提供校验和，本次未做完整性校验。' : '')
+        }
+      })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ updateDownloading: false })
     }
   },
 

@@ -5,6 +5,7 @@ import type {
   AppInfo,
   DetectRequest,
   DetectionResult,
+  DownloadUpdateResult,
   InstallProgressEvent,
   InstalledTool,
   Locale,
@@ -103,8 +104,12 @@ export interface DevkitApi {
   listVscodeExtensions(): Promise<VscodeExtension[]>
   installVscodeExtensions(ids: string[]): Promise<VscodeInstallResult>
 
-  /* ---------------- 更新检查（FR-13） ---------------- */
+  /* ---------------- 更新检查与半自动升级（FR-13） ---------------- */
   checkForUpdate(): Promise<UpdateInfo>
+  /** 下载更新包到本地并校验 SHA-256（校验不过会丢弃，不会拿去安装） */
+  downloadUpdate(): Promise<DownloadUpdateResult>
+  /** 拉起已下载的安装包（只允许 devkit 自己下载目录下的 exe） */
+  installUpdate(filePath: string): Promise<boolean>
 
   /* ---------------- 系统配置（FR-6） ---------------- */
   getSystemConfig(): Promise<SystemConfigItem[]>

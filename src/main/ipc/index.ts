@@ -1,5 +1,5 @@
 import { app, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
-import { isAbsolute, join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { indexById } from '@shared/manifest'
 import { IPC } from '@shared/ipc'
@@ -10,6 +10,7 @@ import type {
   ActivationSnapshot,
   AppInfo,
   DetectionResult,
+  DownloadUpdateResult,
   HotUpdateResultView,
   InstalledTool,
   Locale,
@@ -50,7 +51,7 @@ import { loadManifests } from '../core/manifest'
 import { importOfflinePack, packOffline } from '../core/offline'
 import { clearUserManifests, runHotUpdate } from '../core/hotupdate'
 import { applySystemConfig, getSystemConfigStatus } from '../core/systemconfig'
-import { checkForUpdate } from '../core/updater'
+import { checkForUpdate, downloadUpdate } from '../core/updater'
 import { getVscodeStatus, installVscodeExtensions, listVscodeExtensions } from '../core/vscode'
 import { deleteUserPreset, importPreset, listPresets, saveUserPreset } from '../core/presets'
 import { renderPlanReport } from '../core/report/markdown'
@@ -59,7 +60,13 @@ import { getRendererErrors } from '../core/report/renderer-errors'
 import { runSmokeCapture } from '../core/report/smoke'
 import { getConfigView, getLocale, loadConfig, saveConfigView, setLocale } from '../core/settings'
 import { listInstalledWithSize, uninstallVersion } from '../core/uninstall'
-import { getDownloadDir, getLogDir, getManifestDir, getOfflineDir } from '../utils/app-paths'
+import {
+  getDownloadDir,
+  getLogDir,
+  getManifestDir,
+  getOfflineDir,
+  getUpdateDir
+} from '../utils/app-paths'
 import {
   asBoundedInt,
   IpcValidationError,
@@ -319,6 +326,55 @@ export function registerIpcHandlers(): void {
     return true
   })
 
+  /**
+   * 下载更新包并校验 SHA-256。
+   *
+   * 刻意不让渲染进程传 URL：URL 由主进程自己重新查一次更新源拿到，
+   * 否则渲染进程被注入后可以让我们去下载任意地址、再拉起执行。
+   */
+  handle(IPC.updateDownload, async (): Promise<DownloadUpdateResult> => {
+    const config = loadConfig()
+    if (!config.updateFeedUrl) throw new Error('还没有配置更新源')
+
+    const info = await checkForUpdate({
+      feedUrl: config.updateFeedUrl,
+      currentVersion: app.getVersion(),
+      proxy: config.proxy
+    })
+    if (!info.hasUpdate || !info.downloadUrl) {
+      throw new Error(info.error ?? '当前没有可下载的更新包')
+    }
+
+    logger.info('updater', `开始下载更新包：${info.latestVersion} → ${info.downloadUrl}`)
+    return downloadUpdate({
+      url: info.downloadUrl,
+      sha256: info.downloadSha256,
+      targetDir: getUpdateDir(),
+      proxy: config.proxy
+    })
+  })
+
+  /**
+   * 拉起已下载的安装包。
+   *
+   * 安全边界：**只允许拉起 devkit 自己下载目录下的 .exe**。
+   * 否则渲染进程被注入后，「打开更新包」就等于一条任意程序执行通道。
+   */
+  handle(IPC.updateInstall, async (_event, filePath: unknown): Promise<boolean> => {
+    const target = asNonEmptyString(filePath, 'filePath', 1000)
+    const updateDir = getUpdateDir()
+    const normalized = resolve(target)
+    if (!normalized.toLowerCase().startsWith(updateDir.toLowerCase())) {
+      throw new Error(`只能安装 devkit 自己下载的更新包（${updateDir} 之内）`)
+    }
+    if (!/\.exe$/i.test(normalized)) throw new Error('更新包必须是 .exe')
+
+    const message = await shell.openPath(normalized)
+    if (message !== '') throw new Error(`无法拉起安装包：${message}`)
+    logger.info('updater', `已拉起安装包：${normalized}`)
+    return true
+  })
+
   /* ---------------- VS Code 插件（FR-7） ---------------- */
 
   handle(IPC.vscodeStatus, (): Promise<VscodeStatus> => getVscodeStatus())
@@ -340,6 +396,8 @@ export function registerIpcHandlers(): void {
         currentVersion: app.getVersion(),
         latestVersion: null,
         downloadUrl: null,
+        downloadSha256: null,
+        sizeBytes: null,
         notes: null,
         error: '还没有配置更新源（设置 → 关于 → 更新源）'
       }

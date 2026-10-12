@@ -7,6 +7,23 @@
 [![CI](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> [!WARNING]
+> **早期版本（v0.2.x）· 安装包未签名 —— 公开试用，但请先读完这一段**
+>
+> - **安装包没有代码签名。** Windows SmartScreen 会弹「Windows 已保护你的电脑」。
+>   这是**预期行为**（不是文件损坏、也不是被篡改），点「更多信息」→「仍要运行」即可。
+>   签名正在通过 [SignPath](https://signpath.org/)（开源项目免费）申请中，接入步骤见
+>   [docs/CODE-SIGNING.md](./docs/CODE-SIGNING.md)。
+> - **还没在「全新 Windows 机器」上做过端到端验收。** devkit 的定位是「在什么都没装的机器上装环境」，
+>   但目前的真机验证都是在**已经装好 Node/Python/Git/Maven 的开发机**上做的。
+>   已知未验证项逐条列在 [docs/VERIFICATION.md](./docs/VERIFICATION.md) §5，不藏。
+> - **目前只在 Windows 11（中文系统 + 中文用户名）上验证过。** SPEC 声明的最低支持是
+>   Windows 10 22H2，英文系统只跑过 CI 的界面冒烟。
+> - **机器级安装（MSI + UAC 提权）没有真机验证过**，只有协议级测试。
+>
+> 结论：**欢迎试用并提 issue，但别拿它当生产环境的一次性方案。**
+> 补完「签名」与「干净机器验收」之后才会去掉这个警告。
+
 ---
 
 ## 它解决什么问题
@@ -329,17 +346,79 @@ set DEVKIT_DATA_ROOT=D:\devkit
 ## English
 
 **devkit** is a Windows desktop app that sets up a development environment on a fresh
-machine in one click — installing, configuring (mirrors, PATH, git, SSH) and verifying
+machine in one click — installing, configuring (mirrors, PATH, git, SSH) and **verifying**
 (post-install self-check) the tools you select.
 
-- 19 manifests (16 installable, 3 detect-only), per-user by default, no admin required
-  except for the single machine-scope MSI (7-Zip)
-- **Install ≠ activate**: files land in `%USERPROFILE%\.devkit\versions\`; activation
-  (junction + user PATH + env vars) is a separate, reversible step
-- Presets, multi-version switching, offline packs, uninstall, manifest hot-update with a
-  strict field whitelist, zero telemetry
-- License: MIT · Requirements: Windows 10 22H2+ x64, Node.js ≥ 20, pnpm ≥ 9
-- See [SPEC.md](./SPEC.md) for the full specification (written in Chinese)
+It is not a package downloader — winget / Chocolatey / Scoop already do that. devkit covers
+the three things they leave out:
+
+1. Not knowing which version to install, where it goes, or what else has to be configured
+2. Getting the tool installed but PATH / env vars / mirrors unset, so it does not run (or runs
+   painfully slowly)
+3. Failures halfway through with no idea which step broke
+
+### ⚠️ Early version — the installer is NOT code-signed
+
+- **Windows SmartScreen will warn you.** This is expected (not corruption, not tampering).
+  Click *More info* → *Run anyway*. Code signing is being applied for via SignPath; see
+  [docs/CODE-SIGNING.md](./docs/CODE-SIGNING.md).
+- **Never verified end-to-end on a genuinely fresh Windows machine.** The stated premise is
+  "a machine with nothing installed", but all real-machine testing so far happened on a dev box
+  that already had Node/Python/Git/Maven. Every unverified item is listed in
+  [docs/VERIFICATION.md](./docs/VERIFICATION.md) §5.
+- Only verified on Windows 11 (Chinese locale). The declared minimum is Windows 10 22H2.
+- Machine-scope installs (MSI + UAC elevation) have protocol-level tests only.
+
+**Verdict: try it and file issues, but do not rely on it as a one-shot setup for a machine you
+care about — yet.**
+
+### Install
+
+Download from [Releases](https://github.com/xinghe-labs/devkit/releases):
+
+| File | Use |
+| --- | --- |
+| `devkit-<version>-setup.exe` | Installer (Start Menu / desktop shortcut, supports the in-app update flow) |
+| `devkit-<version>-portable.exe` | Portable, no install |
+| `latest.json` | Update index (SHA-256 + size of both artifacts) |
+
+### How it works
+
+1. Pick a **preset** (Frontend / Java / Python / Go / Rust / C++ / Full-stack / AI coding /
+   Essentials) or tick tools manually
+2. **Preflight** checks OS build, disk space, download-source reachability, admin needs
+3. **Download** with mirror fallback, resume, and mandatory SHA-256 verification
+4. **Install** into `<data-root>\versions\<tool>\<version>\` — per-user, no admin, your
+   existing tools untouched
+5. **Activate** (opt-in) wires the version into your user PATH and env vars via a junction, so
+   switching versions never rewrites PATH
+6. **Self-check** runs the tool's own `--version` **by absolute path**, then verifies the command
+   resolves to devkit's copy from a fresh-terminal environment
+
+### Key design decisions
+
+- **Install ≠ activate.** Installing never touches PATH, `Program Files`, or HKLM. Activation is
+  a separate, reversible step with a PATH backup and exact rollback.
+- **Per-user by default.** Only one manifest (7-Zip) needs admin, and then only one UAC prompt
+  for the whole plan.
+- **Manifests are data.** Adding a tool = adding one JSON file. Install commands come from a
+  code-side template whitelist — a manifest can name a template, never define a command.
+- **Mirror configuration writes only its own block**, so your private registries, tokens and
+  proxy settings survive.
+- **Zero telemetry.**
+
+### Status
+
+- 25 manifests (22 installable, 3 detect-only), 9 install templates
+- 361 unit tests; CI runs lint / typecheck / manifest validation / tests plus a UI smoke job
+  that fails on any renderer error
+- Independent adversarial security review: 3 high / 3 medium / 1 low findings, all fixed with
+  regression tests — see [docs/security-review.md](./docs/security-review.md)
+- License: MIT · Requires Windows 10 22H2+ x64
+
+Design docs ([SPEC.md](./SPEC.md), [docs/VERIFICATION.md](./docs/VERIFICATION.md),
+[docs/market-research.md](./docs/market-research.md)) are written in Chinese — the product UI
+itself is fully bilingual (zh-CN / en-US).
 
 ## License
 

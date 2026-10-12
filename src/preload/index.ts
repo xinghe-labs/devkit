@@ -95,8 +95,10 @@ const api: DevkitApi = {
   listVscodeExtensions: () => ipcRenderer.invoke(IPC.vscodeList),
   installVscodeExtensions: (ids: string[]) => ipcRenderer.invoke(IPC.vscodeInstall, ids),
 
-  /* ---------------- 更新检查 ---------------- */
+  /* ---------------- 更新检查与半自动升级 ---------------- */
   checkForUpdate: () => ipcRenderer.invoke(IPC.updateCheck),
+  downloadUpdate: () => ipcRenderer.invoke(IPC.updateDownload),
+  installUpdate: (filePath: string) => ipcRenderer.invoke(IPC.updateInstall, filePath),
 
   /* ---------------- 系统配置 ---------------- */
   getSystemConfig: () => ipcRenderer.invoke(IPC.systemStatus),

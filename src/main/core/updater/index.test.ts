@@ -42,3 +42,62 @@ describe('更新索引解析', () => {
     expect(parseUpdateIndex('whatever: 1', SOURCE).version).toBeNull()
   })
 })
+
+describe('更新索引解析（latest.json 带校验和）', () => {
+  const SOURCE = 'https://example.com/devkit/latest.json'
+
+  it('从 checksums / sizes 里按文件名取出 SHA-256 与体积', () => {
+    const parsed = parseUpdateIndex(
+      JSON.stringify({
+        version: '0.3.0',
+        url: 'devkit-0.3.0-setup.exe',
+        checksums: { 'devkit-0.3.0-setup.exe': 'A'.repeat(64) },
+        sizes: { 'devkit-0.3.0-setup.exe': 110934455 },
+        notes: '修了几个 bug'
+      }),
+      SOURCE
+    )
+
+    expect(parsed.version).toBe('0.3.0')
+    expect(parsed.downloadUrl).toBe('https://example.com/devkit/devkit-0.3.0-setup.exe')
+    // 大写会被规范成小写，方便后面直接比对
+    expect(parsed.sha256).toBe('a'.repeat(64))
+    expect(parsed.sizeBytes).toBe(110934455)
+    expect(parsed.notes).toBe('修了几个 bug')
+  })
+
+  it('checksums 里没有对应文件名时不猜（返回 null，下载时告警而不是假装校验过）', () => {
+    const parsed = parseUpdateIndex(
+      JSON.stringify({
+        version: '0.3.0',
+        url: 'devkit-0.3.0-setup.exe',
+        checksums: { 'other-file.exe': 'a'.repeat(64) }
+      }),
+      SOURCE
+    )
+    expect(parsed.downloadUrl).not.toBeNull()
+    expect(parsed.sha256).toBeNull()
+  })
+
+  it('checksums 里给了非 64 位十六进制时也当没有（不让脏数据进校验路径）', () => {
+    const parsed = parseUpdateIndex(
+      JSON.stringify({
+        version: '0.3.0',
+        url: 'a.exe',
+        checksums: { 'a.exe': 'not-a-hash' }
+      }),
+      SOURCE
+    )
+    expect(parsed.sha256).toBeNull()
+  })
+
+  it('latest.yml 格式仍然能解析（只是没有校验和）', () => {
+    const parsed = parseUpdateIndex(
+      ['version: v0.4.0', 'path: devkit Setup 0.4.0.exe', ''].join('\n'),
+      'https://example.com/devkit/latest.yml'
+    )
+    expect(parsed.version).toBe('0.4.0')
+    expect(parsed.downloadUrl).toContain('devkit%20Setup%200.4.0.exe')
+    expect(parsed.sha256).toBeNull()
+  })
+})
