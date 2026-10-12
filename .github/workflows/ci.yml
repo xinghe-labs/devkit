@@ -64,6 +64,24 @@ jobs:
       - name: 构建
         run: pnpm build
 
+      # pnpm 的 store 命中缓存时（reused N / downloaded 0），electron 的 postinstall
+      # 不会真正执行，node_modules/electron/dist 会是空的 —— 实测就是这个原因让冒烟任务红掉。
+      # 所以这里不依赖 postinstall，显式确保二进制存在。
+      - name: 确保 Electron 运行时存在
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
+          if (-not (Test-Path $exe)) {
+            Write-Host "electron 二进制缺失，手动触发下载（用官方源，CI runner 在海外）"
+            $env:ELECTRON_MIRROR = 'https://github.com/electron/electron/releases/download/'
+            node node_modules/electron/install.js
+          }
+          if (-not (Test-Path $exe)) {
+            Get-ChildItem node_modules/electron -Recurse -Depth 1 | Select-Object FullName
+            throw "Electron 运行时仍然缺失：$exe"
+          }
+          Write-Host "electron.exe 就绪：$exe"
+
       - name: 启动应用并断言界面无报错
         shell: pwsh
         run: |
@@ -71,7 +89,8 @@ jobs:
           # 这样"界面白屏"不会再被当成启动成功。
           $env:DEVKIT_SMOKE = '1'
           $env:DEVKIT_SMOKE_DELAY_MS = '20000'
-          $process = Start-Process -FilePath 'node_modules/electron/dist/electron.exe' -ArgumentList '.' -PassThru -Wait
+          $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
+          $process = Start-Process -FilePath $exe -ArgumentList '.' -WorkingDirectory $PWD -PassThru -Wait
           if ($process.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($process.ExitCode)" }
           Write-Host "冒烟测试通过"
 

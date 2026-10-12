@@ -45,10 +45,22 @@ jobs:
       - name: 单元测试
         run: pnpm test
 
+      - name: 确保 Electron 运行时存在
+        shell: pwsh
+        run: |
+          # pnpm store 命中缓存时 electron 的 postinstall 不会真正执行（见 CI 里的说明）
+          $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
+          if (-not (Test-Path $exe)) {
+            $env:ELECTRON_MIRROR = 'https://github.com/electron/electron/releases/download/'
+            node node_modules/electron/install.js
+          }
+          if (-not (Test-Path $exe)) { throw "Electron 运行时缺失：$exe" }
+
       - name: 构建并打包（NSIS + portable）
+        # --publish never：package.json 里有 repository 字段时，electron-builder 会
+        # 推断"要自动发布"并要求 GH_TOKEN。发布交给下面的 action-gh-release 做。
         run: pnpm dist
         env:
-          # 没有配置 publish 时不尝试上传，避免出现"假仓库地址"导致的失败
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - name: 生成更新索引 latest.json
@@ -66,9 +78,9 @@ jobs:
         run: |
           $env:DEVKIT_SMOKE = '1'
           $env:DEVKIT_SMOKE_DELAY_MS = '20000'
-          $exe = 'release/win-unpacked/devkit.exe'
+          $exe = Join-Path $PWD 'release/win-unpacked/devkit.exe'
           if (-not (Test-Path $exe)) { throw "找不到 $exe" }
-          $process = Start-Process -FilePath $exe -PassThru -Wait
+          $process = Start-Process -FilePath $exe -WorkingDirectory $PWD -PassThru -Wait
           if ($process.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($process.ExitCode)" }
           Write-Host "冒烟测试通过"
 
