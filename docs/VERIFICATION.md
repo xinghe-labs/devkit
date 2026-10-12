@@ -76,6 +76,76 @@
 
 ---
 
+## 3.5 激活链路端到端（本机真实验证）
+
+激活是旗舰功能，而且它会改用户 PATH，所以单独做了一轮「激活 → 检查 → 取消激活 → 校验还原」。
+做法：用 `DEVKIT_SMOKE_JS` 在冒烟流程里调真实的 IPC（与界面点按钮走同一条路径）。
+
+**第一步：记录改动前的用户 PATH**
+
+```
+D:\Python;D:\Python\Scripts;C:\Program Files\LibreOffice\program;D:\npm\npm-global
+```
+
+**第二步：激活 nodejs@24.21.0**
+
+```
+[activate] nodejs@24.21.0 切换链接：created → %USERPROFILE%\.devkit\versions\nodejs\24.21.0
+[activate] 已备份用户 PATH 原文：%APPDATA%\devkit\backup\user-path-20261012-153737.txt
+[activate] 用户 PATH 已更新：新增 1 条，已在 PATH 中 0 条
+
+返回：{"ok":true,"note":"已写入用户 PATH；新开的终端里生效"}
+PATH：%USERPROFILE%\.devkit\current\nodejs;D:\Python;D:\Python\Scripts;C:\Program Files\LibreOffice\program;D:\npm\npm-global
+```
+
+独立校验（不是应用自己报的）：
+
+```
+$ node -e "...lstatSync(junction).isSymbolicLink(), readlinkSync(junction)"
+  junction exists: true | isLink: true | target: %USERPROFILE%\.devkit\versions\nodejs\24.21.0
+
+$ %USERPROFILE%\.devkit\current\nodejs\node.exe -v
+  v24.21.0
+```
+
+→ junction 已建立，**透过 junction 跑起来的确实是刚装的那一份**（v24.21.0，而系统里的是 22.23.2）。
+
+**第三步：取消激活**
+
+```
+返回：{"removed":["切换链接 C:\\Users\\屈\\.devkit\\current\\nodejs","PATH C:\\Users\\屈\\.devkit\\current\\nodejs"],"error":null,
+       "userPath":"D:\\Python;D:\\Python\\Scripts;C:\\Program Files\\LibreOffice\\program;D:\\npm\\npm-global",
+       "records":0,"managed":[]}
+```
+
+独立校验：
+
+```
+junction exists: false
+target 完好: true（%USERPROFILE%\.devkit\versions\nodejs\24.21.0\node.exe 仍在）
+
+PATH 还原校验：
+  before: "D:\\Python;D:\\Python\\Scripts;C:\\Program Files\\LibreOffice\\program;D:\\npm\\npm-global"
+  after : "D:\\Python;D:\\Python\\Scripts;C:\\Program Files\\LibreOffice\\program;D:\\npm\\npm-global"
+  BYTE-IDENTICAL: true
+```
+
+→ **用户 PATH 逐字节还原**，junction 已移除且目标目录完好。本机没有留下任何激活痕迹
+（`activated.json` 的 records 与 managedPathEntries 均为空）。
+
+### 这轮实测抓到的真实缺陷（已修复并加了回归测试）
+
+| 缺陷 | 现象 | 修复 |
+| --- | --- | --- |
+| `rmSync(path, { recursive: false })` 删不掉 junction | 取消激活在最后一步报 `Path is a directory`，PATH 已清理、链接残留，下次没人能清它 | 改用 `rmdirSync`（RemoveDirectoryW）并保留 recursive 兜底；新增 `junction.test.ts` 6 个真实文件系统用例 |
+| 取消激活的顺序不对 | 链接删失败时 PATH 已被改掉，留下半成品状态 | 先拆 junction（失败则不动 PATH），再清环境变量与 PATH |
+| Node.js 清单没有 `activate` | 界面上“激活”按钮不出现（截图里看到的），旗舰工具装完用不了 | 把 nodejs 纳入清单刷新器并补上 `activate`，重新生成清单 |
+| 慢速源拖死安装 | GitHub 资产以 21.9 KB/s “慢慢滴”，空闲超时永不触发，整个安装卡住 | 新增速度哨兵：平均速度长期低于 32 KB/s 就放弃该源；实测后自动换镜像并成功 |
+| PowerShell 脚本中文报语法错误 | `.ps1` 无 BOM 时 PS 5.1 按 cp936 解码，提权助手直接跑不起来 | 写脚本时加 UTF-8 BOM；结果文件用无 BOM UTF-8（否则 Node 的 JSON.parse 报错） |
+| 预检只看首选源 | 首选源不可达就整体阻断，明明镜像可用 | 改为每个工具并行探多个源，只要有一个可用就通过，并在日志里说明用了哪个 |
+
+---
+
 ## 4. 安全相关的专项测试
 
 | 项 | 测试文件 | 覆盖内容 |
@@ -86,6 +156,7 @@
 | PATH 写入 | `core/activate/paths.test.ts` | 中文路径、含空格路径、大小写/尾随斜杠、重复条目、**超长 PATH 不截断**、反复激活取消无残留 |
 | 下载器 | `core/downloader/index.test.ts` | SHA-256 不符、镜像 404 回退、断点续传、服务器忽略 Range、截断、**慢速源换源** |
 | 提权作业协议 | `core/elevation/run-job.test.ts` | 成功 / 失败退出码 / 命令不存在 / 多步骤 / 空步骤 / 脚本明文可审计 |
+| junction 增删 | `core/activate/junction.test.ts` | 真实文件系统：创建/幂等/切目标/**删链接不动目标**/拒绝删真实目录/不存在路径空操作 |
 | 离线包 | `core/offline/index.test.ts` | 校验通过才入缓存、被篡改的文件被拒绝、缺索引给出可读错误 |
 
 ---
@@ -117,14 +188,16 @@
 | 安装了 5 个工具到版本目录（约 843 MB） | `%USERPROFILE%\.devkit\versions\` | 删掉目录，或在界面「已安装」里逐个卸载 |
 | 下载缓存 | `%USERPROFILE%\.devkit\downloads\` | 直接删 |
 | 应用配置 / 日志 / 激活记录 | `%APPDATA%\devkit\` | 直接删（不会影响系统） |
+| 用户 PATH（**已逐字节还原**） | `HKCU\Environment\Path` | 备份文件：`%APPDATA%\devkit\backup\user-path-20261012-153737.txt` |
+| 一个 junction（**已删除**） | `%USERPROFILE%\.devkit\current\nodejs` | 已不存在 |
 
 **没有发生的变化**（这是"安装 ≠ 激活"的直接结果）：
 
-- 没有修改用户 PATH（`activated.json` 不存在）
 - 没有写 `Program Files`
 - 没有写 `HKLM`
 - 没有触发过 UAC
 - 没有改任何系统设置（`SystemConfig` 里只做了**读**）
+- 用户 PATH 在激活测试后与测试前**逐字节相同**
 
 > 安装脚本 `scripts/install-tool.ts` 里没有注入 `activate` 回调，
 > 所以它在结构上就不可能改 PATH —— 这不是"没做"，是"做不到"。

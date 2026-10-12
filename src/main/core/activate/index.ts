@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readlinkSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
 import { symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ActivateResult, ActivateSpec, ActivationRecord, ActivationSnapshot } from '@shared/types'
@@ -70,14 +70,29 @@ export function getLinkPath(linkName: string): string {
 }
 
 /**
- * 创建/替换 junction。
+ * 删除一个 junction（只删链接本身，绝不动目标目录）。
  *
- * 安全关键：**只删除确认是链接的路径**。如果那个位置是真实目录（用户手工建过、或上次
- * 写坏了），一律拒绝 —— 递归删掉它会把用户的数据一起带走。
+ * 踩过的坑：`fs.rmSync(path, { recursive: false })` 对 junction 会直接报
+ * "Path is a directory" —— junction 在文件系统层面是个**目录**（带重解析点），
+ * 只有 `rmdir`（RemoveDirectoryW）或带 recursive 的 rm 才能把它拿掉。
+ * 实测 `rmSync(recursive: true)` 也只删链接、不动目标，但 `rmdirSync` 语义最准，所以优先用它。
  */
-export async function ensureJunction(linkPath: string, target: string): Promise<'created' | 'replaced' | 'unchanged'> {
-  mkdirSync(getCurrentRoot(), { recursive: true })
+export function unlinkJunction(linkPath: string): void {
+  try {
+    rmdirSync(linkPath)
+  } catch {
+    rmSync(linkPath, { recursive: true, force: true })
+  }
+}
 
+/**
+ * 在指定位置创建 junction（不依赖 electron，方便单测）。
+ * 返回 created / replaced / unchanged。
+ */
+export async function createJunctionAt(
+  linkPath: string,
+  target: string
+): Promise<'created' | 'replaced' | 'unchanged'> {
   if (existsSync(linkPath)) {
     const info = lstatSync(linkPath)
     if (!info.isSymbolicLink()) {
@@ -89,13 +104,36 @@ export async function ensureJunction(linkPath: string, target: string): Promise<
     const current = readLinkTargetSafe(linkPath)
     if (current && current.toLowerCase() === target.toLowerCase()) return 'unchanged'
 
-    rmSync(linkPath, { recursive: false, force: true })
+    unlinkJunction(linkPath)
     await symlink(target, linkPath, 'junction')
     return 'replaced'
   }
 
   await symlink(target, linkPath, 'junction')
   return 'created'
+}
+
+/** 删除 junction（只删链接本身，绝不动目标目录）；不是链接就返回 false */
+export function removeJunctionAt(linkPath: string): boolean {
+  if (!existsSync(linkPath)) return false
+  const info = lstatSync(linkPath)
+  if (!info.isSymbolicLink()) return false
+  unlinkJunction(linkPath)
+  return true
+}
+
+/**
+ * 创建/替换 junction。
+ *
+ * 安全关键：**只删除确认是链接的路径**。如果那个位置是真实目录（用户手工建过、或上次
+ * 写坏了），一律拒绝 —— 递归删掉它会把用户的数据一起带走。
+ */
+export async function ensureJunction(
+  linkPath: string,
+  target: string
+): Promise<'created' | 'replaced' | 'unchanged'> {
+  mkdirSync(getCurrentRoot(), { recursive: true })
+  return createJunctionAt(linkPath, target)
 }
 
 function readLinkTargetSafe(linkPath: string): string | null {
@@ -108,14 +146,11 @@ function readLinkTargetSafe(linkPath: string): string | null {
 
 /** 删除 junction（只删链接本身，绝不动目标目录） */
 export function removeJunction(linkPath: string): boolean {
-  if (!existsSync(linkPath)) return false
-  const info = lstatSync(linkPath)
-  if (!info.isSymbolicLink()) {
+  const removed = removeJunctionAt(linkPath)
+  if (!removed && existsSync(linkPath)) {
     logger.warn('activate', `跳过删除 ${linkPath}：它不是链接`)
-    return false
   }
-  rmSync(linkPath, { recursive: false, force: true })
-  return true
+  return removed
 }
 
 /** 首次改动用户 PATH 之前先留一份原文，用户随时能自己比对/还原 */
@@ -240,6 +275,10 @@ export async function deactivateTool(toolId: string): Promise<{ removed: string[
 
   const removed: string[] = []
   try {
+    // 先拆 junction：它失败的概率最低，而且如果拆不掉，宁可不动 PATH
+    // （否则会出现"PATH 已清理、链接还在"的半成品状态，下次就没人能清它了）
+    if (removeJunction(record.linkPath)) removed.push(`切换链接 ${record.linkPath}`)
+
     for (const name of Object.keys(record.env)) {
       await writeUserEnv(name, null)
       removed.push(`环境变量 ${name}`)
@@ -252,10 +291,9 @@ export async function deactivateTool(toolId: string): Promise<{ removed: string[
     const synced = await syncUserPath(next)
     saveActivationState(synced)
 
-    if (removeJunction(record.linkPath)) removed.push(`切换链接 ${record.linkPath}`)
     removed.push(...record.pathEntries.map((entry) => `PATH ${entry}`))
 
-    logger.info('activate', `已取消激活 ${toolId}`)
+    logger.info('activate', `已取消激活 ${toolId}：${removed.join('；')}`)
     return { removed, error: null }
   } catch (error) {
     const message = (error as Error).message

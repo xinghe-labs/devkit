@@ -279,6 +279,75 @@ interface ToolSpec {
 const SPECS: ToolSpec[] = [
   /* ---------------- 语言运行时 ---------------- */
   {
+    id: 'nodejs',
+    category: 'runtime',
+    tier: 'L1',
+    name: { 'zh-CN': 'Node.js', 'en-US': 'Node.js' },
+    description: {
+      'zh-CN': 'JavaScript 运行时，自带 npm。前端与 Node 后端开发的基础。',
+      'en-US': 'JavaScript runtime with npm bundled. Foundation for frontend and Node backend work.'
+    },
+    homepage: 'https://nodejs.org',
+    license: { spdx: 'MIT', redistributable: true },
+    detect: {
+      commands: [{ cmd: 'node', args: ['-v'], expectRegex: 'v\\d+\\.\\d+' }],
+      files: ['%ProgramFiles%\\nodejs\\node.exe'],
+      registry: [
+        {
+          hive: 'HKLM',
+          view: '64',
+          path: 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+          match: { DisplayName: '^Node\\.js' },
+          versionFrom: 'DisplayVersion'
+        }
+      ]
+    },
+    installScope: 'user',
+    install: { type: 'zip', template: 'zip-into-version-dir', params: { stripComponents: '1' } },
+    activate: { pathEntries: ['{currentDir}'] },
+    verify: { cmd: '{installDir}\\node.exe', args: ['-v'], expectRegex: 'v\\d+\\.' },
+    notes: {
+      'zh-CN':
+        '用官方 ZIP 而不是 MSI：ZIP 解压到版本目录，不需要管理员、不覆盖系统里已有的 Node、不写系统 PATH（安装 ≠ 激活）。实测镜像速度差异极大：华为云 8.2 MB/s、官方源 191 KB/s；清华镜像滞后（只到 v24.1.0），因此 404 必须能被当成可回退错误。',
+      'en-US':
+        'Official ZIP instead of the MSI: extracts into the version directory — no admin, no clobbering an existing Node, no system PATH edits (install != activate). Measured mirror speeds differ wildly (Huawei Cloud 8.2 MB/s vs 191 KB/s official); TUNA lags behind, so a 404 must stay a recoverable error.'
+    },
+    versions: [
+      {
+        want: 'latest',
+        channel: 'lts',
+        recommended: true,
+        url: (v) => `https://nodejs.org/dist/v${v}/node-v${v}-win-x64.zip`,
+        mirrors: (v) => [
+          { name: 'huaweicloud', url: `https://mirrors.huaweicloud.com/nodejs/v${v}/node-v${v}-win-x64.zip` },
+          { name: 'aliyun', url: `https://mirrors.aliyun.com/nodejs-release/v${v}/node-v${v}-win-x64.zip` },
+          { name: 'tuna', url: `https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v${v}/node-v${v}-win-x64.zip` }
+        ],
+        discover: async () => {
+          const index = await fetchJson<{ version: string; lts: string | false }[]>(
+            'https://nodejs.org/dist/index.json'
+          )
+          const lts = index.filter((item) => item.lts !== false)
+          const latest = lts[0]?.version ?? index[0]?.version
+          if (!latest) throw new Error('nodejs 官方 index.json 里没有可用版本')
+          return [{ version: latest.replace(/^v/, '') }]
+        },
+        resolve: async (_v, candidates) => {
+          // 官方 SHASUMS256.txt 里就是 sha256，直接读，不下载 36 MB 的包。
+          // 注意用版本专属目录（dist/v<版本>/），latest-lts 这个别名并不存在。
+          const name = candidates[0].split('/').pop() ?? ''
+          const version = name.match(/^node-v([^-]+)-/)?.[1]
+          if (!version) throw new Error(`无法从 ${name} 解析 Node.js 版本号`)
+          const text = await fetchText(`https://nodejs.org/dist/v${version}/SHASUMS256.txt`)
+          const hash = pickHash(text, name)
+          if (!hash) throw new Error(`nodejs 的 SHASUMS256.txt 里没有 ${name}`)
+          return { sha256: hash, sizeBytes: 0 }
+        }
+      }
+    ]
+  },
+
+  {
     id: 'python',
     category: 'runtime',
     tier: 'L1',

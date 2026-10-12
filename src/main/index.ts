@@ -5,6 +5,7 @@ import { loadManifests } from './core/manifest'
 import { setInstallProgressListener } from './core/executor/service'
 import { logger } from './core/report/logger'
 import { recordRendererError } from './core/report/renderer-errors'
+import { setSmokeCapture } from './core/report/smoke'
 import { registerIpcHandlers } from './ipc'
 import { getLogDir } from './utils/app-paths'
 
@@ -34,6 +35,28 @@ function createWindow(): BrowserWindow {
   window.on('ready-to-show', () => {
     window.show()
     logger.info('app', '主窗口已显示')
+  })
+
+  // 冒烟截图：让 DEVKIT_SMOKE_SHOT=<png 路径> 能拿到一张真实界面截图。
+  // 只证明"没报错"是不够的 —— 布局塌陷、控件重叠都不会抛异常。
+  setSmokeCapture(async () => {
+    if (window.isDestroyed()) return null
+
+    // 冒烟时可以先跑一小段脚本（例如把设置抽屉点开），这样截图能覆盖到弹层。
+    // 只在 DEVKIT_SMOKE 下生效，正常运行不会执行任何注入脚本。
+    const script = process.env.DEVKIT_SMOKE_JS
+    if (script && process.env.DEVKIT_SMOKE === '1') {
+      try {
+        const scriptResult = await window.webContents.executeJavaScript(script, true)
+        logger.info('app', `冒烟脚本返回：${JSON.stringify(scriptResult)}`)
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+      } catch (error) {
+        logger.warn('app', `冒烟脚本执行失败：${(error as Error).message}`)
+      }
+    }
+
+    const image = await window.webContents.capturePage()
+    return image.isEmpty() ? null : image.toPNG()
   })
 
   // 渲染进程里的报错默认只出现在开发者工具里，打包后用户根本看不到。
