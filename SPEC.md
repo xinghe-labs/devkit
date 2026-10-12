@@ -1,6 +1,6 @@
 # devkit — 一键开发环境部署器 · 需求与设计规格
 
-> 状态：**v0.5 · M0~M4 主体功能已完成**（清单 19 项 / 16 项可装；端到端安装、激活、卸载、预设、离线包、热更新、提权均已实现）
+> 状态：**v0.6 · M0~M4 主体功能已完成 + AI 编码 agent**（清单 25 项 / 22 项可装；端到端安装、激活、卸载、预设、离线包、热更新、提权、AI agent 均已实现）
 > 定位：开源（MIT）· Windows x64 · Electron 桌面端 · 打包 exe 分发
 > 最低支持：**Windows 10 22H2 (build 19045) x64** 及以上（含 Win11 全版本）
 > 实测记录：[docs/VERIFICATION.md](./docs/VERIFICATION.md) · 市场调研：[docs/market-research.md](./docs/market-research.md)
@@ -834,4 +834,5 @@ M0~M4 的主体功能已完成，剩余的是**必须在干净环境里做**的�
 | v0.2 | 最低系统定为 Win10 22H2；新增 FR-2 版本选择、FR-15 清单热更新；确认测试环境与 git init |
 | v0.3 | **修复 7 个架构级缺口**：新增 §6.6 提权模型、§6.7 环境变量规范、FR-16 卸载、FR-17 续跑、FR-18 预检、FR-19 下载器、§7.4 InstallPlan；manifest 补 `installScope`/`provider`/`releaseDate`/`uninstall`/`template` 并修正 registry 检测示例；FR-15 增加安全边界；**修正 14 处自相矛盾**（winget 理由、Homebrew、Choco、20 分钟、FR-11 顺序、i18n 回退、镜像回退次数、压缩说明等）；新增 §11 开发环境与工程规范（含测试与 CI 策略） |
 | v0.4 | M0 完成。新增 **13.3 架构确认**：确立「安装 ≠ 激活」原则；把 M1 拆成 M1a（ZIP + 用户级，免提权）与 M1b（MSI/EXE + 提权，虚拟机验收）；风险表补充镜像版本滞后与镜像速度差异（均为实测数据） |
+| v0.6 | **新增 AI 编码 agent 安装（FR-20）**：新增 `npm-global-into-version-dir` 模板与 `ai` 分类；6 个 agent（Claude Code / Codex CLI / OpenCode / Gemini CLI / Copilot CLI / Qwen Code）全部真机跑通；npm 类的供应链边界写进 §13.7；顺带修掉离线包不按 tier 过滤的许可证缺口 |
 | v0.5 | **M1a~M4 主体完成**。清单扩到 19 项（16 项可装）；安装模板扩到 8 个（zip / zip 单文件 / 7zSFX / MSI / NSIS / Inno / Python / rustup）；新增激活机制（junction + 用户 PATH/环境变量 + 精确回滚）、预设、卸载、镜像源、离线包、系统配置（FR-6）、清单热更新（FR-15，字段白名单）、提权助手（§6.6，一次 UAC）、更新检查（FR-13，提示式）、CI + 发布流水线。新增 **13.4 更新机制确认**。实测记录见 docs/VERIFICATION.md |
