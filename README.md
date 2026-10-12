@@ -4,7 +4,7 @@
 >
 > 在**一台什么都没装的 Windows 电脑**上，用图形界面勾选需要的东西，一键把开发环境**装好、配好、验好**。
 
-[![CI](https://github.com/REPLACE_ME/devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/REPLACE_ME/devkit/actions/workflows/ci.yml)
+[![CI](https://github.com/xinghe-Q/devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-Q/devkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
@@ -268,7 +268,8 @@ DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 node_modules/electron/dist/electron.e
 - 新增软件清单请附上**官方下载页链接**与**该版本的 SHA-256**（可以直接跑 `pnpm manifest:refresh <id>`）
 
 完整需求与设计见 [SPEC.md](./SPEC.md)，实测记录见 [docs/VERIFICATION.md](./docs/VERIFICATION.md)，
-市场调研见 [docs/market-research.md](./docs/market-research.md)。
+市场调研见 [docs/market-research.md](./docs/market-research.md)，
+独立安全审查（含修法与回归测试）见 [docs/security-review.md](./docs/security-review.md)。
 
 ## English
 

@@ -12,6 +12,14 @@
   "author": "devkit contributors",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xinghe-Q/devkit.git"
+  },
+  "homepage": "https://github.com/xinghe-Q/devkit#readme",
+  "bugs": {
+    "url": "https://github.com/xinghe-Q/devkit/issues"
+  },
   "packageManager": "pnpm@10.26.2",
   "engines": {
     "node": ">=20",

@@ -324,7 +324,7 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 ## 4.5 独立安全审查（对抗性，只读）
 
 用独立子代理对 `core/templates` / `core/zip` / `core/activate` / `core/ipc` / `core/elevation` /
-`core/downloader` / `core/hotupdate` 做了一轮对抗性审查，报告在 `D:\work\work\devkit-security-review.md`。
+`core/downloader` / `core/hotupdate` 做了一轮对抗性审查，完整记录见 [docs/security-review.md](./security-review.md)（含每条的修法与回归测试位置）。
 
 **结论：设计站得住的部分**（审查原话）：模板白名单「清单只引用、不定义命令」；
 zip 自行计算并校验最终路径而不依赖库；junction 只删链接；PATH 改前备份 + 只动自有条目 + 注册表
