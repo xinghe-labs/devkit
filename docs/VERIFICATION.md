@@ -182,6 +182,111 @@ Windows 的进程 PATH 是「机器级 + 用户级」，**机器级在前**。�
 
 ---
 
+## 3.6 完整 UI 流程端到端（选择 → 预检 → 安装 → 激活 → 报告）
+
+前面的安装测试都是走 CLI（`pnpm install:tool`）。这里再走一遍**界面的真实路径**：
+通过 `DEVKIT_SMOKE_JS` 调与按钮完全相同的 IPC（`prepareInstall` → `startInstall` → 轮询 `getPendingPlan` → `listInstalled`）。
+
+工具选 Ninja（600 KB、`zip-single-file-into-version-dir` 模板，走完整链路但不占带宽）。
+
+```
+[preflight] 预检完成：通过，共 5 项检查
+[install]   已准备安装计划 20261012-160523-f5eb：共 1 项
+[executor]  开始处理 ninja@1.13.2
+[executor]  ninja 安装完成：1 个文件 / 603648 字节 → %USERPROFILE%\.devkit\versions\ninja\1.13.2
+[executor]  安装流程结束：成功 1，失败 0，跳过 0，取消 0，耗时 6967ms
+[install]   计划 20261012-160523-f5eb 执行完毕：成功 1，失败 0
+
+脚本返回：
+{"preflightOk":true,"checks":5,"started":{"started":true},
+ "ninja":[{"toolId":"ninja","version":"1.13.2",
+           "installDir":"C:\\Users\\屈\\.devkit\\versions\\ninja\\1.13.2",
+           "sizeBytes":603648,"active":true,"activatable":true}]}
+```
+
+`active: true` 说明**安装后自动激活**也生效了（`activateAfterInstall` 默认为开）。独立校验：
+
+```
+激活记录：ninja@1.13.2，pathEntries = ["%DEVKIT_HOME%\\current\\ninja"]
+用户 PATH：%DEVKIT_HOME%\current\ninja;D:\Python;D:\Python\Scripts;C:\Program Files\LibreOffice\program;D:\npm\npm-global
+DEVKIT_HOME：%USERPROFILE%\.devkit
+junction：ninja → %USERPROFILE%\.devkit\versions\ninja\1.13.2
+
+$ %USERPROFILE%\.devkit\current\ninja\ninja.exe --version
+  1.13.2
+```
+
+随后取消激活，机器回到原样：
+
+```
+返回：{"removed":["切换链接 ...current\ninja","环境变量 DEVKIT_HOME","PATH %DEVKIT_HOME%\current\ninja"],
+       "error":null,"userPath":"D:\Python;D:\Python\Scripts;C:\Program Files\LibreOffice\program;D:\npm\npm-global",
+       "records":0}
+
+PATH BYTE-IDENTICAL: true
+DEVKIT_HOME 已删除: true
+junction 已移除: true
+ninja 安装目录完好: true
+```
+
+→ **一次界面操作**完成了「下载 → SHA-256 校验 → 解压 → 自检 → 激活 → 报告」，
+并且激活是完全可逆的。
+
+---
+
+## 3.7 离线包端到端（FR-12）
+
+通过界面路径调 `packOffline` / `importOfflinePack`：
+
+```
+[offline] 离线包已生成：D:\work\tmp\offline-test\devkit-offline-2026-10-12T08-09-04（1 个文件 / 291570 字节）
+[offline] 离线包导入完成：1/1 个文件进入下载缓存
+
+产出：
+  archives/ninja-1.13.2-ninja-win.zip
+  offline.json   ← {toolId, version, fileName, sha256, sizeBytes, url}
+  README.json
+```
+
+→ 导入时会**逐个校验 SHA-256**，校验不过的文件不会进下载缓存（否则问题会拖到安装阶段才以
+「校验失败」暴露）。离线安装复用在线流程：文件进了下载缓存后，正常安装会跳过下载。
+
+---
+
+## 3.8 打包内容核对
+
+```
+$ npx asar list release/win-unpacked/resources/app.asar
+\out\main\index.js
+\out\preload\index.js
+\out\renderer\index.html
+\out\renderer\assets\...
+\package.json
+（共 11 项）
+
+$ ls release/win-unpacked/resources/manifest/tools/ | wc -l
+19
+```
+
+→ asar 里**只有构建产物与 package.json**（不含源码、不含 node_modules）；
+19 个清单走 `extraResources` 放在 asar 外面，所以用户手工改清单或热更新都不需要重新打包。
+
+| 产物 | 体积 |
+| --- | --- |
+| `release/devkit Setup 0.1.0.exe`（NSIS 安装版） | 111.9 MB |
+| `release/devkit-0.1.0-portable.exe`（便携版） | 111.7 MB |
+| `release/latest.json`（更新索引，含两个产物的 SHA-256 与体积） | 约 0.5 KB |
+
+---
+
+## 3.9 这一轮新抓到并修掉的问题
+
+| 问题 | 现象 | 修复 |
+| --- | --- | --- |
+| 离线包输出目录用手拼分隔符 | 用户选到带尾随分隔符或相对路径的目录时，`mkdir` 会失败（实测报 `ENOENT ... AgentWork\tmpoffline-test`） | 改用 `path.join(outputDir, name)` |
+
+---
+
 ## 4. 安全相关的专项测试
 
 | 项 | 测试文件 | 覆盖内容 |

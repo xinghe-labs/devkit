@@ -1,4 +1,5 @@
 import { app, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { indexById } from '@shared/manifest'
 import { IPC } from '@shared/ipc'
@@ -381,7 +382,8 @@ export function registerIpcHandlers(): void {
     }
 
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const packDir = `${outputDir}\\devkit-offline-${stamp}`
+    // 用 path.join 而不是手拼分隔符：用户选的目录可能带尾随分隔符，也可能是相对路径
+    const packDir = join(outputDir, `devkit-offline-${stamp}`)
     const { tools } = loadManifests()
     const config = loadConfig()
 
