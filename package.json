@@ -14,11 +14,11 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xinghe-Q/devkit.git"
+    "url": "git+https://github.com/xinghe-labs/devkit.git"
   },
-  "homepage": "https://github.com/xinghe-Q/devkit#readme",
+  "homepage": "https://github.com/xinghe-labs/devkit#readme",
   "bugs": {
-    "url": "https://github.com/xinghe-Q/devkit/issues"
+    "url": "https://github.com/xinghe-labs/devkit/issues"
   },
   "packageManager": "pnpm@10.26.2",
   "engines": {

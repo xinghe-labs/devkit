@@ -4,7 +4,7 @@
 >
 > 在**一台什么都没装的 Windows 电脑**上，用图形界面勾选需要的东西，一键把开发环境**装好、配好、验好**。
 
-[![CI](https://github.com/xinghe-Q/devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-Q/devkit/actions/workflows/ci.yml)
+[![CI](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
