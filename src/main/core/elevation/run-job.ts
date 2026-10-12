@@ -122,7 +122,8 @@ export async function runJob(options: RunJobOptions): Promise<ElevationOutcome> 
 
   try {
     // 双保险：万一某个 PowerShell 版本仍然写出 BOM，这里也要能读
-    const parsed = JSON.parse(readFileSync(resultFile, 'utf8').replace(/^﻿/, '')) as {
+    const raw = readFileSync(resultFile, 'utf8')
+    const parsed = JSON.parse(raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw) as {
       ok?: boolean
       steps?: StepResult[]
       error?: string | null
