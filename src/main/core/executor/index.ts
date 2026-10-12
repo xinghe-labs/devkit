@@ -171,7 +171,13 @@ async function runItem(context: {
   const sources = orderDownloadSources(version, plan.options.mirrorPreference)
   if (sources.length === 0) throw new Error('清单没有给出任何下载源')
 
-  const fileName = basename(new URL(sources[0].url).pathname)
+  const urlFileName = basename(new URL(sources[0].url).pathname)
+  // VS Code 的下载地址以 /stable 结尾，取出来没有扩展名。Windows 主要按扩展名决定怎么执行，
+  // 一个叫 `vscode-1.141.0-stable` 的文件能被跑起来纯属运气 —— 这里显式补上。
+  const fileName =
+    urlFileName.includes('.') || version.install?.type === 'zip'
+      ? urlFileName
+      : `${urlFileName}.exe`
   const archivePath = join(downloadDir, `${item.id}-${item.version}-${fileName}`)
   item.archivePath = archivePath
 

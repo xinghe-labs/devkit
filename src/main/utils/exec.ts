@@ -71,11 +71,21 @@ function decode(buffer: Buffer): string {
  * 不含空白、引号与 cmd 元字符的简单参数 —— 版本检测参数（-v / --version / -3）
  * 全是这种形态。不满足就报错，绝不"尽力而为"地拼一条命令出去。
  */
-const SAFE_COMMAND = /^[A-Za-z0-9_\-./:\\]+$/
+/**
+ * 命令路径的约束：**只禁 cmd 元字符与引号**，不禁空格与中文。
+ *
+ * 为什么不能像参数那样用纯 ASCII 白名单：devkit 自己的安装目录长这样 ——
+ * `%USERPROFILE%\.devkit\versions\maven\3.10.0\bin\mvn.cmd`。
+ * 用户名是中文、路径可能带空格，用 ASCII 白名单会把**我们自己装的工具**全部拒之门外
+ * （实测：Maven / Gradle / VS Code 的自检都是 .cmd，全部踩到）。
+ * 元字符才是真正的风险，所以这里只挡元字符。
+ */
+const SAFE_COMMAND_PATH = /^[^"&|<>^%!\r\n\t]+$/
+/** 参数保持严格白名单：版本检测参数（-v / --version / -3）全是这种形态 */
 const SAFE_ARG = /^[A-Za-z0-9_\-./:=@+,]+$/
 
 export function isFallbackSafe(cmd: string, args: string[]): boolean {
-  return SAFE_COMMAND.test(cmd) && args.every((arg) => SAFE_ARG.test(arg))
+  return SAFE_COMMAND_PATH.test(cmd) && args.every((arg) => SAFE_ARG.test(arg))
 }
 
 function spawnOnce(cmd: string, args: string[], options: RunOptions): Promise<RunResult> {
@@ -162,7 +172,17 @@ export async function runCommand(
   const startedAt = Date.now()
   const result = await spawnOnce(cmd, args, options)
 
-  if (result.spawnError && /ENOENT|not found/i.test(result.spawnError)) {
+  // 需要退回 cmd.exe 的两种情况：
+  //  1. 命令根本不存在（ENOENT）—— 例如没装过 Git 时的 git
+  //  2. 目标是 .cmd/.bat —— Node 18.20.2 / 20.12.2 起（CVE-2024-27980 的修复），
+  //     不带 shell 直接 spawn 批处理文件会抛 EINVAL，而不是像以前那样跑到 cmd.exe 里。
+  //     Maven 的 mvn.cmd、Gradle 的 gradle.bat、VS Code 的 code.cmd 都属于这一类。
+  const needsShellFallback =
+    result.spawnError !== null &&
+    (/ENOENT|not found/i.test(result.spawnError) ||
+      (/EINVAL/i.test(result.spawnError) && /\.(cmd|bat)$/i.test(cmd)))
+
+  if (needsShellFallback) {
     if (!isFallbackSafe(cmd, args)) {
       return {
         ...result,
@@ -172,7 +192,10 @@ export async function runCommand(
     }
 
     const shell = process.env.ComSpec ?? 'cmd.exe'
-    const retried = await spawnOnce(shell, ['/d', '/s', '/c', cmd, ...args], options)
+    // 刻意**不加 /s**：`cmd /d /s /c "带 空格的路径.cmd"` 里 /s 会把整条命令的首尾引号
+    // 剥掉，路径里的空格就变成了参数分隔符，命令直接失败（实测 code=1、无输出）。
+    // 不加 /s 时 cmd 的引号启发式能正确处理带空格的路径。
+    const retried = await spawnOnce(shell, ['/d', '/c', cmd, ...args], options)
     retried.durationMs = Date.now() - startedAt
     // 只有当重试真的跑起来了才采用重试结果，否则保留原始错误（更准确）
     if (!retried.spawnError) return retried

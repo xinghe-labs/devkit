@@ -86,6 +86,11 @@
 
 ### 可安装清单（16 项）
 
+真机验证过的安装模板（8 个里 6 个）：`zip-into-version-dir`（Node/Deno）、
+`zip-single-file-into-version-dir`（pnpm/Ninja）、`exe-7zsfx-extract`（Git）、
+`exe-python-silent`（Python）、`exe-inno-silent`（VS Code）。MSI 与 NSIS 需要管理员，
+留待虚拟机验收。
+
 | 工具              | 版本       | 安装方式                | 范围     |
 | ----------------- | ---------- | ----------------------- | -------- |
 | Node.js           | 24.20 / 24.21 | ZIP 解压             | 用户级   |

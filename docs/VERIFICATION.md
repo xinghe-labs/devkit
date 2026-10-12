@@ -49,9 +49,21 @@
 所以自检输出是 10.26.2 而不是 12.11.2。自检规则（`\d+\.\d+`）只看"能不能跑出版本号"，
 这是刻意的宽松设计；此处记录以免日后误判。
 
-**覆盖到的模板**：`zip-into-version-dir`、`zip-single-file-into-version-dir`、
-`exe-7zsfx-extract`、`exe-python-silent`。
-**未在真机验证**：`msi-install`、`exe-nsis-silent`、`exe-inno-silent`（见第 5 节）。
+**覆盖到的模板**（8 个模板里验证了 6 个）：
+
+| 模板 | 真机验证过的工具 |
+| --- | --- |
+| `zip-into-version-dir` | Node.js、Deno |
+| `zip-single-file-into-version-dir` | pnpm、Ninja |
+| `exe-7zsfx-extract` | Git（PortableGit 自解压） |
+| `exe-python-silent` | Python 3.14.8 |
+| `exe-inno-silent` | VS Code 1.141.0（`/VERYSILENT /DIR=<版本目录>`） |
+| `msi-install` | **未验证**（需要管理员） |
+| `exe-nsis-silent` | **未验证**（当前清单里没有用它的可装项） |
+
+安装并自检通过的工具（版本目录 `%USERPROFILE%\.devkit\versions\`）：
+`nodejs 24.21.0` · `deno 2.9.7` · `pnpm 12.11.2` · `git 2.56.0` · `python 3.14.8` ·
+`ninja 1.13.2` · `vscode 1.141.0` · `maven 3.10.0`
 
 ---
 
@@ -283,7 +295,11 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 
 | 问题 | 现象 | 修复 |
 | --- | --- | --- |
-| 离线包输出目录用手拼分隔符 || 预检拿"用不到的条件"拦人 | 所有项都已安装（本次根本不需要下载）时，网络探测失败仍会让预检阻断，重跑一个已装好的工具被卡住 | 预检先判断是否真有需要下载的项；全部已安装时跳过网络探测并给出 ok 级结论 |
+| 离线包输出目录用手拼分隔符 || `.cmd` 自检在 Node 22 下全部失败 | Maven 的 `mvn.cmd`、Gradle 的 `gradle.bat`、VS Code 的 `code.cmd` 自检报 EINVAL —— Node 18.20.2 / 20.12.2 起（CVE-2024-27980 的修复）不带 shell 直接 spawn 批处理文件会抛 EINVAL，而回退条件只匹配了 ENOENT | 回退条件加上「EINVAL + 目标是 .cmd/.bat」；同时把命令路径的白名单从纯 ASCII 放宽为「只禁 cmd 元字符」—— 否则 devkit 自己的中文安装路径会被自己拒掉 |
+| `cmd /s /c` 处理不了带空格的路径 | `cmd /d /s /c "C:\\a b\\x.cmd"` 里 `/s` 会剥掉首尾引号，空格变成参数分隔符，命令以 code=1 静默失败 | 回退改用 `cmd /d /c`（实测该写法能正确处理带空格路径） |
+| VS Code 自检永远拿到空输出 | `Code.exe` 是 GUI 子系统程序，`Code.exe --version` 退出码 0 但**什么都不输出**，用 `\d+\.\d+` 匹配会一直失败 | 清单自检改用 `bin\\code.cmd --version`（实测输出 `1.141.0`） |
+| 下载产物没有扩展名 | VS Code 的下载地址以 `/stable` 结尾，产物叫 `vscode-1.141.0-stable`（无扩展名），能不能被当程序跑全看运气 | URL 末段没有扩展名且不是 zip 时补 `.exe` |
+| 预检拿"用不到的条件"拦人 | 所有项都已安装（本次根本不需要下载）时，网络探测失败仍会让预检阻断，重跑一个已装好的工具被卡住 | 预检先判断是否真有需要下载的项；全部已安装时跳过网络探测并给出 ok 级结论 |
  用户选到带尾随分隔符或相对路径的目录时，`mkdir` 会失败（实测报 `ENOENT ... AgentWork\tmpoffline-test`） | 改用 `path.join(outputDir, name)` |
 
 ---
@@ -337,7 +353,7 @@ ExpandString；热更新不合并 detect/install/activate；提权脚本不混�
 | # | 未验证项 | 为什么 | 怎么才能验证 |
 | --- | --- | --- | --- |
 | 1 | 机器级 MSI 真实安装（7-Zip） | 需要 UAC 与写 HKLM，不能在本机做 | 干净虚拟机里跑一次，确认只弹一次 UAC、装完能激活、卸载干净 |
-| 2 | `exe-nsis-silent` / `exe-inno-silent` 模板真机行为 | 当前清单里没有用这两个模板的可装项（7-Zip 走 MSI，VS Code 走 Inno 但需要 1.4 GB 下载） | 虚拟机里装一次 VS Code 用户版（`exe-inno-silent`） |
+| 2 | `exe-nsis-silent` 模板真机行为 | 当前清单里没有用这个模板的可装项 | 找一个 NSIS 发行版（如 7-Zip 的 `7z*-x64.exe`）在虚拟机里验证 |
 | 3 | "新开终端 `node -v` 生效" | 需要一台原本没装过 Node 的机器 | 干净虚拟机 + 打开一个新的 cmd 窗口 |
 | 4 | 用户 PATH 的真实写入 | 会改用户环境变量，属于系统级改动 | 已用单测覆盖全部计算逻辑；真机写入应在虚拟机里做 |
 | 5 | `Checkpoint-Computer` 还原点 | 需要管理员，且多数机器未启用系统保护 | 虚拟机里开启系统保护后验证 |

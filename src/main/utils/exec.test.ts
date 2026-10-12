@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -122,11 +122,65 @@ describe('isFallbackSafe 参数白名单', () => {
     }
   })
 
-  it('拒绝含空格的命令名', () => {
-    expect(isFallbackSafe('C:\\Program Files\\x.cmd', ['-v'])).toBe(false)
+  it('允许带空格与中文的命令路径（devkit 自己的安装目录就是中文）', () => {
+    // 实测踩到：把命令路径也按纯 ASCII 白名单卡住，会让 devkit 自己装的
+    // Maven / Gradle / VS Code 的自检（都是 .cmd）全部被拒。
+    expect(isFallbackSafe('C:\\Program Files\\x.cmd', ['-v'])).toBe(true)
+    expect(isFallbackSafe('C:\\Users\\屈\\.devkit\\versions\\maven\\3.10.0\\bin\\mvn.cmd', ['-v'])).toBe(
+      true
+    )
   })
 
-  it('允许路径形式的命令名（不含空格）', () => {
-    expect(isFallbackSafe('C:\\tools\\x.cmd', ['-v'])).toBe(true)
+  it('命令路径仍然拒绝 cmd 元字符与引号', () => {
+    for (const bad of [
+      'C:\\x&y.cmd',
+      'C:\\x|y.cmd',
+      'C:\\x>y.cmd',
+      'C:\\x<y.cmd',
+      'C:\\x^y.cmd',
+      'C:\\x%PATH%y.cmd',
+      'C:\\x!y.cmd',
+      'C:\\"x".cmd',
+      'C:\\x\ny.cmd'
+    ]) {
+      expect(isFallbackSafe(bad, ['-v']), bad).toBe(false)
+    }
   })
+})
+
+
+describe('.cmd / .bat 的 cmd.exe 回退（Node 22 的 EINVAL）', () => {
+  it('能真正跑起一个 .cmd，并且路径含中文与空格也行', async () => {
+    // Node 18.20.2 / 20.12.2 起，不带 shell 直接 spawn 批处理文件会抛 EINVAL
+    // （CVE-2024-27980 的修复）。实测这个改动之前，Maven 的 mvn.cmd、
+    // Gradle 的 gradle.bat、VS Code 的 code.cmd 三个自检全部失败。
+    const root = mkdtempSync(join(tmpdir(), 'devkit cmd 测试-'))
+    const dir = join(root, 'bin dir')
+    mkdirSync(dir, { recursive: true })
+    const script = join(dir, 'dk-echo.cmd')
+    writeFileSync(script, '@echo off\r\necho devkit-cmd-ok\r\n', 'utf8')
+
+    try {
+      const result = await runCommand(script, [], { timeoutMs: 30_000 })
+      expect(result.spawnError).toBeNull()
+      expect(result.code).toBe(0)
+      expect(result.stdout).toContain('devkit-cmd-ok')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it('.bat 同样能跑（Gradle 用的是 gradle.bat）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'devkit-bat-'))
+    const script = join(dir, 'dk-echo.bat')
+    writeFileSync(script, '@echo off\r\necho devkit-bat-ok\r\n', 'utf8')
+
+    try {
+      const result = await runCommand(script, [], { timeoutMs: 30_000 })
+      expect(result.spawnError).toBeNull()
+      expect(result.stdout).toContain('devkit-bat-ok')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 60_000)
 })

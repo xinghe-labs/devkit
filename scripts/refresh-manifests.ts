@@ -1093,7 +1093,14 @@ const SPECS: ToolSpec[] = [
       params: { extraArgs: '-MERGETASKS=!runcode' }
     },
     activate: { pathEntries: ['{currentDir}\\bin'] },
-    verify: { cmd: '{installDir}\\Code.exe', args: ['--version'], expectRegex: '\\d+\\.\\d+' },
+    // 必须用 bin\\code.cmd 而不是 Code.exe：Code.exe 是 GUI 子系统程序，
+    // `Code.exe --version` 退出码 0 但**什么都不输出**（stdout 不接到父进程控制台），
+    // 拿它做自检会得到"退出码 0、输出为空"的假结果（实测踩到）。
+    verify: {
+      cmd: '{installDir}\\bin\\code.cmd',
+      args: ['--version'],
+      expectRegex: '\\d+\\.\\d+'
+    },
     notes: {
       'zh-CN':
         '按 L2 处理：可以自动下载安装，但发行物走 Microsoft 产品许可，不再分发，因此不进离线包。用 User 安装器，无需管理员。',
