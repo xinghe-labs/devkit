@@ -71,7 +71,8 @@
     "clearSelection": "Clear selection",
     "selectAll": "Select all in category",
     "installed": "Installed",
-    "settings": "Settings"
+    "settings": "Settings",
+    "vscode": "VS Code extensions"
   },
   "log": {
     "title": "Runtime log",
@@ -222,5 +223,25 @@
     "mirrors": "Mirrors",
     "noHash": "No checksum declared for this version (it will not appear as installable)",
     "verify": "Post-install check"
+  },
+  "vscode": {
+    "title": "Recommended VS Code extensions",
+    "hint": "Extensions change editor behaviour, so this is a recommendation list only — pick what you want. Each install runs code --install-extension.",
+    "install": "Install selected",
+    "selected": "{{count}} selected",
+    "unavailable": "VS Code not found",
+    "unavailableHint": "Once VS Code is installed (or installed and activated through devkit), you can install extensions here in one click.",
+    "result": "Done: {{ok}} installed, {{failed}} failed",
+    "empty": "No extensions to recommend",
+    "toggleGroup": "Toggle group",
+    "category": {
+      "general": "General",
+      "frontend": "Frontend",
+      "java": "Java",
+      "python": "Python",
+      "go": "Go",
+      "rust": "Rust",
+      "cpp": "C/C++"
+    }
   }
 }

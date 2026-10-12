@@ -27,6 +27,7 @@ import { InstalledDrawer } from './components/InstalledDrawer'
 import { LogPanel } from './components/LogPanel'
 import { ImportPresetButton, PresetBar } from './components/PresetBar'
 import { SettingsDrawer } from './components/SettingsDrawer'
+import { VscodeDrawer } from './components/VscodeDrawer'
 import { ToolRow } from './components/ToolRow'
 import { useAppStore, type CategoryFilter } from './store/app-store'
 import { useInstallStore } from './store/install-store'
@@ -87,6 +88,7 @@ export default function App() {
   const preparing = useInstallStore((state) => state.busy)
 
   const openSettings = useManageStore((state) => state.openSettings)
+  const openVscode = useManageStore((state) => state.openVscode)
   const openInstalled = useManageStore((state) => state.openInstalled)
   const notice = useManageStore((state) => state.notice)
   const setNotice = useManageStore((state) => state.setNotice)
@@ -235,6 +237,9 @@ export default function App() {
               { label: 'English', value: 'en-US' }
             ]}
           />
+          <Button size="small" onClick={() => openVscode(true)}>
+            {t('action.vscode')}
+          </Button>
           <Button size="small" onClick={() => openInstalled(true)}>
             {t('action.installed')}
           </Button>
@@ -427,6 +432,7 @@ export default function App() {
         <InstallFlow />
         <SettingsDrawer />
         <InstalledDrawer />
+        <VscodeDrawer />
       </Layout>
     </ConfigProvider>
   )

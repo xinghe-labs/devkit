@@ -45,7 +45,11 @@ const MIRRORS: readonly string[] = ['official', 'huaweicloud', 'aliyun', 'tuna',
 /** 默认镜像源：npm 与 pip 用国内镜像（国内开发者的实际选择） */
 const DEFAULT_MIRROR_URLS: Record<MirrorTarget, string> = {
   npm: 'https://registry.npmmirror.com',
-  pip: 'https://pypi.tuna.tsinghua.edu.cn/simple'
+  pip: 'https://pypi.tuna.tsinghua.edu.cn/simple',
+  go: 'https://goproxy.cn,direct',
+  maven: 'https://maven.aliyun.com/repository/public',
+  gradle: 'https://maven.aliyun.com/repository/public',
+  cargo: 'https://mirrors.tuna.tsinghua.edu.cn/crates.io-index'
 }
 
 const DEFAULTS: UserConfig = {

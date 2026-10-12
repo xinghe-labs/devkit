@@ -8,7 +8,10 @@ import type {
   SystemConfigItem,
   SystemConfigRequest,
   UpdateInfo,
-  UserConfigView
+  UserConfigView,
+  VscodeExtension,
+  VscodeInstallResult,
+  VscodeStatus
 } from '@shared/types'
 
 /**
@@ -35,6 +38,10 @@ interface ManageState {
   hotUpdateResult: HotUpdateResultView | null
   systemConfig: SystemConfigItem[]
   updateInfo: UpdateInfo | null
+  vscodeOpen: boolean
+  vscodeStatus: VscodeStatus | null
+  vscodeExtensions: VscodeExtension[]
+  vscodeResult: VscodeInstallResult | null
 
   settingsOpen: boolean
   installedOpen: boolean
@@ -68,6 +75,10 @@ interface ManageState {
   applySystemConfig: (request: SystemConfigRequest) => Promise<void>
 
   checkUpdate: () => Promise<void>
+
+  openVscode: (open: boolean) => void
+  loadVscode: () => Promise<void>
+  installExtensions: (ids: string[]) => Promise<void>
 }
 
 function describeError(error: unknown): string {
@@ -85,6 +96,10 @@ export const useManageStore = create<ManageState>()((set, get) => ({
   hotUpdateResult: null,
   systemConfig: [],
   updateInfo: null,
+  vscodeOpen: false,
+  vscodeStatus: null,
+  vscodeExtensions: [],
+  vscodeResult: null,
   settingsOpen: false,
   installedOpen: false,
   busy: false,
@@ -330,6 +345,40 @@ export const useManageStore = create<ManageState>()((set, get) => ({
       set({ systemConfig: await window.devkit.getSystemConfig() })
     } catch (error) {
       set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  openVscode: (open) => set({ vscodeOpen: open }),
+
+  loadVscode: async () => {
+    try {
+      const [status, extensions] = await Promise.all([
+        window.devkit.getVscodeStatus(),
+        window.devkit.listVscodeExtensions()
+      ])
+      set({ vscodeStatus: status, vscodeExtensions: extensions })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  installExtensions: async (ids) => {
+    set({ busy: true, vscodeResult: null })
+    try {
+      const result = await window.devkit.installVscodeExtensions(ids)
+      set({
+        vscodeResult: result,
+        notice: result.error
+          ? { kind: 'error', text: result.error }
+          : {
+              kind: result.failed.length > 0 ? 'warning' : 'success',
+              text: `插件安装完成：成功 ${result.installed.length}，失败 ${result.failed.length}`
+            }
+      })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
     }
   },
 

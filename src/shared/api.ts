@@ -25,6 +25,9 @@ import type {
   SystemConfigResult,
   UninstallRequest,
   UpdateInfo,
+  VscodeExtension,
+  VscodeInstallResult,
+  VscodeStatus,
   UninstallResult,
   UserConfigView
 } from './types'
@@ -94,6 +97,11 @@ export interface DevkitApi {
 
   /** 用系统浏览器打开一个 https 链接（只接受 https） */
   openExternal(url: string): Promise<boolean>
+
+  /* ---------------- VS Code 插件（FR-7） ---------------- */
+  getVscodeStatus(): Promise<VscodeStatus>
+  listVscodeExtensions(): Promise<VscodeExtension[]>
+  installVscodeExtensions(ids: string[]): Promise<VscodeInstallResult>
 
   /* ---------------- 更新检查（FR-13） ---------------- */
   checkForUpdate(): Promise<UpdateInfo>

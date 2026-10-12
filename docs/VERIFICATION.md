@@ -62,6 +62,9 @@
 
 | 场景 | 命令 | 结果 |
 | --- | --- | --- |
+| VS Code 插件面板（VS Code 未安装） | 点击头部「VS Code 插件」 | 面板置灰、显示 `code --version 退出码 1：'code' 不是内部或外部命令…`、安装按钮禁用 —— 符合 FR-7「未安装时置灰并提示」 |
+| 设置抽屉 | 点击头部「设置」 | 下载/安装完成后/镜像源/离线包/清单更新/系统配置/激活状态/关于 七个分区全部渲染正常 |
+| 已安装抽屉 | 点击头部「已安装」 | 按工具分组、显示体积与安装时间、nodejs 正确标注「该版本未声明激活方式」、其余可激活/卸载 |
 | 开发构建 | `DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=22000 node_modules/electron/dist/electron.exe .` | 19 个清单加载、检测 19 项、`冒烟通过：界面已渲染且渲染进程无报错`、**exit 0** |
 | 打包产物 | `DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=22000 "release/win-unpacked/devkit.exe"` | 清单从 `resources\manifest` 加载成功、`打包模式：是`、检测 19 项、**exit 0** |
 

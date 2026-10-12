@@ -472,9 +472,16 @@ export interface UninstallResult {
 /* ------------------------------------------------------------------ */
 
 /** 可一键切换的国内镜像目标。只包含"用写配置文件就能生效、不需要先装好某个工具"的目标 */
-export type MirrorTarget = 'npm' | 'pip'
+export type MirrorTarget = 'npm' | 'pip' | 'go' | 'maven' | 'gradle' | 'cargo'
 
-export const MIRROR_TARGETS: readonly MirrorTarget[] = ['npm', 'pip'] as const
+export const MIRROR_TARGETS: readonly MirrorTarget[] = [
+  'npm',
+  'pip',
+  'go',
+  'maven',
+  'gradle',
+  'cargo'
+] as const
 
 /** 单个镜像目标的取值；url 为空表示用官方源 */
 export interface MirrorSetting {
@@ -517,6 +524,33 @@ export interface SystemConfigResult {
   detail: string | null
   error: string | null
   requiresAdmin: boolean
+}
+
+/* ------------------------------------------------------------------ */
+/* VS Code 插件（FR-7）                                                 */
+/* ------------------------------------------------------------------ */
+
+export type VscodeCategory = 'frontend' | 'java' | 'python' | 'go' | 'rust' | 'cpp' | 'general'
+
+export interface VscodeExtension {
+  id: string
+  category: VscodeCategory
+  name: LocalizedText
+  description: LocalizedText
+}
+
+export interface VscodeStatus {
+  available: boolean
+  version: string | null
+  codePath: string | null
+  detail: string
+}
+
+export interface VscodeInstallResult {
+  ok: boolean
+  installed: string[]
+  failed: { id: string; error: string }[]
+  error: string | null
 }
 
 /** 更新检查结果（FR-13） */

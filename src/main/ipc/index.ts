@@ -26,6 +26,9 @@ import type {
   SystemConfigResult,
   UninstallRequest,
   UpdateInfo,
+  VscodeExtension,
+  VscodeInstallResult,
+  VscodeStatus,
   UninstallResult,
   UserConfigView
 } from '@shared/types'
@@ -46,6 +49,7 @@ import { importOfflinePack, packOffline } from '../core/offline'
 import { clearUserManifests, runHotUpdate } from '../core/hotupdate'
 import { applySystemConfig, getSystemConfigStatus } from '../core/systemconfig'
 import { checkForUpdate } from '../core/updater'
+import { getVscodeStatus, installVscodeExtensions, listVscodeExtensions } from '../core/vscode'
 import { deleteUserPreset, importPreset, listPresets, saveUserPreset } from '../core/presets'
 import { renderPlanReport } from '../core/report/markdown'
 import { logger } from '../core/report/logger'
@@ -300,6 +304,17 @@ export function registerIpcHandlers(): void {
     await shell.openExternal(target)
     logger.info('app', `已在系统浏览器打开：${target}`)
     return true
+  })
+
+  /* ---------------- VS Code 插件（FR-7） ---------------- */
+
+  handle(IPC.vscodeStatus, (): Promise<VscodeStatus> => getVscodeStatus())
+
+  handle(IPC.vscodeList, (): VscodeExtension[] => listVscodeExtensions())
+
+  handle(IPC.vscodeInstall, async (_event, payload: unknown): Promise<VscodeInstallResult> => {
+    const ids = asOptionalStringArray(payload, 'extensionIds', 100)
+    return installVscodeExtensions(ids)
   })
 
   /* ---------------- 更新检查（FR-13） ---------------- */

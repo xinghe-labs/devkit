@@ -71,7 +71,8 @@
     "clearSelection": "清空选择",
     "selectAll": "全选本类",
     "installed": "已安装",
-    "settings": "设置"
+    "settings": "设置",
+    "vscode": "VS Code 插件"
   },
   "log": {
     "title": "运行日志",
@@ -222,5 +223,25 @@
     "mirrors": "镜像",
     "noHash": "这个版本没有声明校验和（不会出现在可安装清单里）",
     "verify": "安装后自检"
+  },
+  "vscode": {
+    "title": "VS Code 插件推荐",
+    "hint": "插件会改变编辑器行为，所以只给推荐列表，由你自己勾选。安装会逐条执行 code --install-extension。",
+    "install": "安装选中插件",
+    "selected": "已选 {{count}} 个",
+    "unavailable": "没有找到 VS Code",
+    "unavailableHint": "安装 VS Code 后（或用 devkit 装上并激活），这里就能一键安装插件。",
+    "result": "安装完成：成功 {{ok}}，失败 {{failed}}",
+    "empty": "没有可推荐的插件",
+    "toggleGroup": "全选/取消本组",
+    "category": {
+      "general": "通用",
+      "frontend": "前端",
+      "java": "Java",
+      "python": "Python",
+      "go": "Go",
+      "rust": "Rust",
+      "cpp": "C/C++"
+    }
   }
 }

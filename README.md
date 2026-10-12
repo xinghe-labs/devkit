@@ -30,6 +30,8 @@
 | 多版本共存与切换                                 | 部分           | ✗              | ✓      |
 | 卸载只删自己装的东西                             | ✗              | ✗              | ✓      |
 | 离线包                                           | ✗              | ✗              | ✓      |
+| 镜像源一键配置（npm/pip/Go/Maven/Gradle/cargo）  | ✗              | 部分           | ✓      |
+| VS Code 插件推荐与一键安装                       | ✗              | ✗              | ✓      |
 
 ---
 
@@ -243,6 +245,8 @@ DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 node_modules/electron/dist/electron.e
 | 主进程不整程序提权，用常驻提权助手          | 整程序提权会让拖拽失效、安全争议大；每项单独提权会反复弹 UAC     |
 | **禁用 `setx`** 写 PATH                     | `setx` 在 1024 字符处静默截断，会把用户的 PATH 写坏              |
 | 用 junction 而不是 shim 做版本切换          | junction 不需要管理员，切版本不用改 PATH                         |
+| 镜像配置只写自己那一块（标记块/指定 id）     | 用户可能有私服、token、proxy 配置，整文件覆盖等于毁掉它          |
+| VS Code 插件只做推荐列表、不自动全装         | 插件会改变编辑器行为，属于用户该自己决定的事                     |
 | PATH 条目写成 `%DEVKIT_HOME%\current\<tool>` | 避免每装一个工具就把 PATH 拉长一截（PATH 过长是真实故障）        |
 | 激活后跑一次「新终端」验证                  | 写进 PATH ≠ 生效；winget 的 PATH bug 几乎全在这里                  |
 | 软件行里的「详情」展示下载域名与 SHA-256    | 用户没法验证二进制里装了什么，但至少能一眼看到它从哪来、校验和是多少 |

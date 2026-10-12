@@ -90,6 +90,11 @@ const api: DevkitApi = {
 
   openExternal: (url: string) => ipcRenderer.invoke(IPC.appOpenExternal, url),
 
+  /* ---------------- VS Code 插件 ---------------- */
+  getVscodeStatus: () => ipcRenderer.invoke(IPC.vscodeStatus),
+  listVscodeExtensions: () => ipcRenderer.invoke(IPC.vscodeList),
+  installVscodeExtensions: (ids: string[]) => ipcRenderer.invoke(IPC.vscodeInstall, ids),
+
   /* ---------------- 更新检查 ---------------- */
   checkForUpdate: () => ipcRenderer.invoke(IPC.updateCheck),
 

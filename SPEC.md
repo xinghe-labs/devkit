@@ -115,6 +115,14 @@
 - 默认官方源，一键切国内；每项可单独设，也可"全部设为同一源"
 - 切换前备份原配置文件（`.npmrc`、`pip.ini`、`settings.xml` 等），可一键还原
 
+> **实现状态（v0.5）**：已覆盖 **npm / pip / Go proxy / Maven / Gradle / cargo** 六个目标
+> （SPEC 原列表里的 conda / Docker / winget / NuGet 尚未做）。
+> 落点各不相同：`.npmrc` 行级替换、`pip.ini` 的 `[global]` 段、`GOPROXY` 用户环境变量、
+> `.m2\settings.xml` 里带固定 id 的 `<mirror>`、`init.gradle` / `config.toml` 里带
+> `devkit-begin`/`devkit-end` 标记的代码块。
+> **一律只改自己那一块**：用户可能有私服、token、proxy 配置，整文件覆盖等于毁掉它。
+> 关掉某一项 = 精确移除我们写进去的那一块，回到官方源。
+
 ### FR-6 系统配置
 | 配置项 | 默认 | 说明 |
 |---|---|---|
@@ -138,6 +146,11 @@
 - 只做**推荐列表**，用户逐个勾选，不自动全装
 - 提供"一键复制安装命令"和"一键执行安装"两种方式
 - VS Code 未安装时，该面板置灰并提示"请先安装 VS Code"
+
+> **实现状态（v0.5）**：✅ 已实现。18 个推荐插件按语言分类（通用/前端/Java/Python/Go/Rust/C++）；
+> 一键安装逐条跑 `code --install-extension` 并逐条上报结果；VS Code 不可用时面板置灰并给出
+> `code --version` 的真实报错。**只接受推荐列表里的插件 id** —— 这既挡住渲染进程传任意 id，
+> 也避免"一键安装"变成一条任意命令通道。
 
 ### FR-8 安装后自检
 - 每个已安装项执行 `verify` 命令（如 `node -v`），匹配预期正则

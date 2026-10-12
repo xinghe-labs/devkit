@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { upsertIniSectionValue, upsertIniValue } from './mirrors'
+import {
+  minimalMavenSettings,
+  upsertIniSectionValue,
+  upsertIniValue,
+  upsertMarkedBlock,
+  upsertMavenMirror
+} from './mirrors'
 
 describe('npmrc 行级编辑', () => {
   it('没有 registry 行时追加', () => {
@@ -45,5 +51,105 @@ describe('pip.ini 段级编辑', () => {
     const input = ['[global]', 'timeout = 60', ''].join('\n')
     const result = upsertIniSectionValue(input, 'global', 'index-url', 'https://mirror/simple')
     expect(result.split('\n')[1]).toBe('index-url = https://mirror/simple')
+  })
+})
+
+describe('带标记的代码块（gradle / cargo 用）', () => {
+  it('文件为空时插入标记块', () => {
+    const result = upsertMarkedBlock('', 'allprojects { }')
+    expect(result).toContain('# devkit-begin')
+    expect(result).toContain('allprojects { }')
+    expect(result).toContain('# devkit-end')
+  })
+
+  it('已有标记块时原地替换，不重复追加', () => {
+    const first = upsertMarkedBlock('// user line\n', 'old-block')
+    const second = upsertMarkedBlock(first, 'new-block')
+    expect(second).toContain('new-block')
+    expect(second).not.toContain('old-block')
+    expect(second.split('# devkit-begin')).toHaveLength(2)
+    expect(second).toContain('// user line')
+  })
+
+  it('传 null 时只移除标记块，保留用户自己的内容', () => {
+    const content = upsertMarkedBlock('// user line\n', 'block')
+    const cleaned = upsertMarkedBlock(content, null)
+    expect(cleaned).not.toContain('# devkit-begin')
+    expect(cleaned).not.toContain('block')
+    expect(cleaned).toContain('// user line')
+  })
+
+  it('没有标记块时传 null 是空操作', () => {
+    expect(upsertMarkedBlock('// user line\n', null)).toBe('// user line\n')
+  })
+})
+
+describe('Maven settings.xml 镜像条目', () => {
+  const URL = 'https://maven.aliyun.com/repository/public'
+
+  it('已有 <mirrors> 时插入到里面', () => {
+    const input = '<?xml version="1.0"?>\n<settings>\n  <mirrors>\n  </mirrors>\n</settings>\n'
+    const result = upsertMavenMirror(input, URL)
+    expect(result).toContain('<id>devkit-central</id>')
+    expect(result).toContain(URL)
+    expect(result).toContain('<mirrorOf>central</mirrorOf>')
+    // 结构没有被破坏
+    expect(result.match(/<mirrors>/g)).toHaveLength(1)
+  })
+
+  it('自闭合的 <mirrors/> 也能处理', () => {
+    const result = upsertMavenMirror('<settings><mirrors/></settings>', URL)
+    expect(result).toContain('<mirrors>')
+    expect(result).toContain('</mirrors>')
+    expect(result).toContain(URL)
+  })
+
+  it('没有 <mirrors> 时插到 </settings> 之前', () => {
+    const result = upsertMavenMirror('<settings>\n</settings>\n', URL)
+    expect(result).toContain('<mirrors>')
+    expect(result.indexOf('<mirrors>')).toBeLessThan(result.indexOf('</settings>'))
+  })
+
+  it('重复应用是幂等的（不会插第二条）', () => {
+    const once = upsertMavenMirror('<settings>\n</settings>\n', URL)
+    const twice = upsertMavenMirror(once, URL)
+    expect(twice.match(/<id>devkit-central<\/id>/g)).toHaveLength(1)
+  })
+
+  it('传 null 时移除条目，并把空的 <mirrors> 一起收掉', () => {
+    const applied = upsertMavenMirror('<settings>\n</settings>\n', URL)
+    const removed = upsertMavenMirror(applied, null)
+    expect(removed).not.toContain('devkit-central')
+    expect(removed).not.toContain('<mirrors>')
+    expect(removed).toContain('</settings>')
+  })
+
+  it('保留用户已有的其它 mirror 条目', () => {
+    const input = [
+      '<settings>',
+      '  <mirrors>',
+      '    <mirror>',
+      '      <id>company-internal</id>',
+      '      <url>https://nexus.corp/repository/maven-public/</url>',
+      '      <mirrorOf>*</mirrorOf>',
+      '    </mirror>',
+      '  </mirrors>',
+      '</settings>'
+    ].join('\n')
+    const result = upsertMavenMirror(input, URL)
+    expect(result).toContain('company-internal')
+    expect(result).toContain('devkit-central')
+  })
+
+  it('结构无法识别时抛错而不是写坏文件', () => {
+    expect(() => upsertMavenMirror('this is not xml', URL)).toThrow(/无法安全插入/)
+  })
+
+  it('生成的最小 settings.xml 是合法结构', () => {
+    const minimal = minimalMavenSettings(URL)
+    expect(minimal).toContain('<?xml version="1.0" encoding="UTF-8"?>')
+    expect(minimal.match(/<mirrors>/g)).toHaveLength(1)
+    expect(minimal.match(/<\/mirrors>/g)).toHaveLength(1)
+    expect(minimal).toContain(URL)
   })
 })

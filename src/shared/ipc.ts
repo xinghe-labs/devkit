@@ -61,6 +61,11 @@ export const IPC = {
   /** 用系统浏览器打开 https 链接 */
   appOpenExternal: 'app:open-external',
 
+  /** VS Code 插件（FR-7） */
+  vscodeStatus: 'vscode:status',
+  vscodeList: 'vscode:list',
+  vscodeInstall: 'vscode:install',
+
   /** 更新检查（FR-13） */
   updateCheck: 'update:check',
 
