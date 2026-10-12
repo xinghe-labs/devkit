@@ -58,6 +58,47 @@
   },
   "versions": [
     {
+      "version": "3.15.0",
+      "channel": "stable",
+      "arch": "x64",
+      "sizeBytes": 45383680,
+      "installScope": "user",
+      "source": {
+        "url": "https://www.python.org/ftp/python/3.15.0/python-3.15.0-amd64.exe",
+        "sha256": "67d9a63eb145a34aa939f02eadbf8c57f21fcdd6decb901ccac578d2d1f01d6f"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/python/3.15.0/python-3.15.0-amd64.exe"
+        }
+      ],
+      "install": {
+        "type": "exe-custom",
+        "template": "exe-python-silent",
+        "params": {
+          "includeLauncher": "1",
+          "includePip": "1"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}",
+          "{currentDir}\\Scripts"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\python.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "Python \\d+\\.\\d+"
+      }
+    },
+    {
       "version": "3.14.8",
       "channel": "stable",
       "recommended": true,
@@ -113,47 +154,6 @@
         {
           "name": "huaweicloud",
           "url": "https://mirrors.huaweicloud.com/python/3.13.16/python-3.13.16-amd64.exe"
-        }
-      ],
-      "install": {
-        "type": "exe-custom",
-        "template": "exe-python-silent",
-        "params": {
-          "includeLauncher": "1",
-          "includePip": "1"
-        }
-      },
-      "uninstall": {
-        "type": "custom"
-      },
-      "activate": {
-        "pathEntries": [
-          "{currentDir}",
-          "{currentDir}\\Scripts"
-        ]
-      },
-      "verify": {
-        "cmd": "{installDir}\\python.exe",
-        "args": [
-          "--version"
-        ],
-        "expectRegex": "Python \\d+\\.\\d+"
-      }
-    },
-    {
-      "version": "3.15.0",
-      "channel": "stable",
-      "arch": "x64",
-      "sizeBytes": 45383680,
-      "installScope": "user",
-      "source": {
-        "url": "https://www.python.org/ftp/python/3.15.0/python-3.15.0-amd64.exe",
-        "sha256": "67d9a63eb145a34aa939f02eadbf8c57f21fcdd6decb901ccac578d2d1f01d6f"
-      },
-      "mirrors": [
-        {
-          "name": "huaweicloud",
-          "url": "https://mirrors.huaweicloud.com/python/3.15.0/python-3.15.0-amd64.exe"
         }
       ],
       "install": {

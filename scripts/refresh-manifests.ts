@@ -282,6 +282,23 @@ function npmNotes(pkg: string, bin: string): { 'zh-CN': string; 'en-US': string 
 }
 
 /** 从 "hash  filename" 形式的校验和文本里取出指定文件名的哈希 */
+/**
+ * 按主版本号从大到小排。
+ *
+ * 不能依赖官方源自己的顺序：Node 的 index.json 与 Gradle 的 /versions/all
+ * 都是按**发布日期**倒序，而旧线常常比新线晚几天发补丁
+ * （实测 8.14.6 是 10-08、9.8.1 是 10-07），照单全收就会把 8.x 当成"最新"。
+ * 排完序之后 `[0]` 才真的是当前活跃线，`recommended` 也才标得对。
+ */
+function sortByLineDesc(list: DiscoveredVersion[]): DiscoveredVersion[] {
+  const parts = (v: string) => v.split('.').map((n) => Number.parseInt(n, 10) || 0)
+  return [...list].sort((a, b) => {
+    const [am, an, ap] = parts(a.version)
+    const [bm, bn, bp] = parts(b.version)
+    return bm - am || bn - an || bp - ap
+  })
+}
+
 function pickHash(text: string, fileName: string): string | null {
   for (const line of text.split(/\r?\n/)) {
     const match = line.trim().match(/^([a-f0-9]{64})\s+\*?(.+)$/i)
@@ -322,8 +339,22 @@ interface VersionSource {
   mirrors?: (version: string, url: string) => { name: string; url: string }[]
   /** 取 SHA-256 与体积的方式；candidates[0] 是官方地址，其后是镜像 */
   resolve: (version: string, candidates: string[]) => Promise<{ sha256: string; sizeBytes: number }>
-  /** 该工具支持哪些版本 */
+  /**
+   * 该工具支持哪些版本。
+   *
+   * 可以返回**多个**版本（例如 Node 的多条 LTS 线）—— 以前这里的结果被硬编码
+   * 只取 `[0]`，所以清单里每个工具永远只有 1 个版本可选。
+   * 返回空数组时退回 `want` 指定的单版本。
+   */
   discover?: () => Promise<DiscoveredVersion[]>
+  /**
+   * 最多保留几个版本（默认 1，保持"只留最新"的旧行为）。
+   *
+   * 加这个上限是因为「版本列表」和「验证过的版本列表」不是一回事：
+   * 每个版本都要真机走完装/自检/激活/卸载才能算数，
+   * 放开枚举很容易一口气产出几十个没人验过的条目。
+   */
+  maxVersions?: number
 }
 
 interface ToolSpec {
@@ -395,14 +426,24 @@ const SPECS: ToolSpec[] = [
           { name: 'aliyun', url: `https://mirrors.aliyun.com/nodejs-release/v${v}/node-v${v}-win-x64.zip` },
           { name: 'tuna', url: `https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v${v}/node-v${v}-win-x64.zip` }
         ],
+        // 三条 LTS 线：24（Active LTS）、22（Maintenance LTS）、20（更老的遗留项目）。
+        // nodejs 的 index.json 按时间倒序，所以每条线第一次出现的那个就是该线最新补丁。
+        maxVersions: 3,
         discover: async () => {
           const index = await fetchJson<{ version: string; lts: string | false }[]>(
             'https://nodejs.org/dist/index.json'
           )
-          const lts = index.filter((item) => item.lts !== false)
-          const latest = lts[0]?.version ?? index[0]?.version
-          if (!latest) throw new Error('nodejs 官方 index.json 里没有可用版本')
-          return [{ version: latest.replace(/^v/, '') }]
+          const seen = new Set<string>()
+          const picked: DiscoveredVersion[] = []
+          for (const item of index) {
+            if (item.lts === false) continue
+            const line = item.version.split('.')[0]
+            if (seen.has(line)) continue
+            seen.add(line)
+            picked.push({ version: item.version.replace(/^v/, '') })
+          }
+          if (picked.length === 0) throw new Error('nodejs 官方 index.json 里没有 LTS 版本')
+          return sortByLineDesc(picked)
         },
         resolve: async (_v, candidates) => {
           // 官方 SHASUMS256.txt 里就是 sha256，直接读，不下载 36 MB 的包。
@@ -463,11 +504,13 @@ const SPECS: ToolSpec[] = [
       'en-US':
         'Official exe installer with /quiet InstallAllUsers=0 into the version directory — no admin needed. PrependPath=0 is deliberate: PATH is owned by devkit activation so the installer and devkit never fight over it.'
     },
+    // 顺序按版本号从新到旧（UI 直接照数组渲染），但 recommended 留给 3.14.8：
+    // 3.15.0 是 2026-10-09 才发布的，生态里大部分包还没有对应的 wheel，
+    // 给开发环境当默认版本偏激进。
     versions: [
       {
-        want: '3.14.8',
+        want: '3.15.0',
         channel: 'stable',
-        recommended: true,
         url: (v) => `https://www.python.org/ftp/python/${v}/python-${v}-amd64.exe`,
         mirrors: (v) => [
           {
@@ -478,8 +521,9 @@ const SPECS: ToolSpec[] = [
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       },
       {
-        want: '3.13.16',
+        want: '3.14.8',
         channel: 'stable',
+        recommended: true,
         url: (v) => `https://www.python.org/ftp/python/${v}/python-${v}-amd64.exe`,
         mirrors: (v) => [
           { name: 'huaweicloud', url: `https://mirrors.huaweicloud.com/python/${v}/python-${v}-amd64.exe` }
@@ -487,7 +531,7 @@ const SPECS: ToolSpec[] = [
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       },
       {
-        want: '3.15.0',
+        want: '3.13.16',
         channel: 'stable',
         url: (v) => `https://www.python.org/ftp/python/${v}/python-${v}-amd64.exe`,
         mirrors: (v) => [
@@ -530,6 +574,9 @@ const SPECS: ToolSpec[] = [
           { name: 'huaweicloud', url: `https://mirrors.huaweicloud.com/go/${v}/go${v}.windows-amd64.zip` },
           { name: 'aliyun', url: `https://mirrors.aliyun.com/golang/go${v}.windows-amd64.zip` }
         ],
+        // Go 的官方政策是「每个大版本支持到再出两个大版本为止」，
+        // 所以 dl/?mode=json 返回的 stable 正好就是该留的那两条。
+        maxVersions: 2,
         discover: async () => {
           const data = await fetchJson<{ version: string; stable: boolean }[]>('https://go.dev/dl/?mode=json')
           return data
@@ -584,14 +631,22 @@ const SPECS: ToolSpec[] = [
       'en-US':
         'ZIP and SHA-256 come from the official Adoptium API. Installing two LTS releases demonstrates version switching: activate 21 and java -version reports 21.'
     },
+    // 三条 LTS：25（最新）、21（目前生产上最常见）、17（大量存量项目仍在用）。
+    // 8/11 不放：Temurin 的 8/11 在 Windows 上仍是 ZIP，但现代项目基本不再新装。
     versions: [
       {
-        want: '21',
+        want: '25',
         channel: 'lts',
         recommended: true,
         url: () => '',
         resolve: async () => ({ sha256: '', sizeBytes: 0 }),
-        discover: async () => [{ version: '21' }, { version: '17' }]
+        discover: async () => [{ version: '25' }, { version: '21' }, { version: '17' }]
+      },
+      {
+        want: '21',
+        channel: 'lts',
+        url: () => '',
+        resolve: async () => ({ sha256: '', sizeBytes: 0 })
       },
       {
         want: '17',
@@ -701,13 +756,19 @@ const SPECS: ToolSpec[] = [
             url: `https://mirrors.huaweicloud.com/apache/maven/maven-3/${v}/binaries/apache-maven-${v}-bin.zip`
           }
         ],
+        // 官方维护"最近两个系列的最新版"，当前是 3.10.x 与 3.9.x。
+        // Maven 4 还在 rc 阶段，不放进来 —— 清单里不该出现非 GA 的东西。
+        maxVersions: 2,
         discover: async () => {
           const html = await fetchText('https://archive.apache.org/dist/maven/maven-3/')
           const found = [...html.matchAll(/href="(3\.\d+\.\d+)\/"/g)].map((match) => match[1])
-          return [...new Set(found)]
-            .sort(compareVersionsDesc)
-            .slice(0, 1)
-            .map((version) => ({ version }))
+          // 只保留每条次要线的最新补丁（3.10.0 / 3.9.16），再按版本倒序
+          const byLine = new Map<string, string>()
+          for (const version of [...new Set(found)].sort(compareVersionsDesc)) {
+            const line = version.split('.').slice(0, 2).join('.')
+            if (!byLine.has(line)) byLine.set(line, version)
+          }
+          return [...byLine.values()].map((version) => ({ version }))
         },
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       }
@@ -746,15 +807,36 @@ const SPECS: ToolSpec[] = [
         mirrors: (v) => [
           { name: 'aliyun', url: `https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-${v}-bin.zip` }
         ],
+        // 两条线：9.x（当前活跃）与 8.x（大量存量项目用 wrapper 钉着，官方仍在发安全修复）。
+        maxVersions: 2,
         discover: async () => {
-          const data = await fetchJson<{ version: string }>('https://services.gradle.org/versions/current')
-          return [{ version: data.version }]
-        },
-        resolve: async () => {
-          const data = await fetchJson<{ version: string; downloadUrl: string; checksum: string }>(
-            'https://services.gradle.org/versions/current'
+          const data = await fetchJson<
+            { version: string; snapshot?: boolean; nightly?: boolean; rcFor?: string; milestoneFor?: string; broken?: boolean }[]
+          >('https://services.gradle.org/versions/all')
+          const stable = data.filter(
+            (item) => !item.snapshot && !item.nightly && !item.rcFor && !item.milestoneFor && !item.broken
           )
-          return { sha256: data.checksum, sizeBytes: 0 }
+          const seen = new Set<string>()
+          const picked: DiscoveredVersion[] = []
+          for (const item of stable) {
+            const line = item.version.split('.')[0]
+            if (seen.has(line)) continue
+            seen.add(line)
+            picked.push({ version: item.version })
+          }
+          return sortByLineDesc(picked)
+        },
+        // 按版本读官方 .sha256，而不是读 /versions/current ——
+        // 后者只会给出最新那个版本的哈希，拿它配 8.14.6 就是错的哈希。
+        resolve: async (version) => {
+          const text = await fetchText(
+            `https://services.gradle.org/distributions/gradle-${version}-bin.zip.sha256`
+          )
+          const sha256 = text.trim().split(/\s+/)[0]
+          if (!/^[0-9a-f]{64}$/i.test(sha256)) {
+            throw new Error(`gradle ${version} 的 .sha256 内容不像一个 SHA-256：${text.slice(0, 60)}`)
+          }
+          return { sha256, sizeBytes: 0 }
         }
       }
     ]
@@ -1570,22 +1652,36 @@ async function buildTool(spec: ToolSpec): Promise<Record<string, unknown>> {
       resolved = await resolveTemurin(source.want)
       resolved.recommended = source.recommended
     } else {
-      const discovered =
-        source.want === 'latest' && source.discover ? (await source.discover())[0] : undefined
-      const version = discovered?.version ?? source.want
-      const url = discovered?.url ?? source.url(version)
-      if (!url) throw new Error(`${spec.id} 的下载地址为空（discover 没有给出 url，url() 也返回了空）`)
-      const mirrorList = source.mirrors?.(version, url) ?? []
-      const hashed = await source.resolve(version, [url, ...mirrorList.map((item) => item.url)])
-      resolved = {
-        version,
-        channel: source.channel,
-        recommended: source.recommended,
-        url,
-        sha256: hashed.sha256,
-        sizeBytes: hashed.sizeBytes,
-        mirrors: source.mirrors?.(version, url)
+      // discover 可以返回多个版本；返回空数组（或没写 discover）时退回 want 指定的单版本。
+      // maxVersions 默认 1 —— 不显式声明就还是"只留最新"的旧行为。
+      const found = source.want === 'latest' && source.discover ? await source.discover() : []
+      const targets: DiscoveredVersion[] =
+        found.length > 0 ? found.slice(0, source.maxVersions ?? 1) : [{ version: source.want }]
+
+      for (const [index, discovered] of targets.entries()) {
+        const version = discovered.version
+        const url = discovered.url ?? source.url(version)
+        if (!url) throw new Error(`${spec.id} 的下载地址为空（discover 没有给出 url，url() 也返回了空）`)
+        const mirrorList = source.mirrors?.(version, url) ?? []
+        const hashed = await source.resolve(version, [url, ...mirrorList.map((item) => item.url)])
+
+        versions.push({
+          version,
+          channel: source.channel,
+          // 只有最新那个才是"推荐版本"：三个版本都标 recommended 会让 UI 和默认选中变得没有意义
+          ...(source.recommended && index === 0 ? { recommended: true } : {}),
+          arch: 'x64',
+          ...(hashed.sizeBytes ? { sizeBytes: hashed.sizeBytes } : {}),
+          installScope: spec.installScope,
+          source: { url, sha256: hashed.sha256 },
+          ...(mirrorList.length > 0 ? { mirrors: source.mirrors?.(version, url) } : {}),
+          install: spec.install,
+          uninstall: spec.installScope === 'machine' ? { type: 'registry' } : { type: 'custom' },
+          ...(spec.activate ? { activate: spec.activate } : {}),
+          ...(spec.verify ? { verify: spec.verify } : {})
+        })
       }
+      continue
     }
 
     versions.push({

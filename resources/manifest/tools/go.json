@@ -78,6 +78,52 @@
         ],
         "expectRegex": "go\\d+\\.\\d+"
       }
+    },
+    {
+      "version": "1.26.9",
+      "channel": "stable",
+      "arch": "x64",
+      "sizeBytes": 75002909,
+      "installScope": "user",
+      "source": {
+        "url": "https://go.dev/dl/go1.26.9.windows-amd64.zip",
+        "sha256": "d722201a9c0c086d1610e111c48203009af690892ed708072bd5ae20160e7a59"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/go/1.26.9/go1.26.9.windows-amd64.zip"
+        },
+        {
+          "name": "aliyun",
+          "url": "https://mirrors.aliyun.com/golang/go1.26.9.windows-amd64.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "1"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\bin"
+        ],
+        "env": {
+          "GOROOT": "{currentDir}"
+        }
+      },
+      "verify": {
+        "cmd": "{installDir}\\bin\\go.exe",
+        "args": [
+          "version"
+        ],
+        "expectRegex": "go\\d+\\.\\d+"
+      }
     }
   ],
   "notes": {

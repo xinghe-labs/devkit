@@ -48,9 +48,46 @@
   },
   "versions": [
     {
-      "version": "21.0.12.1",
+      "version": "25.0.4.1",
       "channel": "lts",
       "recommended": true,
+      "arch": "x64",
+      "releaseDate": "2026-08-21",
+      "sizeBytes": 141167264,
+      "installScope": "user",
+      "source": {
+        "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.zip",
+        "sha256": "00c847d804f4a78e9f04f2683faf14fed898535b177b7fc704486cb0284e9283"
+      },
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "1"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\bin"
+        ],
+        "env": {
+          "JAVA_HOME": "{currentDir}"
+        }
+      },
+      "verify": {
+        "cmd": "{installDir}\\bin\\java.exe",
+        "args": [
+          "-version"
+        ],
+        "expectRegex": "version \"\\d+"
+      }
+    },
+    {
+      "version": "21.0.12.1",
+      "channel": "lts",
       "arch": "x64",
       "releaseDate": "2026-08-21",
       "sizeBytes": 205073461,

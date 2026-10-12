@@ -74,6 +74,48 @@
         ],
         "expectRegex": "Apache Maven \\d+"
       }
+    },
+    {
+      "version": "3.9.16",
+      "channel": "stable",
+      "arch": "x64",
+      "sizeBytes": 9395475,
+      "installScope": "user",
+      "source": {
+        "url": "https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.zip",
+        "sha256": "5af3b743dd8b876b5c45da33b676251e5f1687712644abb4ee519ca56e1d89ce"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/apache/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "1"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\bin"
+        ],
+        "env": {
+          "MAVEN_HOME": "{currentDir}"
+        }
+      },
+      "verify": {
+        "cmd": "{installDir}\\bin\\mvn.cmd",
+        "args": [
+          "-v"
+        ],
+        "expectRegex": "Apache Maven \\d+"
+      }
     }
   ],
   "notes": {
