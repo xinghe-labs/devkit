@@ -629,6 +629,15 @@ export interface UserConfigView {
   mirrors: MirrorSetting[]
   /** 是否已备份过用户 PATH */
   pathBackupFile: string | null
+  /**
+   * 批量产物（版本目录 / 下载缓存 / 切换链接）的根目录。
+   * null = 用默认值 %USERPROFILE%\.devkit；改成别的盘可避免系统盘被塞满。
+   */
+  dataRoot: string | null
+  /** 实际生效的根目录（已解析过环境变量与默认值） */
+  effectiveDataRoot: string
+  /** 这个根目录是从哪来的 */
+  dataRootSource: 'env' | 'config' | 'default'
 }
 
 /* ------------------------------------------------------------------ */

@@ -195,7 +195,17 @@
     "updateFeed": "更新源",
     "updateFeedHint": "指向一个 latest.json 或 latest.yml；留空表示关闭检查",
     "checkUpdate": "检查更新",
-    "downloadUpdate": "下载 {{version}}"
+    "downloadUpdate": "下载 {{version}}",
+    "storage": "存储",
+    "storageHint": "版本目录、切换链接与下载缓存都是批量产物（实测能到几 GB），可以整体挪到别的盘。",
+    "dataRoot": "数据根目录",
+    "dataRootHint": "默认 %USERPROFILE%\\.devkit",
+    "dataRootFromEnv": "当前来自环境变量 DEVKIT_DATA_ROOT（设置里改不动）",
+    "dataRootFromConfig": "当前来自设置",
+    "dataRootFromDefault": "当前是默认值",
+    "dataRootReset": "恢复默认",
+    "dataRootEnvLocked": "被环境变量锁定，请在系统里改 DEVKIT_DATA_ROOT。",
+    "dataRootWarn": "改这里只影响以后新装的项：已经装在旧目录里的版本不会自动搬过去，也不会被识别。"
   },
   "installed": {
     "title": "已安装（devkit 管理的版本目录）",

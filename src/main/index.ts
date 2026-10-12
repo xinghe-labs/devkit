@@ -7,7 +7,8 @@ import { logger } from './core/report/logger'
 import { recordRendererError } from './core/report/renderer-errors'
 import { setSmokeCapture } from './core/report/smoke'
 import { registerIpcHandlers } from './ipc'
-import { getLogDir } from './utils/app-paths'
+import { getDataRoot, getLogDir, setDataRootOverride } from './utils/app-paths'
+import { loadConfig } from './core/settings'
 
 const APP_USER_MODEL_ID = 'io.github.devkit'
 
@@ -126,6 +127,16 @@ if (!app.requestSingleInstanceLock()) {
       logger.info('app', `devkit ${app.getVersion()} 启动`)
       logger.info('app', `日志文件：${logFile}`)
       logger.info('app', `打包模式：${app.isPackaged ? '是' : '否'}`)
+
+      // 先把「批量产物根目录」接上，再碰任何版本目录/下载缓存。
+      // 必须在 loadManifests 之后（loadConfig 会读激活记录）但要在任何安装动作之前。
+      const config = loadConfig()
+      setDataRootOverride(config.dataRoot)
+      logger.info(
+        'app',
+        `批量产物根目录：${getDataRoot()}${config.dataRoot ? '（来自设置）' : '（默认）'}` +
+          (process.env.DEVKIT_DATA_ROOT ? ' [被环境变量 DEVKIT_DATA_ROOT 覆盖]' : '')
+      )
 
       const manifests = loadManifests()
       logger.info(

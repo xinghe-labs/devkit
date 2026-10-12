@@ -195,7 +195,17 @@
     "updateFeed": "Update feed",
     "updateFeedHint": "Points at a latest.json or latest.yml; empty disables the check",
     "checkUpdate": "Check for updates",
-    "downloadUpdate": "Download {{version}}"
+    "downloadUpdate": "Download {{version}}",
+    "storage": "Storage",
+    "storageHint": "Version dirs, switch links and the download cache are bulk artifacts (measured up to several GB) and can be moved to another drive.",
+    "dataRoot": "Data root",
+    "dataRootHint": "Default: %USERPROFILE%\\.devkit",
+    "dataRootFromEnv": "Currently from the DEVKIT_DATA_ROOT environment variable (not editable here)",
+    "dataRootFromConfig": "Currently from settings",
+    "dataRootFromDefault": "Currently the default",
+    "dataRootReset": "Reset to default",
+    "dataRootEnvLocked": "Locked by an environment variable — change DEVKIT_DATA_ROOT instead.",
+    "dataRootWarn": "This only affects future installs: versions already installed under the old root are neither moved nor detected."
   },
   "installed": {
     "title": "Installed (devkit-managed version dirs)",

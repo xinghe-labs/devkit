@@ -738,6 +738,15 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 
 这条规则对**任何**安装器都成立，不依赖对某个安装器参数的逆向。
 
+### 13.8 批量产物的存放位置（v0.6）
+
+| # | 问题 | 结论 |
+|---|---|---|
+| 23 | 下载缓存该放哪 | 放在 `getDataRoot()` 下面（默认 `%USERPROFILE%\.devkit\downloads`），**不是** `%APPDATA%`。理由：它是批量产物（实测 1 GB 级），而 `%APPDATA%` 在系统盘上；而且必须让界面与命令行脚本用**同一个**缓存 |
+| 24 | 根目录能不能改 | 能。优先级：环境变量 `DEVKIT_DATA_ROOT` → 设置里的 `dataRoot` → 默认 `%USERPROFILE%\.devkit`。`versions` / `downloads` / `current` / `bin` 全部跟着走 |
+| 25 | 改根目录之后旧数据怎么办 | **不自动迁移、也不识别**。设置页里明确提示这一点（避免用户以为"改了就会搬"）。要迁移就手工搬目录，或重新安装 |
+| 26 | `%APPDATA%\devkit` 里那 30 MB 是什么 | **Electron/Chromium 自己的 profile**（Cache / Code Cache / GPUCache / ShaderCache / Local Storage / Preferences…）。只要开窗口就会生成，不是 devkit 放的，也删不干净（删了下次启动会重建） |
+
 ### 13.7 AI agent 的发行方式与供应链边界（v0.6）
 
 | # | 问题 | 结论 |
@@ -834,5 +843,6 @@ M0~M4 的主体功能已完成，剩余的是**必须在干净环境里做**的�
 | v0.2 | 最低系统定为 Win10 22H2；新增 FR-2 版本选择、FR-15 清单热更新；确认测试环境与 git init |
 | v0.3 | **修复 7 个架构级缺口**：新增 §6.6 提权模型、§6.7 环境变量规范、FR-16 卸载、FR-17 续跑、FR-18 预检、FR-19 下载器、§7.4 InstallPlan；manifest 补 `installScope`/`provider`/`releaseDate`/`uninstall`/`template` 并修正 registry 检测示例；FR-15 增加安全边界；**修正 14 处自相矛盾**（winget 理由、Homebrew、Choco、20 分钟、FR-11 顺序、i18n 回退、镜像回退次数、压缩说明等）；新增 §11 开发环境与工程规范（含测试与 CI 策略） |
 | v0.4 | M0 完成。新增 **13.3 架构确认**：确立「安装 ≠ 激活」原则；把 M1 拆成 M1a（ZIP + 用户级，免提权）与 M1b（MSI/EXE + 提权，虚拟机验收）；风险表补充镜像版本滞后与镜像速度差异（均为实测数据） |
+| v0.7 | **批量产物根目录可配置（§13.8）**：抽出 `getDataRoot()`（`DEVKIT_DATA_ROOT` → 设置 → 默认），`versions` / `downloads` / `current` / `bin` 全部挂在它下面；修掉「界面与命令行脚本各用一份下载缓存」与「缓存在 C 盘且改不了」两个真实缺陷 |
 | v0.6 | **新增 AI 编码 agent 安装（FR-20）**：新增 `npm-global-into-version-dir` 模板与 `ai` 分类；6 个 agent（Claude Code / Codex CLI / OpenCode / Gemini CLI / Copilot CLI / Qwen Code）全部真机跑通；npm 类的供应链边界写进 §13.7；顺带修掉离线包不按 tier 过滤的许可证缺口 |
 | v0.5 | **M1a~M4 主体完成**。清单扩到 19 项（16 项可装）；安装模板扩到 8 个（zip / zip 单文件 / 7zSFX / MSI / NSIS / Inno / Python / rustup）；新增激活机制（junction + 用户 PATH/环境变量 + 精确回滚）、预设、卸载、镜像源、离线包、系统配置（FR-6）、清单热更新（FR-15，字段白名单）、提权助手（§6.6，一次 UAC）、更新检查（FR-13，提示式）、CI + 发布流水线。新增 **13.4 更新机制确认**。实测记录见 docs/VERIFICATION.md |

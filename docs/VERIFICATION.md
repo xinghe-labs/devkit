@@ -423,6 +423,53 @@ lrwxrwxrwx ... C:\Users\张三\AppData\Roaming\npm -> /d/npm/npm-global
 
 ---
 
+## 3.12 批量产物根目录（修掉两个真实缺陷）
+
+用户问「为什么都下载到 `%APPDATA%\devkit` 而不是 PATH 那里」时，核查后发现两个真缺陷：
+
+**缺陷 1：下载缓存有两个，互不相通**
+
+```bash
+$ grep -rn "downloads" src/main/core/executor/service.ts scripts/install-tool.ts
+src/main/core/executor/service.ts:  downloadDir: getDownloadDir()          # %APPDATA%\devkit\downloads
+scripts/install-tool.ts:  const downloadDir = join(home, '.devkit', 'downloads')   # %USERPROFILE%\.devkit\downloads
+```
+
+同一个文件在两条路径下各下一份，缓存永远命中不了。实测两个目录里都有过内容
+（脚本那份删之前是 982 MB，应用那份 288 KB）。
+
+**缺陷 2：缓存在 C 盘且改不了**
+
+下载缓存是批量产物（实测 1 GB 级），却硬编码在 `%APPDATA%`（C 盘），没有任何设置能改。
+
+**修法**：抽出 `getDataRoot()`，优先级 `DEVKIT_DATA_ROOT` 环境变量 → 设置里的 `dataRoot` → 默认
+`%USERPROFILE%\.devkit`；`versions` / `downloads` / `current` / `bin` 全部挂在它下面；
+界面与命令行脚本走**同一套**解析。
+
+**真机验证**（把根目录指到 D 盘，装一个工具）：
+
+```bash
+$ DEVKIT_DATA_ROOT=D:\work\work\devkit-root-test pnpm install:tool ninja
+数据根目录  D:\work\work\devkit-root-test
+  安装位置  D:\work\work\devkit-root-test\versions\ninja\1.13.2
+  下载缓存  D:\work\work\devkit-root-test\downloads
+  自检通过：1.13.2
+
+$ find D:/AgentWork/work/devkit-root-test -type d
+D:/AgentWork/work/devkit-root-test
+D:/AgentWork/work/devkit-root-test/downloads
+D:/AgentWork/work/devkit-root-test/logs
+D:/AgentWork/work/devkit-root-test/versions
+D:/AgentWork/work/devkit-root-test/versions/ninja
+D:/AgentWork/work/devkit-root-test/versions/ninja/1.13.2
+```
+
+→ 版本目录、下载缓存、日志全部落在 D 盘，C 盘没有被写。
+
+**7 个单测**覆盖优先级（默认 / 配置 / 环境变量 / 空白值当未设置 / trim）与"所有批量产物都跟着根目录走"。
+
+---
+
 ## 4. 安全相关的专项测试
 
 | 项 | 测试文件 | 覆盖内容 |

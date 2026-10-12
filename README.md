@@ -270,6 +270,32 @@ DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 node_modules/electron/dist/electron.e
 
 ---
 
+## 文件都放在哪
+
+| 内容 | 位置 | 说明 |
+| --- | --- | --- |
+| **版本目录**（装好的工具） | `<数据根目录>\versions\<tool>\<version>\` | 默认 `%USERPROFILE%\.devkit`，实测可到几 GB |
+| **下载缓存** | `<数据根目录>\downloads\` | 含 `.part` 断点文件；实测可到 1 GB |
+| **切换链接** | `<数据根目录>\current\<tool>` | junction，指向当前激活的版本 |
+| 配置 / 激活记录 / PATH 备份 / 日志 / 预设 | `%APPDATA%\devkit\` | 都很小（几百 KB） |
+| Chromium 自己的缓存 | `%APPDATA%\devkit\Cache` 等 | **Electron 自动生成**（约 30 MB），不是 devkit 的选择 |
+
+### 把批量产物挪到别的盘
+
+版本目录与下载缓存是**批量产物**，默认落在系统盘。两种改法：
+
+```bash
+# 方式一：环境变量（优先级最高，适合脚本/CI）
+set DEVKIT_DATA_ROOT=D:\devkit
+
+# 方式二：设置 → 存储 → 数据根目录（界面里改）
+```
+
+改完之后，`versions` / `downloads` / `current` 全部跟着走，不会有一部分留在原处。
+
+> **注意**：改根目录只影响**以后新装**的项。已经装在旧目录里的版本不会自动搬过去，
+> 也不会被识别 —— 界面里会明确提示这一点。
+
 ## 设计上的几个刻意选择
 
 | 决策                                        | 原因                                                             |
@@ -285,6 +311,7 @@ DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 node_modules/electron/dist/electron.e
 | 软件行里的「详情」展示下载域名与 SHA-256    | 用户没法验证二进制里装了什么，但至少能一眼看到它从哪来、校验和是多少 |
 | 卸载只删 `%USERPROFILE%\.devkit\versions`   | 绝不诱导用户把系统里原有的 Node / Java 一起删掉                  |
 | 更新检查是"提示"而不是"静默替换"            | 静默替换开发环境里的二进制本身就不是个安全行为                   |
+| 批量产物与配置分开放                        | 配置很小、跟着应用走；版本目录与下载缓存能到几 GB，必须能挪到别的盘 |
 | 零遥测                                      | 开源工具的信任基础                                               |
 
 ---

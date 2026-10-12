@@ -450,6 +450,58 @@ export function SettingsDrawer() {
 
           <Divider style={{ margin: '10px 0' }} />
           <Title level={5} style={{ margin: '4px 0' }}>
+            {t('settings.storage')}
+          </Title>
+          <Text type="secondary" style={{ fontSize: 12.5 }}>
+            {t('settings.storageHint')}
+          </Text>
+
+          <Row label={t('settings.dataRoot')} hint={t('settings.dataRootHint')}>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Text code style={{ fontSize: 12 }}>
+                {settings.effectiveDataRoot}
+              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {settings.dataRootSource === 'env'
+                  ? t('settings.dataRootFromEnv')
+                  : settings.dataRootSource === 'config'
+                    ? t('settings.dataRootFromConfig')
+                    : t('settings.dataRootFromDefault')}
+              </Text>
+              <Space size={8}>
+                <Input
+                  size="small"
+                  style={{ width: 300 }}
+                  placeholder="D:\\devkit"
+                  defaultValue={settings.dataRoot ?? ''}
+                  disabled={settings.dataRootSource === 'env'}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim()
+                    if (value !== (settings.dataRoot ?? '')) {
+                      void saveSettings({ dataRoot: value || null })
+                    }
+                  }}
+                />
+                {settings.dataRootSource === 'config' ? (
+                  <Button size="small" onClick={() => void saveSettings({ dataRoot: null })}>
+                    {t('settings.dataRootReset')}
+                  </Button>
+                ) : null}
+              </Space>
+              {settings.dataRootSource === 'env' ? (
+                <Text type="warning" style={{ fontSize: 12 }}>
+                  {t('settings.dataRootEnvLocked')}
+                </Text>
+              ) : (
+                <Text type="warning" style={{ fontSize: 12 }}>
+                  {t('settings.dataRootWarn')}
+                </Text>
+              )}
+            </Space>
+          </Row>
+
+          <Divider style={{ margin: '10px 0' }} />
+          <Title level={5} style={{ margin: '4px 0' }}>
             {t('settings.about')}
           </Title>
           <div>

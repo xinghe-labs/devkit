@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path'
 import { app } from 'electron'
 import { normalizeLocale } from '@shared/localized'
 import {
@@ -10,7 +11,11 @@ import {
   type MirrorTarget,
   type UserConfigView
 } from '@shared/types'
-import { getConfigFile } from '../../utils/app-paths'
+import {
+  describeDataRoot,
+  getConfigFile,
+  setDataRootOverride
+} from '../../utils/app-paths'
 import { fileExists, readJsonFile, writeJsonFile } from '../../utils/fs'
 import { logger } from '../report/logger'
 import { readActivationState } from '../activate'
@@ -39,6 +44,8 @@ export interface UserConfig {
   configureMirrors: boolean
   /** 各镜像目标的取值 */
   mirrors: MirrorSetting[]
+  /** 批量产物根目录；null = 默认 %USERPROFILE%\.devkit */
+  dataRoot: string | null
 }
 
 const MIRRORS: readonly string[] = ['official', 'huaweicloud', 'aliyun', 'tuna', 'ustc']
@@ -68,6 +75,7 @@ const DEFAULTS: UserConfig = {
   proxy: null,
   activateAfterInstall: true,
   configureMirrors: false,
+  dataRoot: null,
   mirrors: MIRROR_TARGETS.map((target) => ({
     target,
     enabled: true,
@@ -130,6 +138,11 @@ function sanitize(raw: unknown): UserConfig {
     proxy,
     activateAfterInstall: input.activateAfterInstall !== false,
     configureMirrors: input.configureMirrors === true,
+    // 必须是绝对路径：相对路径会按主进程的 cwd 解析，等于让渲染进程指定任意位置
+    dataRoot:
+      typeof input.dataRoot === 'string' && isAbsolute(input.dataRoot.trim())
+        ? input.dataRoot.trim()
+        : null,
     mirrors: sanitizeMirrors(input.mirrors)
   }
 }
@@ -155,6 +168,8 @@ export function loadConfig(): UserConfig {
 export function saveConfig(patch: Partial<UserConfig>): UserConfig {
   const next = sanitize({ ...loadConfig(), ...patch })
   cache = next
+  // 立刻让路径模块感知新根目录，不必等重启
+  setDataRootOverride(next.dataRoot)
   try {
     writeJsonFile(getConfigFile(), next)
   } catch (error) {
@@ -170,7 +185,13 @@ export function getLocale(): Locale {
 /** 给界面用的配置视图（带上 PATH 备份文件等运行期信息） */
 export function getConfigView(): UserConfigView {
   const config = loadConfig()
-  return { ...config, pathBackupFile: readActivationState().backupFile }
+  const root = describeDataRoot()
+  return {
+    ...config,
+    pathBackupFile: readActivationState().backupFile,
+    effectiveDataRoot: root.path,
+    dataRootSource: root.source
+  }
 }
 
 /** 只允许从界面改这些字段；其余（如 locale）走专门的 setLocale */
@@ -195,6 +216,9 @@ export function saveConfigView(patch: unknown): UserConfigView {
   }
   if (input.proxy === null || typeof input.proxy === 'string') allowed.proxy = input.proxy
   if (Array.isArray(input.mirrors)) allowed.mirrors = sanitizeMirrors(input.mirrors)
+  if (input.dataRoot === null || typeof input.dataRoot === 'string') {
+    allowed.dataRoot = input.dataRoot
+  }
 
   saveConfig(allowed)
   return getConfigView()

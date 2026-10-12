@@ -13,8 +13,7 @@
  *
  * 用法：pnpm install:tool [toolId] [version]
  */
-import { mkdirSync, readdirSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { indexById } from '../src/shared/manifest'
 import type { InstallPlan, PlanItem } from '../src/shared/types'
@@ -24,6 +23,8 @@ import { buildPlan } from '../src/main/core/plan'
 import { runPreflight } from '../src/main/core/preflight'
 import { renderPlanReport } from '../src/main/core/report/markdown'
 import { readJsonFile } from '../src/main/utils/fs'
+import { ensureDir } from '../src/main/utils/fs'
+import { getDataRoot, getDownloadDir, getVersionsRoot } from '../src/main/utils/app-paths'
 
 const STATE_LABEL: Record<PlanItem['state'], string> = {
   pending: '等待',
@@ -68,11 +69,14 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  const home = homedir()
-  const versionsRoot = join(home, '.devkit', 'versions')
-  const downloadDir = join(home, '.devkit', 'downloads')
-  const logDir = join(home, '.devkit', 'logs')
-  mkdirSync(logDir, { recursive: true })
+  // 与界面走**同一套**路径解析（含 DEVKIT_DATA_ROOT 覆盖）。
+  // 之前这里手写 join(homedir(), '.devkit', ...)，导致脚本与应用各用一份下载缓存 ——
+  // 同一个文件会各下一份，缓存命中不了。
+  const versionsRoot = getVersionsRoot()
+  const downloadDir = getDownloadDir()
+  const logDir = ensureDir(join(getDataRoot(), 'logs'))
+  console.log(`
+数据根目录  ${getDataRoot()}`)
 
   const plan = buildPlan({
     selections: [versionArg ? { toolId, version: versionArg } : { toolId }],
