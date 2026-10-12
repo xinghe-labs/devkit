@@ -60,7 +60,16 @@ import { collectProfile, defaultProfileFileName, describeProfile, diffProfile, s
 import { applyProfile } from '../core/profile'
 import { runDoctor } from '../core/doctor'
 import { applyDoctorFix } from '../core/doctor/fix'
-import { applySystemConfig, getSystemConfigStatus } from '../core/systemconfig'
+import { applySystemConfig, getSystemConfigStatus, revertSystemConfig } from '../core/systemconfig'
+
+/** 系统配置项的显式白名单（还原会改注册表，不接受渲染进程传任意值） */
+const SYSTEM_CONFIG_IDS: SystemConfigId[] = [
+  'git-identity',
+  'powershell-policy',
+  'long-paths',
+  'developer-mode',
+  'ssh-key'
+]
 import { checkForUpdate, downloadUpdate } from '../core/updater'
 import { getVscodeStatus, installVscodeExtensions, listVscodeExtensions } from '../core/vscode'
 import { deleteUserPreset, importPreset, listPresets, saveUserPreset } from '../core/presets'
@@ -542,6 +551,16 @@ export function registerIpcHandlers(): void {
     const gitName = typeof request.gitName === 'string' ? request.gitName : undefined
     const gitEmail = typeof request.gitEmail === 'string' ? request.gitEmail : undefined
     return applySystemConfig({ id, gitName, gitEmail })
+  })
+
+  handle(IPC.systemRevert, async (_event, payload: unknown): Promise<SystemConfigResult> => {
+    const request = asOptionalObject(payload, 'system 还原请求')
+    const id = asNonEmptyString(request.id, 'id', 40)
+    // 显式白名单：还原会改注册表，不能让渲染进程传任意字符串进来
+    if (!SYSTEM_CONFIG_IDS.includes(id as SystemConfigId)) {
+      throw new IpcValidationError(`不支持的系统配置项：${id}`)
+    }
+    return revertSystemConfig(id as SystemConfigId)
   })
 
   /* ---------------- 清单热更新（FR-15） ---------------- */

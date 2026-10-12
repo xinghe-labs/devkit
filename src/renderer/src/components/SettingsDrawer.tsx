@@ -7,6 +7,7 @@ import {
   Input,
   InputNumber,
   List,
+  Popconfirm,
   Select,
   Space,
   Switch,
@@ -80,6 +81,7 @@ export function SettingsDrawer() {
   const systemConfig = useManageStore((state) => state.systemConfig)
   const loadSystemConfig = useManageStore((state) => state.loadSystemConfig)
   const applySystemConfig = useManageStore((state) => state.applySystemConfig)
+  const revertSystemConfig = useManageStore((state) => state.revertSystemConfig)
   const checkUpdate = useManageStore((state) => state.checkUpdate)
   const updateInfo = useManageStore((state) => state.updateInfo)
   const busy = useManageStore((state) => state.busy)
@@ -372,7 +374,23 @@ export function SettingsDrawer() {
                     >
                       {item.configured ? t('settings.configured') : t('settings.apply')}
                     </Button>
-                  )
+                  ),
+                  // 只有 devkit 改过、且提供了还原的项才给还原按钮。
+                  // SSH 私钥恒为不可还原 —— 删私钥是破坏性操作
+                  item.revertible ? (
+                    <Popconfirm
+                      key={`${item.id}-revert`}
+                      title={t('settings.revertConfirm')}
+                      description={t('settings.revertConfirmHint', { at: item.backupAt ?? '' })}
+                      okText={t('settings.revert')}
+                      cancelText={t('common.cancel')}
+                      onConfirm={() => void revertSystemConfig(item.id)}
+                    >
+                      <Button size="small" danger loading={busy}>
+                        {t('settings.revert')}
+                      </Button>
+                    </Popconfirm>
+                  ) : null
                 ]}
               >
                 <div style={{ minWidth: 0 }}>
@@ -380,6 +398,9 @@ export function SettingsDrawer() {
                     <Text>{localizedText(item.label, normalizeLocale(i18n.language), item.id)}</Text>
                     {item.requiresAdmin ? <Tag color="gold">{t('tool.requiresAdmin')}</Tag> : null}
                     {item.configured ? <Tag color="green">{t('settings.configured')}</Tag> : null}
+                    {item.devkitModified ? (
+                      <Tag color="blue">{t('settings.devkitModified')}</Tag>
+                    ) : null}
                   </Space>
                   <div>
                     <Text type="secondary" style={{ fontSize: 12 }}>

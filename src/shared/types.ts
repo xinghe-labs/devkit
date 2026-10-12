@@ -684,6 +684,16 @@ export interface SystemConfigItem {
   /** 当前状态的可读描述，例如 "张三 <a@b.com>" 或 "未启用" */
   detail: string
   hint: LocalizedText
+  /** 这一项是否被 devkit 改过（有备份记录） */
+  devkitModified: boolean
+  /** 备份时间；没有备份则为 null */
+  backupAt: string | null
+  /** 是否提供还原。SSH 私钥恒为 false —— 删私钥是破坏性操作 */
+  revertible: boolean
+}
+
+export interface SystemConfigRevertRequest {
+  id: SystemConfigId
 }
 
 export interface SystemConfigRequest {

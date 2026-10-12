@@ -32,6 +32,7 @@ import type {
   StartInstallResult,
   SystemConfigItem,
   SystemConfigRequest,
+  SystemConfigRevertRequest,
   SystemConfigResult,
   UninstallRequest,
   UpdateInfo,
@@ -137,6 +138,8 @@ export interface DevkitApi {
   /* ---------------- 系统配置（FR-6） ---------------- */
   getSystemConfig(): Promise<SystemConfigItem[]>
   applySystemConfig(request: SystemConfigRequest): Promise<SystemConfigResult>
+  /** 还原某一项到 devkit 改动之前（没有备份记录则拒绝） */
+  revertSystemConfig(request: SystemConfigRevertRequest): Promise<SystemConfigResult>
 
   /* ---------------- 清单热更新（FR-15） ---------------- */
   runHotUpdate(url: string): Promise<HotUpdateResultView>

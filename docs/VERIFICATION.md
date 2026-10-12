@@ -529,6 +529,58 @@ PowerShell 收到的是 `HKLM:SYSTEM...` —— 脚本会直接失败，而且�
 
 ---
 
+## 3.15 系统配置的备份与还原（P1-2，真机验证）
+
+### 顺带挖出来的一个真 bug：注册表**读**路径一直失败
+
+清单里的注册表路径为了可读性写成 PowerShell 风格 `HKLM:\SYSTEM\...`（带冒号）。
+写路径当时显式 `.replace(/^HKLM:\\/, 'HKLM\\')` 去掉了冒号，**读路径漏了**。
+
+```
+reg query "HKLM:\SOFTWARE\..."   → code=1  「无效参数」   ← devkit 当时的行为
+reg query "HKLM\SOFTWARE\..."    → code=0  读到值
+```
+
+后果：`readRegistryValue` 永远返回 null，界面上「长路径支持」与「开发者模式」**永远显示
+「读不到（可能需要管理员）」—— 即使它们其实是开着的**。用户会以为没开、反复点"启用"。
+
+| 项 | `reg.exe` 直读的真实值 | 修复前显示 | 修复后显示 |
+| --- | --- | --- | --- |
+| 长路径 | `0`（值存在，显式关闭） | 读不到（可能需要管理员） | **未启用** |
+| 开发者模式 | 值不存在 | 读不到（可能需要管理员） | **未启用（该值不存在）** |
+| PowerShell 策略 | 确实读不到（本机 Security 模块不完整） | 未知 | **读不到（PowerShell 的 Security 模块可能不完整）** |
+
+修复方式：所有路径转换收进 `systemconfig/registry.ts` 的 `toRegPath()`，读和写共用，杜绝再漏一次。
+14 个回归测试把这件事钉住（含「传给 reg.exe 的 path 一定不含冒号」）。
+
+这个 bug 也是 P1-2 的**前置条件** —— 读不出原值就没法备份原值。
+
+### 备份 → 改 → 还原 全流程（git 身份，真机）
+
+```
+基线        : <原有身份> <原有邮箱>
+改成        : devkit-selftest <selftest@devkit.local>
+[system] 已备份系统配置原值：git-identity（还原点 ...\backup\system-config.json）
+
+改之后状态  : modified=true  revertible=true  backupAt=2026-10-12T13:43:15.582Z
+还原        : ok=true
+[system] 已清除系统配置备份记录：git-identity
+还原后      : <原有身份> <原有邮箱>   ← 与基线逐字一致
+再还原一次  : ok=false  「这一项没有 devkit 的备份记录，无法还原」
+SSH 私钥    : revertible=false（刻意不提供还原）
+账本落盘    : { "schemaVersion": 1, "entries": [] }   ← 已销账
+```
+
+### 尚未验证的部分（如实标注）
+
+- **注册表项的还原**没有真机跑过：启用长路径需要写 HKLM，会弹 UAC，本机不方便自动点。
+  读路径、备份记录结构、还原参数生成（`reg add` / `reg delete` 且不带冒号）都有单测覆盖，
+  但「提权写 + 提权还原」这一整条要在干净虚拟机里补。
+- 「读不到就不改」这条策略在本机是**实测生效**的：PowerShell 执行策略那一项因为读不到原值，
+  会明确拒绝而不是猜一个值。
+
+---
+
 ## 4. 安全相关的专项测试
 
 | 项 | 测试文件 | 覆盖内容 |

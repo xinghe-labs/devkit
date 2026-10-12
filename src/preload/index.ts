@@ -15,6 +15,7 @@ import type {
   ExportProfileRequest,
   PlanSelection,
   SystemConfigRequest,
+  SystemConfigRevertRequest,
   UninstallRequest
 } from '@shared/types'
 
@@ -118,6 +119,8 @@ const api: DevkitApi = {
   /* ---------------- 系统配置 ---------------- */
   getSystemConfig: () => ipcRenderer.invoke(IPC.systemStatus),
   applySystemConfig: (request: SystemConfigRequest) => ipcRenderer.invoke(IPC.systemApply, request),
+  revertSystemConfig: (request: SystemConfigRevertRequest) =>
+    ipcRenderer.invoke(IPC.systemRevert, request),
 
   /* ---------------- 清单热更新 ---------------- */
   runHotUpdate: (url: string) => ipcRenderer.invoke(IPC.manifestHotUpdate, url),

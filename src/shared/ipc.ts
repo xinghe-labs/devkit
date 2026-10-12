@@ -83,6 +83,7 @@ export const IPC = {
   /** 系统配置（FR-6） */
   systemStatus: 'system:status',
   systemApply: 'system:apply',
+  systemRevert: 'system:revert',
 
   /** 清单热更新（FR-15） */
   manifestHotUpdate: 'manifest:hot-update',

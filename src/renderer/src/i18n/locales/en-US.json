@@ -207,7 +207,11 @@
     "dataRootFromDefault": "Currently the default",
     "dataRootReset": "Reset to default",
     "dataRootEnvLocked": "Locked by an environment variable — change DEVKIT_DATA_ROOT instead.",
-    "dataRootWarn": "This only affects future installs: versions already installed under the old root are neither moved nor detected."
+    "dataRootWarn": "This only affects future installs: versions already installed under the old root are neither moved nor detected.",
+    "devkitModified": "changed by devkit",
+    "revert": "Revert",
+    "revertConfirm": "Revert this item?",
+    "revertConfirmHint": "Writes back the value from before devkit changed it (backed up {{at}}). Refused if no backup exists."
   },
   "installed": {
     "title": "Installed (devkit-managed version dirs)",

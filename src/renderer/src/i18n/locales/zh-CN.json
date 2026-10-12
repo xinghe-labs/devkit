@@ -207,7 +207,11 @@
     "dataRootFromDefault": "当前是默认值",
     "dataRootReset": "恢复默认",
     "dataRootEnvLocked": "被环境变量锁定，请在系统里改 DEVKIT_DATA_ROOT。",
-    "dataRootWarn": "改这里只影响以后新装的项：已经装在旧目录里的版本不会自动搬过去，也不会被识别。"
+    "dataRootWarn": "改这里只影响以后新装的项：已经装在旧目录里的版本不会自动搬过去，也不会被识别。",
+    "devkitModified": "devkit 已改",
+    "revert": "还原",
+    "revertConfirm": "确定还原这一项？",
+    "revertConfirmHint": "会写回 devkit 改动之前的原值（备份时间 {{at}}）。没有备份记录时不会执行。"
   },
   "installed": {
     "title": "已安装（devkit 管理的版本目录）",

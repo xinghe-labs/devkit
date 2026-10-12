@@ -13,6 +13,7 @@ import type {
   ExportProfileResult,
   ImportProfileResult,
   SystemConfigItem,
+  SystemConfigId,
   SystemConfigRequest,
   UpdateInfo,
   UserConfigView,
@@ -100,6 +101,8 @@ interface ManageState {
 
   loadSystemConfig: () => Promise<void>
   applySystemConfig: (request: SystemConfigRequest) => Promise<void>
+  /** 还原某一项到 devkit 改动之前（没有备份记录会被拒绝） */
+  revertSystemConfig: (id: SystemConfigId) => Promise<void>
 
   checkUpdate: () => Promise<void>
   /** 下载更新包（校验 SHA-256）并直接拉起安装程序 */
@@ -590,6 +593,27 @@ export const useManageStore = create<ManageState>()((set, get) => ({
         }
       })
       await get().loadSystemConfig()
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  revertSystemConfig: async (id) => {
+    set({ busy: true })
+    try {
+      const result = await window.devkit.revertSystemConfig({ id })
+      if (!result.ok) throw new Error(result.error ?? '还原失败')
+      set({
+        notice: {
+          kind: 'success',
+          text: `${id} 已还原：${result.detail ?? '完成'}`
+        }
+      })
+      await get().loadSystemConfig()
+      // 体检会读这些系统项，顺带刷新，免得两处显示不一致
+      await get().runDoctor()
     } catch (error) {
       set({ notice: { kind: 'error', text: describeError(error) } })
     } finally {
