@@ -8,9 +8,16 @@ import {
   writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createJunctionAt, removeJunctionAt, unlinkJunction } from './index'
+import {
+  createJunctionAt,
+  getDevkitHome,
+  removeJunctionAt,
+  toDevkitHomeVar,
+  unlinkJunction
+} from './index'
+import { verifyActivation } from './verify'
 
 /**
  * junction 增删的真实文件系统测试。
@@ -22,6 +29,7 @@ import { createJunctionAt, removeJunctionAt, unlinkJunction } from './index'
  *  · junction 是 Windows 特性，其它平台跳过
  */
 const onWindows = process.platform === 'win32'
+const SEP = sep
 
 describe.skipIf(!onWindows)('junction 管理（Windows 真实文件系统）', () => {
   let root: string
@@ -65,7 +73,6 @@ describe.skipIf(!onWindows)('junction 管理（Windows 真实文件系统）', (
   })
 
   it('删除 junction **不会**删掉目标目录（回归：rmSync recursive:false 会报 Path is a directory）', () => {
-    // 用同步方式建一个 junction，避免测试里混入 async
     symlinkSync(target, linkPath, 'junction')
 
     expect(removeJunctionAt(linkPath)).toBe(true)
@@ -92,4 +99,68 @@ describe.skipIf(!onWindows)('junction 管理（Windows 真实文件系统）', (
     expect(removeJunctionAt(join(root, 'nope'))).toBe(false)
     expect(() => unlinkJunction(join(root, 'nope'))).not.toThrow()
   })
+})
+
+describe('PATH 条目收敛到 %DEVKIT_HOME%', () => {
+  const home = getDevkitHome()
+
+  it('只改写 devkit 自己的目录', () => {
+    expect(toDevkitHomeVar(`${home}${SEP}current${SEP}nodejs`)).toBe(
+      `%DEVKIT_HOME%${SEP}current${SEP}nodejs`
+    )
+    expect(toDevkitHomeVar(`${home.toUpperCase()}${SEP}current${SEP}go${SEP}bin`)).toBe(
+      `%DEVKIT_HOME%${SEP}current${SEP}go${SEP}bin`
+    )
+  })
+
+  it('别人的目录原样保留', () => {
+    expect(toDevkitHomeVar(`D:${SEP}Python`)).toBe(`D:${SEP}Python`)
+    expect(toDevkitHomeVar(`C:${SEP}Program Files${SEP}nodejs`)).toBe(
+      `C:${SEP}Program Files${SEP}nodejs`
+    )
+  })
+
+  it('前缀相似但不是同一个目录时不能误改', () => {
+    const sibling = `${home}-other${SEP}x`
+    expect(toDevkitHomeVar(sibling)).toBe(sibling)
+  })
+})
+
+describe.skipIf(!onWindows)('激活后的「新终端」验证', () => {
+  it('命令解析到 devkit 目录之外时会如实指出（不是假阳性）', async () => {
+    // cmd.exe 一定解析到 C:\Windows\System32，不可能落在 devkit 目录里
+    const result = await verifyActivation(
+      { cmd: 'cmd.exe', args: ['/d', '/s', '/c', 'echo hello'] },
+      { machine: process.env.PATH ?? '', user: '' },
+      `C:${SEP}Users${SEP}nobody${SEP}.devkit`
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.resolvedFromDevkit).toBe(false)
+    expect(result.resolvedPath?.toLowerCase()).toContain('cmd.exe')
+    expect(result.detail).toContain('不是 devkit 装的那份')
+  }, 60_000)
+
+  it('命令解析到预期目录内时判定为通过', async () => {
+    const result = await verifyActivation(
+      { cmd: 'cmd.exe', args: ['/d', '/s', '/c', 'echo hello'], expectRegex: 'hello' },
+      { machine: process.env.PATH ?? '', user: '' },
+      `C:${SEP}Windows`
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.resolvedFromDevkit).toBe(true)
+    expect(result.detail).toContain('hello')
+  }, 60_000)
+
+  it('命令不存在时给出可读错误而不是抛异常', async () => {
+    const result = await verifyActivation(
+      { cmd: 'devkit-no-such-command.exe' },
+      { machine: process.env.PATH ?? '', user: '' },
+      `C:${SEP}Users${SEP}nobody${SEP}.devkit`
+    )
+    expect(result.ok).toBe(false)
+    // cmd 与 where 的报错文案不同，两种都算可读
+    expect(result.detail).toMatch(/找不到|不是内部或外部命令/)
+  }, 60_000)
 })

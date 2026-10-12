@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, readlinkSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
 import { symlink } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ActivateResult, ActivateSpec, ActivationRecord, ActivationSnapshot } from '@shared/types'
 import { getActivationFile, getBackupDir, getCurrentRoot, getShimDir } from '../../utils/app-paths'
@@ -7,6 +8,7 @@ import { fileExists, readJsonFile, timestampSlug, writeJsonFile } from '../../ut
 import { logger } from '../report/logger'
 import { buildActivateEntries, prependPathEntries, removePathEntries, type ActivateVars } from './paths'
 import { readUserEnv, readUserPath, writeUserEnv, writeUserPath } from './windows'
+import { readEffectivePaths, verifyActivation, type ActivationVerifySpec } from './verify'
 
 /**
  * 激活（FR-11）：把「已经装进版本目录的文件」接到用户环境里，让用户新开一个终端就能用。
@@ -27,13 +29,48 @@ export interface ActivationState {
   managedPathEntries: string[]
   /** 首次改动用户 PATH 前的备份文件 */
   backupFile: string | null
+  /** DEVKIT_HOME 这个用户变量是不是 devkit 自己创建的（决定取消激活时要不要删它） */
+  ownsDevkitHomeVar?: boolean
 }
 
 const EMPTY_STATE: ActivationState = {
   schemaVersion: 1,
   records: [],
   managedPathEntries: [],
-  backupFile: null
+  backupFile: null,
+  ownsDevkitHomeVar: false
+}
+
+/**
+ * PATH 条目里用这个变量代替 %USERPROFILE%\.devkit。
+ *
+ * 为什么：每装一个工具就往 PATH 里加一条绝对路径，10 个工具就多 400+ 字符，
+ * 而 PATH 过长是 winget 那边被反复投诉的真实故障（#3601 / #5557）。
+ * 收敛到一个变量后，每一条只多 20 多个字符，而且用户一眼能看出哪些条目是 devkit 管的。
+ */
+export const DEVKIT_HOME_VAR = '%DEVKIT_HOME%'
+
+/** PATH 超过这个长度就告警（Windows 上路径相关的 API 普遍以 2047/2048 为界） */
+export const PATH_LENGTH_WARN = 2047
+
+export function getDevkitHome(): string {
+  return join(homedir(), '.devkit')
+}
+
+/**
+ * 把绝对路径改写成 %DEVKIT_HOME% 形式（只改 devkit 自己的目录）。
+ *
+ * 注意必须校验剩下的部分以路径分隔符开头：否则 `C:\Users\x\.devkit-other`
+ * 这种"前缀相似的兄弟目录"会被误改，把一个无关的 PATH 条目指向 devkit。
+ */
+export function toDevkitHomeVar(entry: string): string {
+  const home = getDevkitHome()
+  if (!entry.toLowerCase().startsWith(home.toLowerCase())) return entry
+
+  const rest = entry.slice(home.length)
+  if (rest !== '' && rest[0] !== '\\' && rest[0] !== '/') return entry
+
+  return `${DEVKIT_HOME_VAR}${rest}`
 }
 
 export function readActivationState(): ActivationState {
@@ -53,7 +90,8 @@ export function readActivationState(): ActivationState {
       managedPathEntries: Array.isArray(raw.managedPathEntries)
         ? raw.managedPathEntries.filter((entry): entry is string => typeof entry === 'string')
         : [],
-      backupFile: typeof raw.backupFile === 'string' ? raw.backupFile : null
+      backupFile: typeof raw.backupFile === 'string' ? raw.backupFile : null,
+      ownsDevkitHomeVar: raw.ownsDevkitHomeVar === true
     }
   } catch (error) {
     logger.warn('activate', `激活记录损坏，已重置：${(error as Error).message}`)
@@ -174,13 +212,23 @@ function backupUserPathOnce(state: ActivationState, rawPath: string): Activation
  * 做法是每次都先把**已知的全部管理条目**从当前 PATH 里摘掉，再把新的并集插到最前面。
  * 这样反复激活/取消激活不会留下重复项，也不会误删用户自己的条目。
  */
-async function syncUserPath(state: ActivationState): Promise<ActivationState> {
+async function syncUserPath(state: ActivationState): Promise<{ state: ActivationState; warning: string | null }> {
   const raw = await readUserPath()
   const withBackup = backupUserPathOnce(state, raw)
 
   const desired = [...new Set(withBackup.records.flatMap((record) => record.pathEntries))]
   const stripped = removePathEntries(raw, [...withBackup.managedPathEntries, ...desired])
   const merged = prependPathEntries(stripped, desired)
+
+  let warning: string | null = null
+  if (merged.value.length > PATH_LENGTH_WARN) {
+    // PATH 过长是 winget 那边被反复投诉的真实问题（#3601 / #5557）：
+    // 不报错，但必须告诉用户，否则他会在别处碰到莫名其妙的"命令找不到"。
+    warning =
+      `用户 PATH 已经 ${merged.value.length} 个字符（超过 ${PATH_LENGTH_WARN}），` +
+      '建议清理一些不再使用的条目'
+    logger.warn('activate', warning)
+  }
 
   if (merged.value !== raw) {
     await writeUserPath(merged.value)
@@ -190,7 +238,7 @@ async function syncUserPath(state: ActivationState): Promise<ActivationState> {
     )
   }
 
-  return { ...withBackup, managedPathEntries: desired }
+  return { state: { ...withBackup, managedPathEntries: desired }, warning }
 }
 
 export interface ActivateParams {
@@ -198,6 +246,8 @@ export interface ActivateParams {
   version: string
   installDir: string
   spec: ActivateSpec
+  /** 用"新终端环境"验证时跑的命令（取自清单的 detect.commands[0]） */
+  verifySpec?: ActivationVerifySpec
 }
 
 /** 激活某个版本；重复激活同一工具等于切换版本 */
@@ -223,6 +273,10 @@ export async function activateVersion(params: ActivateParams): Promise<ActivateR
     return { ok: false, record: null, note: null, error: (error as Error).message }
   }
 
+  // PATH 条目收敛到 %DEVKIT_HOME%，避免每装一个工具就把 PATH 拉长一截
+  const pathEntries = entries.pathEntries.map(toDevkitHomeVar)
+  const usesDevkitHome = pathEntries.some((entry) => entry.includes(DEVKIT_HOME_VAR))
+
   let state = readActivationState()
   const previous = state.records.find((record) => record.toolId === toolId) ?? null
 
@@ -236,7 +290,7 @@ export async function activateVersion(params: ActivateParams): Promise<ActivateR
       linkName,
       linkPath: getLinkPath(linkName),
       target: installDir,
-      pathEntries: entries.pathEntries,
+      pathEntries,
       env: entries.env,
       activatedAt: new Date().toISOString()
     }
@@ -247,17 +301,50 @@ export async function activateVersion(params: ActivateParams): Promise<ActivateR
     }
 
     // 先写环境变量再改 PATH：如果环境变量写失败，PATH 还没动，回滚成本最低
+    if (usesDevkitHome && state.ownsDevkitHomeVar !== true) {
+      await writeUserEnv('DEVKIT_HOME', getDevkitHome())
+      state = { ...state, ownsDevkitHomeVar: true }
+      logger.info('activate', `已设置 DEVKIT_HOME=${getDevkitHome()}`)
+    }
     for (const [name, value] of Object.entries(entries.env)) {
       await writeUserEnv(name, value)
     }
 
-    state = await syncUserPath(state)
+    const synced = await syncUserPath(state)
+    state = synced.state
     saveActivationState(state)
 
-    const note =
+    // 关键一步：用"新终端会看到的环境"验证命令真的能找到、且解析到 devkit 这一份
+    // （写进 PATH ≠ 生效；机器级 PATH 里的同名工具还会抢在前面）
+    const notes: string[] = []
+    const warnings: string[] = []
+
+    if (params.verifySpec) {
+      const paths = await readEffectivePaths()
+      const verified = await verifyActivation(params.verifySpec, paths, getLinkPath(linkName))
+      if (verified.ok && verified.resolvedFromDevkit) {
+        notes.push(`新终端验证通过（${verified.detail}）`)
+        logger.info('activate', `${toolId} 新终端验证通过：${verified.detail}`)
+      } else if (verified.ok) {
+        // 能跑，但跑的不是 devkit 装的那份 —— 这是必须让用户知道的事实
+        warnings.push(verified.detail)
+        logger.warn('activate', `${toolId} 新终端验证：${verified.detail}`)
+      } else {
+        warnings.push(`新终端验证未通过：${verified.detail}`)
+        logger.warn('activate', `${toolId} 新终端验证未通过：${verified.detail}`)
+      }
+    }
+
+    const head =
       previous && previous.version !== version
-        ? `已从 ${previous.version} 切换到 ${version}；新开的终端里生效`
-        : '已写入用户 PATH；新开的终端里生效'
+        ? `已从 ${previous.version} 切换到 ${version}`
+        : '已写入用户 PATH'
+    if (synced.warning) warnings.push(synced.warning)
+
+    const note =
+      `${head}；新开的终端里生效` +
+      (notes.length > 0 ? `；${notes.join('；')}` : '') +
+      (warnings.length > 0 ? `。注意：${warnings.join('；')}` : '')
 
     return { ok: true, record, note, error: null }
   } catch (error) {
@@ -289,7 +376,15 @@ export async function deactivateTool(toolId: string): Promise<{ removed: string[
       records: state.records.filter((item) => item.toolId !== toolId)
     }
     const synced = await syncUserPath(next)
-    saveActivationState(synced)
+
+    // 没有别的工具在用 %DEVKIT_HOME% 了，就把这个变量也收回
+    let finalState = synced.state
+    if (finalState.ownsDevkitHomeVar === true && finalState.records.length === 0) {
+      await writeUserEnv('DEVKIT_HOME', null)
+      finalState = { ...finalState, ownsDevkitHomeVar: false }
+      removed.push('环境变量 DEVKIT_HOME')
+    }
+    saveActivationState(finalState)
 
     removed.push(...record.pathEntries.map((entry) => `PATH ${entry}`))
 

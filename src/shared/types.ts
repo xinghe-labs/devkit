@@ -282,6 +282,12 @@ export interface PlanItem {
   installDir: string | null
   /** 下载产物路径 */
   archivePath: string | null
+  /**
+   * 下载尝试记录（含失败的源与原因）。
+   * 调研里"失败不可诊断"是核心抱怨之一：用户要能一眼看到
+   * "试过哪几个源、每个源为什么失败、重试了几次"，而不是只看到一句"下载失败"。
+   */
+  downloadAttempts?: { source: string; url: string; error: string }[]
 }
 
 export interface PlanOptions {

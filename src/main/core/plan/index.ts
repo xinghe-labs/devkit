@@ -160,7 +160,8 @@ export function buildPlan(params: BuildPlanParams): InstallPlan {
       startedAt: null,
       finishedAt: null,
       installDir: join(versionsRoot, tool.id, version.version),
-      archivePath: null
+      archivePath: null,
+      downloadAttempts: []
     })
   }
 

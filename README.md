@@ -57,13 +57,28 @@
 ```
 %USERPROFILE%\.devkit\current\<tool>   ← junction，指向当前激活的版本
                      ↑
-        用户 PATH 里加的是这个目录，所以切版本不用改 PATH
+  用户 PATH 里加的是 %DEVKIT_HOME%\current\<tool>
 ```
 
 切版本 = 只改 junction 指向。改 PATH 前会把原文备份到 `%APPDATA%\devkit\backup\`，
 激活记录写在 `%APPDATA%\devkit\activated.json`，取消激活时按记录**精确移除**，
 不靠"猜哪条 PATH 是脏数据"。
 
+激活后会做一次**「新终端」验证**：用机器级 + 用户级 PATH 拼出一个新进程会看到的环境，
+跑一次 `where` 和用户在终端里会敲的那条命令，确认命令确实能解析到 devkit 装的这份。
+这一步是必要的 —— winget 的 PATH 相关 bug 几乎全是「写进去了但新终端还是找不到命令」。
+
+> **PATH 收敛**：所有条目写成 `%DEVKIT_HOME%\current\<tool>`，而不是逐个写绝对路径。
+> 十个工具就少几百字符，而且用户一眼能看出哪些条目是 devkit 管的。
+> PATH 超过 2047 字符时会告警。
+>
+> **已知限制（重要）**：Windows 的进程 PATH 是「**机器级在前、用户级在后**」。
+> 如果系统里已经装了同名工具且它在**机器级** PATH 里（例如 `D:\node`），
+> 那么即使 devkit 把条目插在用户 PATH 最前面，新终端里敲 `node` 仍会跑到系统那份。
+> devkit 会**在激活结果里如实告知**（“node 解析到了 D:\node\node.exe（不是 devkit 装的那份）
+> …”），而不是给一个假阳性。要真正接管，需要卸掉系统里那一份，或者手动把 devkit 的
+> 目录加到机器级 PATH（需要管理员）。这是 Windows 的 PATH 查找顺序决定的，不是实现问题。
+>
 > **禁用 `setx`**：`setx` 在 1024 字符处静默截断，而开发机的 PATH 经常远超这个长度。
 > 改用注册表 `HKCU\Environment` 直接写 `REG_EXPAND_SZ`，并广播 `WM_SETTINGCHANGE`。
 
@@ -228,6 +243,9 @@ DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 node_modules/electron/dist/electron.e
 | 主进程不整程序提权，用常驻提权助手          | 整程序提权会让拖拽失效、安全争议大；每项单独提权会反复弹 UAC     |
 | **禁用 `setx`** 写 PATH                     | `setx` 在 1024 字符处静默截断，会把用户的 PATH 写坏              |
 | 用 junction 而不是 shim 做版本切换          | junction 不需要管理员，切版本不用改 PATH                         |
+| PATH 条目写成 `%DEVKIT_HOME%\current\<tool>` | 避免每装一个工具就把 PATH 拉长一截（PATH 过长是真实故障）        |
+| 激活后跑一次「新终端」验证                  | 写进 PATH ≠ 生效；winget 的 PATH bug 几乎全在这里                  |
+| 软件行里的「详情」展示下载域名与 SHA-256    | 用户没法验证二进制里装了什么，但至少能一眼看到它从哪来、校验和是多少 |
 | 卸载只删 `%USERPROFILE%\.devkit\versions`   | 绝不诱导用户把系统里原有的 Node / Java 一起删掉                  |
 | 更新检查是"提示"而不是"静默替换"            | 静默替换开发环境里的二进制本身就不是个安全行为                   |
 | 零遥测                                      | 开源工具的信任基础                                               |

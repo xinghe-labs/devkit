@@ -45,7 +45,7 @@ export interface RunPlanOptions {
   /** 只演练：不执行安装器、不激活，只把命令行算出来 */
   dryRun?: boolean
   /** 安装成功后激活该版本；不传表示不激活 */
-  activate?: (item: PlanItem, version: ToolVersionSpec) => Promise<ActivateOutcome>
+  activate?: (item: PlanItem, version: ToolVersionSpec, tool: ToolManifest) => Promise<ActivateOutcome>
   /** 需要管理员的安装命令交给它执行（提权助手）；不传则直接执行 */
   runElevatedCommand?: (label: string, command: { cmd: string; args: string[] }) => Promise<void>
 }
@@ -154,7 +154,7 @@ async function runItem(context: {
       item.finishedAt = new Date().toISOString()
       logger.info('executor', `${item.id} 已安装且自检通过，跳过`)
       if (activate && version.activate) {
-        const result = await activate(item, version)
+        const result = await activate(item, version, tool)
         if (!result.ok) logger.warn('executor', `${item.id} 已安装但激活失败：${result.error}`)
       }
       emit(item.id)
@@ -188,6 +188,9 @@ async function runItem(context: {
       emit(item.id)
     }
   })
+
+  // 无论成功失败都把尝试记录留下来，报告里要展示"试过哪些源、各自为什么失败"
+  item.downloadAttempts = download.attempts
 
   if (!download.ok) throw new Error(download.error ?? '下载失败')
 
@@ -237,7 +240,7 @@ async function runItem(context: {
   // 4. 激活（可选）：把这份安装接到用户 PATH / 环境变量里
   let note = verify.detail
   if (activate && version.activate) {
-    const activated = await activate(item, version)
+    const activated = await activate(item, version, tool)
     if (activated.ok) {
       note = `${verify.detail}；${activated.note ?? '已激活'}`
     } else {

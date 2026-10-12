@@ -208,5 +208,19 @@
     "uninstallTitle": "Uninstall {{tool}}@{{version}}?",
     "uninstallDesc": "Removes the version directory; if it is the active one it is deactivated first",
     "scopeNote": "Location: %USERPROFILE%\\.devkit\\versions\\<tool>\\<version>\\. Uninstall does not roll back other system changes."
+  },
+  "detail": {
+    "open": "Details",
+    "homepage": "Homepage",
+    "license": "License",
+    "redistributable": "Redistributable",
+    "notRedistributable": "No redistribution",
+    "tier": "License tier",
+    "versionsHint": "Every URL and checksum below comes from the official channel and is verified at install time.",
+    "scope": "Install scope",
+    "source": "Source",
+    "mirrors": "Mirrors",
+    "noHash": "No checksum declared for this version (it will not appear as installable)",
+    "verify": "Post-install check"
   }
 }

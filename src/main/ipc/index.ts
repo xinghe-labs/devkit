@@ -241,7 +241,9 @@ export function registerIpcHandlers(): void {
       toolId,
       version,
       installDir: target.installDir,
-      spec: spec.activate
+      spec: spec.activate,
+      // 用清单里的检测命令做"新终端验证"：写进 PATH 不等于生效
+      verifySpec: tool.detect.commands?.[0]
     })
   })
 

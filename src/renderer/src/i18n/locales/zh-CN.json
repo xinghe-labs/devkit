@@ -208,5 +208,19 @@
     "uninstallTitle": "卸载 {{tool}}@{{version}}？",
     "uninstallDesc": "会删除版本目录；如果是当前激活的版本，会先取消激活",
     "scopeNote": "安装位置：%USERPROFILE%\\.devkit\\versions\\<tool>\\<version>\\。卸载不会回滚其它系统改动。"
+  },
+  "detail": {
+    "open": "详情",
+    "homepage": "官网",
+    "license": "许可证",
+    "redistributable": "可再分发",
+    "notRedistributable": "不可再分发",
+    "tier": "许可证分级",
+    "versionsHint": "下面每个版本的下载地址与校验和都来自官方渠道，安装时会逐个校验。",
+    "scope": "安装范围",
+    "source": "下载来源",
+    "mirrors": "镜像",
+    "noHash": "这个版本没有声明校验和（不会出现在可安装清单里）",
+    "verify": "安装后自检"
   }
 }

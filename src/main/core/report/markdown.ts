@@ -80,6 +80,31 @@ export function renderPlanReport(
     )
   }
 
+  // 下载尝试记录：只要试过不止一个源，或者有失败尝试，就单列出来
+  const withAttempts = plan.items.filter((item) => (item.downloadAttempts ?? []).length > 0)
+  if (withAttempts.length > 0) {
+    lines.push('')
+    lines.push('## 下载尝试记录')
+    lines.push('')
+    lines.push('> 同一个文件会按镜像偏好依次尝试多个源；下面列出每次尝试的结果。')
+    for (const item of withAttempts) {
+      lines.push('')
+      lines.push(`### ${item.id}@${item.version}`)
+      lines.push('')
+      lines.push('| # | 源 | 地址 | 结果 |')
+      lines.push('| --- | --- | --- | --- |')
+      ;(item.downloadAttempts ?? []).forEach((attempt, index) => {
+        lines.push(
+          `| ${index + 1} | ${escapeCell(attempt.source)} | ${escapeCell(attempt.url)} | ${escapeCell(attempt.error)} |`
+        )
+      })
+      if (item.state === 'success' && item.archivePath) {
+        lines.push('')
+        lines.push(`- 最终使用：${item.archivePath}`)
+      }
+    }
+  }
+
   const problems = plan.items.filter((item) => item.state === 'failed' || item.state === 'skipped')
   if (problems.length > 0) {
     lines.push('')

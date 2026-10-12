@@ -110,6 +110,21 @@ $ %USERPROFILE%\.devkit\current\nodejs\node.exe -v
 
 → junction 已建立，**透过 junction 跑起来的确实是刚装的那一份**（v24.21.0，而系统里的是 22.23.2）。
 
+**第二步（续）：加了「新终端验证」之后的第二轮实测**
+
+PATH 条目已收敛成变量形式，并多了一步 `where` 校验：
+
+```
+[activate] 已设置 DEVKIT_HOME=%USERPROFILE%\.devkit
+[activate] 用户 PATH 已更新：新增 1 条，已在 PATH 中 0 条
+[WARN] [activate] nodejs 新终端验证：node 解析到了 D:\node\node.exe（不是 devkit 装的那份）
+
+用户 PATH：%DEVKIT_HOME%\current\nodejs;D:\Python;...;D:\npm\npm-global
+```
+
+→ 这一轮把「写进 PATH 就报成功」的假阳性揪出来了：系统级 PATH 里的 Node 抢在前面，
+devkit 如实告警而不是宣称成功（详见下面「由 Windows 自身决定的限制」）。
+
 **第三步：取消激活**
 
 ```
@@ -123,6 +138,7 @@ $ %USERPROFILE%\.devkit\current\nodejs\node.exe -v
 ```
 junction exists: false
 target 完好: true（%USERPROFILE%\.devkit\versions\nodejs\24.21.0\node.exe 仍在）
+DEVKIT_HOME：<已删除>
 
 PATH 还原校验：
   before: "D:\\Python;D:\\Python\\Scripts;C:\\Program Files\\LibreOffice\\program;D:\\npm\\npm-global"
@@ -137,12 +153,29 @@ PATH 还原校验：
 
 | 缺陷 | 现象 | 修复 |
 | --- | --- | --- |
-| `rmSync(path, { recursive: false })` 删不掉 junction | 取消激活在最后一步报 `Path is a directory`，PATH 已清理、链接残留，下次没人能清它 | 改用 `rmdirSync`（RemoveDirectoryW）并保留 recursive 兜底；新增 `junction.test.ts` 6 个真实文件系统用例 |
+| `rmSync(path, { recursive: false })` 删不掉 junction | 取消激活在最后一步报 `Path is a directory`，PATH 已清理、链接残留，下次没人能清它 | 改用 `rmdirSync`（RemoveDirectoryW）并保留 recursive 兜底；新增 `junction.test.ts` 真实文件系统用例 |
 | 取消激活的顺序不对 | 链接删失败时 PATH 已被改掉，留下半成品状态 | 先拆 junction（失败则不动 PATH），再清环境变量与 PATH |
+| `toDevkitHomeVar` 前缀匹配过宽 | `C:\Users\x\.devkit-other` 这种“前缀相似的兄弟目录”会被误改成 `%DEVKIT_HOME%-other`，把一个无关条目指向 devkit | 要求剩余部分以路径分隔符开头（或为空）才算命中；已加单测 |
 | Node.js 清单没有 `activate` | 界面上“激活”按钮不出现（截图里看到的），旗舰工具装完用不了 | 把 nodejs 纳入清单刷新器并补上 `activate`，重新生成清单 |
 | 慢速源拖死安装 | GitHub 资产以 21.9 KB/s “慢慢滴”，空闲超时永不触发，整个安装卡住 | 新增速度哨兵：平均速度长期低于 32 KB/s 就放弃该源；实测后自动换镜像并成功 |
 | PowerShell 脚本中文报语法错误 | `.ps1` 无 BOM 时 PS 5.1 按 cp936 解码，提权助手直接跑不起来 | 写脚本时加 UTF-8 BOM；结果文件用无 BOM UTF-8（否则 Node 的 JSON.parse 报错） |
 | 预检只看首选源 | 首选源不可达就整体阻断，明明镜像可用 | 改为每个工具并行探多个源，只要有一个可用就通过，并在日志里说明用了哪个 |
+| 激活验证只看版本号输出 | 系统里的 Node 22 输出也能匹配上 `v\d+\.\d+`，会把“没生效”报成成功（假阳性） | 改用 `where.exe` 看命令实际解析到哪个文件，必须落在 devkit 目录内才算通过 |
+
+### 一个由 Windows 自身决定的限制（已如实告知，不掩饰）
+
+实测输出：
+
+```
+[WARN] [activate] nodejs 新终端验证：node 解析到了 D:\node\node.exe（不是 devkit 装的那份）。
+        系统级 PATH 里的同名工具优先级高于用户级 PATH；要改用 devkit 的版本，
+        可以直接用 %USERPROFILE%\.devkit\current\nodejs\... 下的绝对路径，或先卸掉系统里那一份
+```
+
+Windows 的进程 PATH 是「机器级 + 用户级」，**机器级在前**。所以系统里已有的 Node（在机器级 PATH 里）
+会抢在 devkit 的用户级条目前面。devkit 的选择是**不掩盖**：激活仍然成功（条目写进去了、
+绝对路径可用），但把“跑到的不是 devkit 那份”明确报出来，并给出两种解法。
+另一个选择是去改机器级 PATH，但那需要管理员、且会违背“不干扰已有环境”的设计原则。
 
 ---
 

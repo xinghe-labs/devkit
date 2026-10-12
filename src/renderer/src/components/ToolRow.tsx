@@ -6,6 +6,7 @@ import { pickRecommendedVersion } from '@shared/manifest'
 import type { DetectionResult, LicenseTier, ToolManifest } from '@shared/types'
 import { useManageStore } from '../store/manage-store'
 import { StatusTag } from './StatusTag'
+import { ToolDetail } from './ToolDetail'
 
 const { Text } = Typography
 
@@ -100,6 +101,7 @@ export function ToolRow({
               {localizedText(tool.name, locale, tool.id)}
             </Text>
             {tags}
+            <ToolDetail tool={tool} />
           </Space>
 
           <div className="dk-tool-desc">{localizedText(tool.description, locale, '—')}</div>
@@ -133,14 +135,20 @@ export function ToolRow({
               onChange={onVersionChange}
               options={tool.versions.map((version) => ({
                 value: version.version,
-                label: version.recommended
-                  ? `${version.version} · ${t('tool.recommended')}`
-                  : version.version
+                // 把渠道与发布日期一起给出来：用户选版本时最需要的上下文就是这个
+                label: [
+                  version.version,
+                  version.recommended ? t('tool.recommended') : version.channel,
+                  version.releaseDate ?? null
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
               }))}
             />
           ) : (
             <Text type="secondary" style={{ fontSize: 13 }}>
               {activeVersion ?? t('tool.noVersions')}
+              {recommended?.releaseDate ? ` · ${recommended.releaseDate}` : ''}
             </Text>
           )}
         </div>

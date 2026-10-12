@@ -3,6 +3,7 @@ import { indexById } from '@shared/manifest'
 import type {
   ActivateSpec,
   InstallPlan,
+  ToolManifest,
   InstallProgressEvent,
   PendingPlanLoad,
   PlanOptions,
@@ -53,7 +54,8 @@ function buildOptions(): PlanOptions {
 /** 执行器需要的"安装成功后激活"回调：由主进程提供，脚本模式不提供 */
 const activateHook = async (
   item: { id: string; version: string; installDir: string | null },
-  version: { activate?: ActivateSpec }
+  version: { activate?: ActivateSpec },
+  tool?: ToolManifest
 ): Promise<ActivateOutcome> => {
   if (!version.activate || !item.installDir) {
     return { ok: true, note: null, error: null }
@@ -62,7 +64,9 @@ const activateHook = async (
     toolId: item.id,
     version: item.version,
     installDir: item.installDir,
-    spec: version.activate
+    spec: version.activate,
+    // 用清单里的检测命令做"新终端验证"：那正是用户会在终端里敲的那条
+    verifySpec: tool?.detect.commands?.[0]
   })
   return { ok: result.ok, note: result.note, error: result.error }
 }
