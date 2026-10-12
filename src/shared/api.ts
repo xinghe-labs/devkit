@@ -5,6 +5,9 @@ import type {
   AppInfo,
   DetectRequest,
   DetectionResult,
+  DoctorFixId,
+  DoctorFixResult,
+  DoctorReport,
   DownloadUpdateResult,
   InstallProgressEvent,
   InstalledTool,
@@ -110,6 +113,12 @@ export interface DevkitApi {
   downloadUpdate(): Promise<DownloadUpdateResult>
   /** 拉起已下载的安装包（只允许 devkit 自己下载目录下的 exe） */
   installUpdate(filePath: string): Promise<boolean>
+
+  /* ---------------- 环境体检（FR-21） ---------------- */
+  /** 跑一次体检（只读，不改任何东西） */
+  runDoctor(): Promise<DoctorReport>
+  /** 执行一条修复；会先备份 */
+  applyDoctorFix(fixId: DoctorFixId): Promise<DoctorFixResult>
 
   /* ---------------- 系统配置（FR-6） ---------------- */
   getSystemConfig(): Promise<SystemConfigItem[]>

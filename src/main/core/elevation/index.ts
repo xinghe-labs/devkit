@@ -46,6 +46,11 @@ export function toExecStep(
   }
 }
 
+/** 把一条"写机器级 PATH"包成提权步骤（体检修复用） */
+export function toMachinePathStep(label: string, value: string): ElevationStep {
+  return { kind: 'set-machine-path', label, value }
+}
+
 /** 安装前创建系统还原点（FR-10） */
 export async function createRestorePoint(onLog?: (message: string) => void): Promise<ElevationOutcome> {
   return runElevated(

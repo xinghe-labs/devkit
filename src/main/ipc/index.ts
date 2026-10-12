@@ -10,6 +10,9 @@ import type {
   ActivationSnapshot,
   AppInfo,
   DetectionResult,
+  DoctorFixId,
+  DoctorFixResult,
+  DoctorReport,
   DownloadUpdateResult,
   HotUpdateResultView,
   InstalledTool,
@@ -50,6 +53,8 @@ import {
 import { loadManifests } from '../core/manifest'
 import { importOfflinePack, packOffline } from '../core/offline'
 import { clearUserManifests, runHotUpdate } from '../core/hotupdate'
+import { runDoctor } from '../core/doctor'
+import { applyDoctorFix } from '../core/doctor/fix'
 import { applySystemConfig, getSystemConfigStatus } from '../core/systemconfig'
 import { checkForUpdate, downloadUpdate } from '../core/updater'
 import { getVscodeStatus, installVscodeExtensions, listVscodeExtensions } from '../core/vscode'
@@ -407,6 +412,19 @@ export function registerIpcHandlers(): void {
       currentVersion: app.getVersion(),
       proxy: config.proxy
     })
+  })
+
+  /* ---------------- 环境体检（FR-21） ---------------- */
+
+  handle(IPC.doctorRun, (): Promise<DoctorReport> => runDoctor())
+
+  handle(IPC.doctorFix, async (_event, payload: unknown): Promise<DoctorFixResult> => {
+    const fixId = asNonEmptyString(payload, 'fixId', 40)
+    const allowed: DoctorFixId[] = ['clean-user-path', 'clean-machine-path', 'prune-devkit-state']
+    if (!allowed.includes(fixId as DoctorFixId)) {
+      throw new IpcValidationError(`未知的修复项：${fixId}`)
+    }
+    return applyDoctorFix(fixId as DoctorFixId)
   })
 
   /* ---------------- 系统配置（FR-6） ---------------- */

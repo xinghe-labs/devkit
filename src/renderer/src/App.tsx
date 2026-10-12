@@ -26,6 +26,7 @@ import { InstallFlow } from './components/InstallFlow'
 import { InstalledDrawer } from './components/InstalledDrawer'
 import { LogPanel } from './components/LogPanel'
 import { ImportPresetButton, PresetBar } from './components/PresetBar'
+import { DoctorDrawer } from './components/DoctorDrawer'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { VscodeDrawer } from './components/VscodeDrawer'
 import { ToolRow } from './components/ToolRow'
@@ -88,6 +89,7 @@ export default function App() {
   const preparing = useInstallStore((state) => state.busy)
 
   const openSettings = useManageStore((state) => state.openSettings)
+  const openDoctor = useManageStore((state) => state.openDoctor)
   const openVscode = useManageStore((state) => state.openVscode)
   const openInstalled = useManageStore((state) => state.openInstalled)
   const notice = useManageStore((state) => state.notice)
@@ -253,6 +255,9 @@ export default function App() {
               { label: 'English', value: 'en-US' }
             ]}
           />
+          <Button size="small" onClick={() => openDoctor(true)}>
+            {t('action.doctor')}
+          </Button>
           <Button size="small" onClick={() => openVscode(true)}>
             {t('action.vscode')}
           </Button>
@@ -466,6 +471,7 @@ export default function App() {
 
         <InstallFlow />
         <SettingsDrawer />
+        <DoctorDrawer />
         <InstalledDrawer />
         <VscodeDrawer />
       </Layout>

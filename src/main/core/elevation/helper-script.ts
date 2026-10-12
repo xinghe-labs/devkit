@@ -36,6 +36,12 @@ export type ElevationStep =
       label: string
       description: string
     }
+  | {
+      kind: 'set-machine-path'
+      label: string
+      /** 完整的新 PATH 值（由调用方算好，助手只负责写） */
+      value: string
+    }
 
 export interface StepResult {
   label: string
@@ -91,7 +97,20 @@ try {
     $stepError = $null
 
     try {
-      if ($step.kind -eq 'restore-point') {
+      if ($step.kind -eq 'set-machine-path') {
+        # 刻意不用 setx：它在 1024 字符处静默截断，PATH 被写坏的历史残留就是这么来的。
+        # 直接写注册表并保持 REG_EXPAND_SZ，最后广播 WM_SETTINGCHANGE。
+        # 注意：PowerShell 的反引号续行不能出现在这个 TS 模板字符串里（会把它截断），所以写成一行
+        Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment' -Name Path -Value ([string]$step.value) -Type ExpandString -ErrorAction Stop
+        $sig = '[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);'
+        try {
+          $t = Add-Type -MemberDefinition $sig -Name Win32SMT4 -Namespace DevkitNative -PassThru
+          $out = [UIntPtr]::Zero
+          $t::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 3000, [ref]$out) | Out-Null
+        } catch {}
+        $stepOk = $true
+      }
+      elseif ($step.kind -eq 'restore-point') {
         # 系统还原点：只在启用了系统保护时可用；失败不算致命
         Checkpoint-Computer -Description ([string]$step.description) -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop
         $stepOk = $true

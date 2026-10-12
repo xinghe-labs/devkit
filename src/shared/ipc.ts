@@ -71,6 +71,10 @@ export const IPC = {
   updateDownload: 'update:download',
   updateInstall: 'update:install',
 
+  /** 环境体检（FR-21） */
+  doctorRun: 'doctor:run',
+  doctorFix: 'doctor:fix',
+
   /** 系统配置（FR-6） */
   systemStatus: 'system:status',
   systemApply: 'system:apply',

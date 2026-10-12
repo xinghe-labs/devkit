@@ -5,6 +5,8 @@ import type {
   InstalledTool,
   OfflinePackResult,
   Preset,
+  DoctorFixId,
+  DoctorReport,
   SystemConfigItem,
   SystemConfigRequest,
   UpdateInfo,
@@ -37,6 +39,10 @@ interface ManageState {
   offlineResult: OfflinePackResult | null
   hotUpdateResult: HotUpdateResultView | null
   systemConfig: SystemConfigItem[]
+  doctorOpen: boolean
+  doctorReport: DoctorReport | null
+  doctorRunning: boolean
+  doctorFixing: boolean
   updateInfo: UpdateInfo | null
   /** 已下载好的更新包路径；null = 还没下载 */
   updateFilePath: string | null
@@ -75,6 +81,10 @@ interface ManageState {
   runHotUpdate: (url: string) => Promise<void>
   clearManifestOverride: () => Promise<void>
 
+  openDoctor: (open: boolean) => void
+  runDoctor: () => Promise<void>
+  applyDoctorFix: (fixId: DoctorFixId) => Promise<void>
+
   loadSystemConfig: () => Promise<void>
   applySystemConfig: (request: SystemConfigRequest) => Promise<void>
 
@@ -101,6 +111,10 @@ export const useManageStore = create<ManageState>()((set, get) => ({
   offlineResult: null,
   hotUpdateResult: null,
   systemConfig: [],
+  doctorOpen: false,
+  doctorReport: null,
+  doctorRunning: false,
+  doctorFixing: false,
   updateInfo: null,
   updateFilePath: null,
   updateDownloading: false,
@@ -355,6 +369,45 @@ export const useManageStore = create<ManageState>()((set, get) => ({
       set({ notice: { kind: 'error', text: describeError(error) } })
     } finally {
       set({ busy: false })
+    }
+  },
+
+  openDoctor: (open) => set({ doctorOpen: open }),
+
+  runDoctor: async () => {
+    set({ doctorRunning: true })
+    try {
+      const report = await window.devkit.runDoctor()
+      set({ doctorReport: report })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ doctorRunning: false })
+    }
+  },
+
+  applyDoctorFix: async (fixId) => {
+    set({ doctorFixing: true })
+    try {
+      const result = await window.devkit.applyDoctorFix(fixId)
+      if (!result.ok) throw new Error(result.error ?? '修复失败')
+
+      set({
+        notice: {
+          kind: result.changed.length > 0 ? 'success' : 'info',
+          text:
+            result.changed.length > 0
+              ? `已修复 ${result.changed.length} 项${result.backupFile ? `；原文备份在 ${result.backupFile}` : ''}`
+              : '没有需要修改的内容'
+        }
+      })
+      // 修完立刻重跑体检，让用户看到结果，而不是靠猜
+      await get().runDoctor()
+      await get().loadInstalled()
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ doctorFixing: false })
     }
   },
 

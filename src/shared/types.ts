@@ -514,6 +514,69 @@ export interface MirrorSetting {
 
 /** 镜像写入结果 */
 /* ------------------------------------------------------------------ */
+/* 环境体检（FR-21）                                                    */
+/* ------------------------------------------------------------------ */
+
+export type DoctorLevel = 'ok' | 'warn' | 'error'
+export type DoctorCategory = 'path' | 'env' | 'command' | 'devkit' | 'system'
+
+/** 可以一键修复的项；其余只能给建议（改之前一律先备份） */
+export type DoctorFixId = 'clean-user-path' | 'clean-machine-path' | 'prune-devkit-state'
+
+export interface DoctorFix {
+  id: DoctorFixId
+  label: LocalizedText
+  /** user = 直接改；machine = 需要管理员（走提权助手） */
+  scope: 'user' | 'machine'
+}
+
+export interface DoctorFinding {
+  id: string
+  level: DoctorLevel
+  category: DoctorCategory
+  title: LocalizedText
+  detail: LocalizedText
+  /** 具体证据：哪一条、值是什么。不能只给一句"环境有问题" */
+  evidence: string[]
+  fix: DoctorFix | null
+}
+
+export type PathEntryKind = 'ok' | 'missing' | 'unexpanded-var' | 'malformed' | 'duplicate'
+
+export interface PathEntryView {
+  index: number
+  raw: string
+  kind: PathEntryKind
+  reason: string | null
+  duplicateOf: number | null
+}
+
+export interface PathAnalysisView {
+  entries: PathEntryView[]
+  /** 清理后的建议值（只删重复与无效条目，顺序不动） */
+  suggested: string
+  changed: boolean
+  counts: Record<PathEntryKind, number>
+}
+
+export interface DoctorReport {
+  ranAt: string
+  findings: DoctorFinding[]
+  summary: { ok: number; warn: number; error: number }
+  userPath: PathAnalysisView
+  machinePath: PathAnalysisView
+}
+
+export interface DoctorFixResult {
+  ok: boolean
+  /** 实际做了什么（逐条列出被移除的东西） */
+  changed: string[]
+  /** 改动前的备份文件 */
+  backupFile: string | null
+  error: string | null
+}
+
+/* ------------------------------------------------------------------ */
 /* 系统配置（FR-6）                                                     */
 /* ------------------------------------------------------------------ */
 

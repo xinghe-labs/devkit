@@ -9,6 +9,7 @@ import type {
   LogEntry,
   MirrorSetting,
   OfflinePackRequest,
+  DoctorFixId,
   PlanSelection,
   SystemConfigRequest,
   UninstallRequest
@@ -99,6 +100,10 @@ const api: DevkitApi = {
   checkForUpdate: () => ipcRenderer.invoke(IPC.updateCheck),
   downloadUpdate: () => ipcRenderer.invoke(IPC.updateDownload),
   installUpdate: (filePath: string) => ipcRenderer.invoke(IPC.updateInstall, filePath),
+
+  /* ---------------- 环境体检 ---------------- */
+  runDoctor: () => ipcRenderer.invoke(IPC.doctorRun),
+  applyDoctorFix: (fixId: DoctorFixId) => ipcRenderer.invoke(IPC.doctorFix, fixId),
 
   /* ---------------- 系统配置 ---------------- */
   getSystemConfig: () => ipcRenderer.invoke(IPC.systemStatus),

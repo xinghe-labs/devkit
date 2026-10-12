@@ -70,6 +70,17 @@ export async function readUserPath(): Promise<string> {
   return result.stdout.replace(/\r?\n$/, '')
 }
 
+/** 读机器级 PATH 的**原始值**（只读，不需要管理员） */
+export async function readMachinePath(): Promise<string> {
+  const result = await runPowerShell(
+    `$v = (Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment' -Name Path -ErrorAction SilentlyContinue).Path; if ($null -eq $v) { '' } else { $v }`
+  )
+  if (result.code !== 0) {
+    throw new Error(`读取机器级 PATH 失败：${result.stderr.trim() || `退出码 ${result.code}`}`)
+  }
+  return result.stdout.replace(/\r?\n$/, '')
+}
+
 /** 写用户 PATH（保持 REG_EXPAND_SZ 类型，不展开用户原有的 %VAR% 写法） */
 export async function writeUserPath(value: string): Promise<void> {
   const encoded = Buffer.from(value, 'utf8').toString('base64')

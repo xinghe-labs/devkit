@@ -73,7 +73,8 @@
     "selectAll": "Select all in category",
     "installed": "Installed",
     "settings": "Settings",
-    "vscode": "VS Code extensions"
+    "vscode": "VS Code extensions",
+    "doctor": "Health check"
   },
   "log": {
     "title": "Runtime log",
@@ -255,5 +256,28 @@
       "cpp": "C/C++",
       "ai": "AI assistants"
     }
+  },
+  "doctor": {
+    "title": "Environment health check",
+    "running": "Running checks…",
+    "empty": "No report yet",
+    "rerun": "Run again",
+    "readOnlyNote": "Diagnosis is read-only; nothing changes until you press Fix, and a backup is always taken first.",
+    "summary": "{{error}} problems · {{warn}} notices · {{ok}} healthy",
+    "summaryHint": "Sorted by severity. Each item names the exact entry and value — no vague \"your environment has issues\".",
+    "moreEvidence": "… {{count}} more",
+    "pathClean": "No problems found at this PATH level",
+    "userPath": "User PATH",
+    "machinePath": "Machine PATH",
+    "pathEntry": "Entry",
+    "pathKind": "Verdict",
+    "pathReason": "Why",
+    "userPathNote": "Changing this level needs no admin; devkit backs it up first.",
+    "machinePathNote": "Changing this level needs admin (one UAC prompt). devkit only diagnoses it by default.",
+    "fixConfirmTitle": "Apply this fix?",
+    "fixConfirmUser": "Removes duplicates, entries pointing at missing directories, and malformed entries from the user PATH. Order and everything else is preserved.",
+    "fixConfirmMachine": "Removes the same kinds of entries from the machine PATH; requires admin (one UAC prompt).",
+    "fixBackupNote": "The original is backed up to %APPDATA%\\devkit\\backup\\ so you can always compare or restore.",
+    "fixRun": "Apply"
   }
 }
