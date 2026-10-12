@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  condaBlock,
+  condarcHasConflicts,
   minimalMavenSettings,
+  minimalNugetConfig,
+  upsertDockerRegistryMirrors,
   upsertIniSectionValue,
   upsertIniValue,
   upsertMarkedBlock,
-  upsertMavenMirror
+  upsertMavenMirror,
+  upsertNugetSource
 } from './mirrors'
 
 describe('npmrc 行级编辑', () => {
@@ -151,5 +156,90 @@ describe('Maven settings.xml 镜像条目', () => {
     expect(minimal.match(/<mirrors>/g)).toHaveLength(1)
     expect(minimal.match(/<\/mirrors>/g)).toHaveLength(1)
     expect(minimal).toContain(URL)
+  })
+})
+
+describe('conda .condarc', () => {
+  it('生成标准的多通道块', () => {
+    const block = condaBlock('https://mirrors.tuna.tsinghua.edu.cn/anaconda/')
+    expect(block).toContain('channels:\n  - defaults')
+    expect(block).toContain('https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main')
+    expect(block).toContain('https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r')
+    expect(block).toContain('show_channel_urls: true')
+    // 结尾斜杠不能导致双斜杠
+    expect(block).not.toContain('anaconda//pkgs')
+  })
+
+  it('识别用户已经定义过 channels（避免 YAML 同名键重复）', () => {
+    expect(condarcHasConflicts('channels:\n  - conda-forge\n')).toBe(true)
+    expect(condarcHasConflicts('default_channels:\n  - https://x/pkgs/main\n')).toBe(true)
+    expect(condarcHasConflicts('show_channel_urls: true\n')).toBe(false)
+    expect(condarcHasConflicts('')).toBe(false)
+  })
+
+  it('自己写进去的块不会被当成冲突（可重复应用）', () => {
+    const applied = upsertMarkedBlock('', condaBlock('https://mirror/anaconda'))
+    expect(condarcHasConflicts(applied)).toBe(false)
+  })
+})
+
+describe('NuGet.Config 包源', () => {
+  const URL = 'https://mirrors.huaweicloud.com/repository/nuget/v3/index.json'
+
+  it('已有 <packageSources> 时插入', () => {
+    const result = upsertNugetSource('<configuration>\n  <packageSources>\n  </packageSources>\n</configuration>', URL)
+    expect(result).toContain('key="devkit"')
+    expect(result).toContain(URL)
+    expect(result.match(/<packageSources>/g)).toHaveLength(1)
+  })
+
+  it('重复应用是幂等的', () => {
+    const once = upsertNugetSource('<configuration>\n</configuration>', URL)
+    const twice = upsertNugetSource(once, URL)
+    expect(twice.match(/key="devkit"/g)).toHaveLength(1)
+  })
+
+  it('移除后不留下空标签', () => {
+    const applied = upsertNugetSource('<configuration>\n</configuration>', URL)
+    const removed = upsertNugetSource(applied, null)
+    expect(removed).not.toContain('devkit')
+    expect(removed).not.toContain('<packageSources>')
+  })
+
+  it('结构不可识别时抛错', () => {
+    expect(() => upsertNugetSource('not xml', URL)).toThrow(/无法安全插入/)
+  })
+
+  it('最小配置是合法结构', () => {
+    const minimal = minimalNugetConfig(URL)
+    expect(minimal).toContain('<?xml version="1.0" encoding="utf-8"?>')
+    expect(minimal.match(/<packageSources>/g)).toHaveLength(1)
+    expect(minimal.match(/<\/packageSources>/g)).toHaveLength(1)
+  })
+})
+
+describe('Docker daemon.json', () => {
+  it('空文件时写出 registry-mirrors', () => {
+    const result = upsertDockerRegistryMirrors('', 'https://docker.mirrors.ustc.edu.cn')
+    expect(JSON.parse(result)).toEqual({ 'registry-mirrors': ['https://docker.mirrors.ustc.edu.cn'] })
+  })
+
+  it('保留用户已有的其它键', () => {
+    const input = JSON.stringify({ 'data-root': 'D:\\docker', debug: true }, null, 2)
+    const parsed = JSON.parse(upsertDockerRegistryMirrors(input, 'https://mirror'))
+    expect(parsed['data-root']).toBe('D:\\docker')
+    expect(parsed.debug).toBe(true)
+    expect(parsed['registry-mirrors']).toEqual(['https://mirror'])
+  })
+
+  it('移除时只删 registry-mirrors', () => {
+    const input = JSON.stringify({ 'registry-mirrors': ['https://a'], debug: true })
+    const parsed = JSON.parse(upsertDockerRegistryMirrors(input, null))
+    expect(parsed['registry-mirrors']).toBeUndefined()
+    expect(parsed.debug).toBe(true)
+  })
+
+  it('文件不是合法 JSON 时拒绝修改（而不是覆盖掉用户的配置）', () => {
+    expect(() => upsertDockerRegistryMirrors('{ not json', 'https://mirror')).toThrow(/不是合法 JSON/)
   })
 })

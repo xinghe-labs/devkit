@@ -115,8 +115,10 @@
 - 默认官方源，一键切国内；每项可单独设，也可"全部设为同一源"
 - 切换前备份原配置文件（`.npmrc`、`pip.ini`、`settings.xml` 等），可一键还原
 
-> **实现状态（v0.5）**：已覆盖 **npm / pip / Go proxy / Maven / Gradle / cargo** 六个目标
-> （SPEC 原列表里的 conda / Docker / winget / NuGet 尚未做）。
+> **实现状态（v0.5）**：已覆盖 **npm / pip / Go proxy / Maven / Gradle / cargo / conda / NuGet / Docker**
+> 九个目标（仅 winget 源未做 —— 它需要 winget CLI 且多数操作要管理员）。
+> conda 有一处刻意的保守处理：如果用户 `.condarc` 里已经定义了 `channels` / `default_channels`，
+> devkit **拒绝自动修改**并说明原因 —— YAML 不允许同名顶层键重复，硬追加会把配置写坏。
 > 落点各不相同：`.npmrc` 行级替换、`pip.ini` 的 `[global]` 段、`GOPROXY` 用户环境变量、
 > `.m2\settings.xml` 里带固定 id 的 `<mirror>`、`init.gradle` / `config.toml` 里带
 > `devkit-begin`/`devkit-end` 标记的代码块。

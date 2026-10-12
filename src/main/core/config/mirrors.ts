@@ -54,6 +54,19 @@ export function cargoConfigPath(): string {
   return join(homedir(), '.cargo', 'config.toml')
 }
 
+export function condarcPath(): string {
+  return join(homedir(), '.condarc')
+}
+
+export function nugetConfigPath(): string {
+  const appData = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming')
+  return join(appData, 'NuGet', 'NuGet.Config')
+}
+
+export function dockerDaemonPath(): string {
+  return join(homedir(), '.docker', 'daemon.json')
+}
+
 /* ------------------------------------------------------------------ */
 /* 通用文本工具                                                        */
 /* ------------------------------------------------------------------ */
@@ -179,6 +192,99 @@ export function upsertMavenMirror(content: string, url: string | null): string {
   )
 }
 
+/**
+ * 生成 conda 的 .condarc 内容。
+ *
+ * 为什么只写自己那一块并且**发现用户已定义 channels 就拒绝**：
+ * YAML 里同名顶层键重复是无效的，硬追加会直接把用户的 .condarc 写坏。
+ * 宁可让用户手工合并，也不能毁掉他的配置。
+ */
+export function condaBlock(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, '')
+  return [
+    '# 由 devkit 写入（镜像源配置，FR-5）。删掉 devkit-begin/devkit-end 之间的内容即可还原。',
+    'channels:',
+    '  - defaults',
+    'default_channels:',
+    `  - ${trimmed}/pkgs/main`,
+    `  - ${trimmed}/pkgs/r`,
+    `  - ${trimmed}/pkgs/msys2`,
+    'show_channel_urls: true'
+  ].join('\n')
+}
+
+/** 用户已有 .condarc 时，检查里面是否已经定义了我们会写的顶层键 */
+export function condarcHasConflicts(content: string): boolean {
+  // 先把自己写的那一块摘掉，再看剩下部分有没有同名顶层键 —— 否则第二次应用会被自己拦住
+  const begin = content.indexOf(BEGIN_MARK)
+  const end = content.indexOf(END_MARK)
+  const userPart =
+    begin !== -1 && end > begin ? content.slice(0, begin) + content.slice(end + END_MARK.length) : content
+
+  return /^\s*(channels|default_channels)\s*:/im.test(userPart)
+}
+
+/** 在 NuGet.Config 里插入/移除 devkit 的包源 */
+export function upsertNugetSource(content: string, url: string | null): string {
+  const key = 'devkit'
+  const entry = `    <add key="${key}" value="${url ?? ''}" protocolVersion="3" />`
+  const existing = new RegExp(`\\s*<add\\s+key="${key}"[^>]*/>\\s*`, 'i')
+
+  if (url === null) {
+    return content
+      .replace(existing, '\n')
+      .replace(/<packageSources>\s*<\/packageSources>\s*/i, '')
+      .replace(/\n{3,}/g, '\n\n')
+  }
+
+  if (existing.test(content)) return content.replace(existing, `\n${entry}\n`)
+
+  if (/<packageSources\s*\/>/i.test(content)) {
+    return content.replace(/<packageSources\s*\/>/i, `<packageSources>\n${entry}\n  </packageSources>`)
+  }
+  if (/<packageSources>/i.test(content)) {
+    return content.replace(/<packageSources>/i, `<packageSources>\n${entry}`)
+  }
+  if (/<\/configuration>/i.test(content)) {
+    return content.replace(/<\/configuration>/i, `  <packageSources>\n${entry}\n  </packageSources>\n</configuration>`)
+  }
+
+  throw new Error(
+    `${nugetConfigPath()} 里既没有 <packageSources> 也没有 </configuration>，无法安全插入包源。请手工添加或先备份删除该文件。`
+  )
+}
+
+export function minimalNugetConfig(url: string): string {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<configuration>',
+    '  <packageSources>',
+    `    <add key="devkit" value="${url}" protocolVersion="3" />`,
+    '  </packageSources>',
+    '</configuration>',
+    ''
+  ].join('\n')
+}
+
+/** 在 Docker daemon.json 里设置/移除 registry-mirrors，保留其它键 */
+export function upsertDockerRegistryMirrors(content: string, url: string | null): string {
+  let parsed: Record<string, unknown> = {}
+  if (content.trim() !== '') {
+    try {
+      parsed = JSON.parse(content) as Record<string, unknown>
+    } catch (error) {
+      throw new Error(`${dockerDaemonPath()} 不是合法 JSON，已拒绝修改：${(error as Error).message}`, {
+        cause: error
+      })
+    }
+  }
+
+  if (url === null) delete parsed['registry-mirrors']
+  else parsed['registry-mirrors'] = [url]
+
+  return `${JSON.stringify(parsed, null, 2)}\n`
+}
+
 /** 生成一个最小可用的 settings.xml（文件不存在时用） */
 export function minimalMavenSettings(url: string): string {
   return [
@@ -261,6 +367,9 @@ export interface CurrentMirrors {
   maven: string | null
   gradle: string | null
   cargo: string | null
+  conda: string | null
+  nuget: string | null
+  docker: string | null
 }
 
 /** 读用户级 GOPROXY（没有则返回 null） */
@@ -294,6 +403,23 @@ export function readCurrentMirrors(): CurrentMirrors {
   const cargoContent = readIfExists(cargoConfigPath())
   const cargoMatch = cargoContent.match(/devkit-begin[\s\S]*?registry\s*=\s*"([^"]+)"[\s\S]*?devkit-end/i)
 
+  const condaContent = readIfExists(condarcPath())
+  const condaMatch = condaContent.match(/devkit-begin[\s\S]*?default_channels:\s*\r?\n\s*-\s*(.+?)\/pkgs\/main[\s\S]*?devkit-end/i)
+
+  const nugetContent = readIfExists(nugetConfigPath())
+  const nugetMatch = nugetContent.match(/<add\s+key="devkit"\s+value="([^"]+)"/i)
+
+  let docker: string | null = null
+  try {
+    const dockerContent = readIfExists(dockerDaemonPath())
+    if (dockerContent.trim() !== '') {
+      const parsed = JSON.parse(dockerContent) as { 'registry-mirrors'?: string[] }
+      docker = parsed['registry-mirrors']?.[0] ?? null
+    }
+  } catch {
+    docker = null
+  }
+
   const go = readGoProxy()
 
   return {
@@ -302,7 +428,10 @@ export function readCurrentMirrors(): CurrentMirrors {
     go,
     maven: mavenMatch ? mavenMatch[1].trim() : null,
     gradle: gradleMatch ? gradleMatch[1].trim() : null,
-    cargo: cargoMatch ? cargoMatch[1].trim() : null
+    cargo: cargoMatch ? cargoMatch[1].trim() : null,
+    conda: condaMatch ? condaMatch[1].trim() : null,
+    nuget: nugetMatch ? nugetMatch[1].trim() : null,
+    docker
   }
 }
 
@@ -453,6 +582,63 @@ export function applyMirrors(settings: MirrorSetting[]): MirrorApplyResult {
         changed.push(
           block ? `cargo config.toml → ${cargo.url}` : 'cargo config.toml → 已移除 devkit 的镜像块'
         )
+      }
+    }
+
+    const conda = find('conda')
+    if (conda) {
+      const file = condarcPath()
+      const backup = backupOnce(file)
+      if (backup) backupFiles.push(backup)
+      const content = readIfExists(file)
+
+      if (conda.enabled && conda.url) {
+        if (content.trim() !== '' && condarcHasConflicts(content)) {
+          throw new Error(
+            `${file} 里已经定义了 channels / default_channels。YAML 不允许同名顶层键重复，` +
+              '为避免写坏你的配置，devkit 没有自动修改。请手工把镜像地址合并进去，' +
+              '或先备份删除该文件后重试。'
+          )
+        }
+        writeFileEnsured(file, upsertMarkedBlock(content, condaBlock(conda.url)))
+        changed.push(`conda .condarc → ${conda.url}`)
+      } else if (content.trim() !== '') {
+        writeFileEnsured(file, upsertMarkedBlock(content, null))
+        changed.push('conda .condarc → 已移除 devkit 的镜像块')
+      }
+    }
+
+    const nuget = find('nuget')
+    if (nuget) {
+      const file = nugetConfigPath()
+      const backup = backupOnce(file)
+      if (backup) backupFiles.push(backup)
+      const content = readIfExists(file)
+
+      if (nuget.enabled && nuget.url) {
+        const next =
+          content.trim() === '' ? minimalNugetConfig(nuget.url) : upsertNugetSource(content, nuget.url)
+        writeFileEnsured(file, next)
+        changed.push(`NuGet 包源 → ${nuget.url}`)
+      } else if (content.trim() !== '') {
+        writeFileEnsured(file, upsertNugetSource(content, null))
+        changed.push('NuGet 包源 → 已移除 devkit 的源')
+      }
+    }
+
+    const docker = find('docker')
+    if (docker) {
+      const file = dockerDaemonPath()
+      const backup = backupOnce(file)
+      if (backup) backupFiles.push(backup)
+      const content = readIfExists(file)
+
+      if (docker.enabled && docker.url) {
+        writeFileEnsured(file, upsertDockerRegistryMirrors(content, docker.url))
+        changed.push(`Docker registry-mirrors → ${docker.url}（需要重启 Docker Desktop）`)
+      } else if (content.trim() !== '') {
+        writeFileEnsured(file, upsertDockerRegistryMirrors(content, null))
+        changed.push('Docker registry-mirrors → 已移除')
       }
     }
 

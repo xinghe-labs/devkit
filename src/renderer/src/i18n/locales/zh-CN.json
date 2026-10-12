@@ -161,7 +161,7 @@
     "restorePoint": "安装前创建系统还原点",
     "restorePointHint": "需要管理员；仅在勾选了机器级安装时才有意义",
     "mirrors": "镜像源",
-    "mirrorsHint": "关掉某一项表示回到官方源（会删掉对应的自定义配置行）",
+    "mirrorsHint": "关掉某一项表示回到官方源（会精确移除 devkit 写进去的那一块，不动你的其它配置）。落点：npm → .npmrc；pip → pip.ini；Go → GOPROXY；Maven → .m2/settings.xml；Gradle → .gradle/init.gradle；cargo → .cargo/config.toml；conda → .condarc；NuGet → NuGet.Config；Docker → .docker/daemon.json（需重启 Docker）。",
     "applyMirrors": "立即应用镜像配置",
     "offline": "离线包",
     "offlineHint": "把当前勾选的软件连同校验和打成一个文件夹，可在断网机器上导入安装",

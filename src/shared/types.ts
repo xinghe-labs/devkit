@@ -472,7 +472,7 @@ export interface UninstallResult {
 /* ------------------------------------------------------------------ */
 
 /** 可一键切换的国内镜像目标。只包含"用写配置文件就能生效、不需要先装好某个工具"的目标 */
-export type MirrorTarget = 'npm' | 'pip' | 'go' | 'maven' | 'gradle' | 'cargo'
+export type MirrorTarget = 'npm' | 'pip' | 'go' | 'maven' | 'gradle' | 'cargo' | 'conda' | 'nuget' | 'docker'
 
 export const MIRROR_TARGETS: readonly MirrorTarget[] = [
   'npm',
@@ -480,7 +480,10 @@ export const MIRROR_TARGETS: readonly MirrorTarget[] = [
   'go',
   'maven',
   'gradle',
-  'cargo'
+  'cargo',
+  'conda',
+  'nuget',
+  'docker'
 ] as const
 
 /** 单个镜像目标的取值；url 为空表示用官方源 */

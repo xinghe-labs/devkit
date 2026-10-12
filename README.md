@@ -30,7 +30,7 @@
 | 多版本共存与切换                                 | 部分           | ✗              | ✓      |
 | 卸载只删自己装的东西                             | ✗              | ✗              | ✓      |
 | 离线包                                           | ✗              | ✗              | ✓      |
-| 镜像源一键配置（npm/pip/Go/Maven/Gradle/cargo）  | ✗              | 部分           | ✓      |
+| 镜像源一键配置（npm/pip/Go/Maven/Gradle/cargo/conda/NuGet/Docker） | ✗ | 部分 | ✓ |
 | VS Code 插件推荐与一键安装                       | ✗              | ✗              | ✓      |
 
 ---

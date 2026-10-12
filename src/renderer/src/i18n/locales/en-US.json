@@ -161,7 +161,7 @@
     "restorePoint": "Create a restore point first",
     "restorePointHint": "Requires admin; only meaningful when machine-scope items are selected",
     "mirrors": "Mirror URLs",
-    "mirrorsHint": "Turning one off reverts to the official source (removes the custom line)",
+    "mirrorsHint": "Turning one off reverts to the official source (it removes exactly the block devkit wrote, leaving your other settings alone). Locations: npm → .npmrc; pip → pip.ini; Go → GOPROXY; Maven → .m2/settings.xml; Gradle → .gradle/init.gradle; cargo → .cargo/config.toml; conda → .condarc; NuGet → NuGet.Config; Docker → .docker/daemon.json (restart Docker).",
     "applyMirrors": "Apply mirrors now",
     "offline": "Offline pack",
     "offlineHint": "Bundle the selected tools plus checksums into a folder for offline machines",

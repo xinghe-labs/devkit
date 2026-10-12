@@ -49,7 +49,10 @@ const DEFAULT_MIRROR_URLS: Record<MirrorTarget, string> = {
   go: 'https://goproxy.cn,direct',
   maven: 'https://maven.aliyun.com/repository/public',
   gradle: 'https://maven.aliyun.com/repository/public',
-  cargo: 'https://mirrors.tuna.tsinghua.edu.cn/crates.io-index'
+  cargo: 'https://mirrors.tuna.tsinghua.edu.cn/crates.io-index',
+  conda: 'https://mirrors.tuna.tsinghua.edu.cn/anaconda',
+  nuget: 'https://mirrors.huaweicloud.com/repository/nuget/v3/index.json',
+  docker: 'https://docker.mirrors.ustc.edu.cn'
 }
 
 const DEFAULTS: UserConfig = {
