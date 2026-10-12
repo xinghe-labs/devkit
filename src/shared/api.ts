@@ -1,15 +1,27 @@
 import type {
+  ActivateRequest,
+  ActivateResult,
+  ActivationSnapshot,
   AppInfo,
   DetectRequest,
   DetectionResult,
   InstallProgressEvent,
+  InstalledTool,
   Locale,
   LogEntry,
   ManifestLoadResult,
+  MirrorApplyResult,
+  MirrorSetting,
+  OfflinePackRequest,
+  OfflinePackResult,
   PendingPlanLoad,
   PlanPreparation,
   PlanSelection,
-  StartInstallResult
+  Preset,
+  StartInstallResult,
+  UninstallRequest,
+  UninstallResult,
+  UserConfigView
 } from './types'
 
 /**
@@ -40,8 +52,8 @@ export interface DevkitApi {
   /** 订阅实时日志，返回取消订阅函数 */
   onLogLine(listener: (entry: LogEntry) => void): () => void
 
-  /** 构建安装计划并跑预检（不执行任何安装） */
-  prepareInstall(selections: PlanSelection[]): Promise<PlanPreparation>
+  /** 构建安装计划并跑预检（不执行任何安装）；dryRun=true 时只演练命令行 */
+  prepareInstall(selections: PlanSelection[], dryRun?: boolean): Promise<PlanPreparation>
   /** 开始执行安装；进度通过 onInstallProgress 推送 */
   startInstall(planId: string): Promise<StartInstallResult>
   cancelInstall(): Promise<boolean>
@@ -54,6 +66,36 @@ export interface DevkitApi {
 
   /** 导出安装报告为 Markdown；返回保存路径，用户取消则返回 null */
   exportInstallReport(): Promise<string | null>
+
+  /* ---------------- 预设方案（FR-3） ---------------- */
+  listPresets(): Promise<Preset[]>
+  savePreset(preset: unknown): Promise<Preset>
+  deletePreset(id: string): Promise<boolean>
+  importPreset(raw: unknown): Promise<Preset>
+
+  /* ---------------- 激活与版本切换（FR-11） ---------------- */
+  getActivationSnapshot(): Promise<ActivationSnapshot>
+  activateVersion(request: ActivateRequest): Promise<ActivateResult>
+  deactivateTool(toolId: string): Promise<{ removed: string[]; error: string | null }>
+
+  /* ---------------- 已安装项与卸载（FR-16） ---------------- */
+  listInstalled(): Promise<InstalledTool[]>
+  uninstallTool(request: UninstallRequest): Promise<UninstallResult>
+
+  /* ---------------- 设置与镜像源 ---------------- */
+  getSettings(): Promise<UserConfigView>
+  saveSettings(patch: unknown): Promise<UserConfigView>
+  applyMirrors(settings: MirrorSetting[]): Promise<MirrorApplyResult>
+
+  /* ---------------- 离线包（FR-12） ---------------- */
+  packOffline(request: OfflinePackRequest): Promise<OfflinePackResult>
+  importOfflinePack(packDir?: string): Promise<{
+    ok: boolean
+    imported: number
+    missing: string[]
+    entries: { toolId: string; version: string; fileName: string; sha256: string }[]
+    error: string | null
+  }>
 
   /** 订阅安装进度，返回取消订阅函数 */
   onInstallProgress(listener: (event: InstallProgressEvent) => void): () => void

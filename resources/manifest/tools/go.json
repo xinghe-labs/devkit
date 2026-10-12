@@ -2,31 +2,86 @@
   "id": "go",
   "category": "runtime",
   "tier": "L1",
-  "status": "detect-only",
+  "status": "ready",
   "provider": "direct",
-  "name": { "zh-CN": "Go", "en-US": "Go" },
+  "name": {
+    "zh-CN": "Go",
+    "en-US": "Go"
+  },
   "description": {
-    "zh-CN": "Go 语言工具链，自带 go mod。",
-    "en-US": "The Go toolchain with go mod bundled."
+    "zh-CN": "Go 语言工具链，自带 go mod。解压到版本目录，用户级。",
+    "en-US": "The Go toolchain with go mod bundled. Extracted into a per-user version directory."
   },
   "homepage": "https://go.dev",
-  "license": { "spdx": "BSD-3-Clause", "redistributable": true },
+  "license": {
+    "spdx": "BSD-3-Clause",
+    "redistributable": true
+  },
   "detect": {
-    "commands": [{ "cmd": "go", "args": ["version"], "expectRegex": "go version go\\d" }],
-    "files": ["%ProgramFiles%\\Go\\bin\\go.exe"],
-    "registry": [
+    "commands": [
       {
-        "hive": "HKLM",
-        "view": "64",
-        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        "match": { "DisplayName": "^Go Programming Language" },
-        "versionFrom": "DisplayVersion"
+        "cmd": "go",
+        "args": [
+          "version"
+        ],
+        "expectRegex": "go\\d+\\.\\d+"
       }
+    ],
+    "files": [
+      "%ProgramFiles%\\Go\\bin\\go.exe"
     ]
   },
-  "versions": [],
+  "versions": [
+    {
+      "version": "1.27.2",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "sizeBytes": 79008081,
+      "installScope": "user",
+      "source": {
+        "url": "https://go.dev/dl/go1.27.2.windows-amd64.zip",
+        "sha256": "1314008898bd40df77af4b014f777f08873dbdfbcd3d92308728ee03304fe04f"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/go/1.27.2/go1.27.2.windows-amd64.zip"
+        },
+        {
+          "name": "aliyun",
+          "url": "https://mirrors.aliyun.com/golang/go1.27.2.windows-amd64.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "1"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\bin"
+        ],
+        "env": {
+          "GOROOT": "{currentDir}"
+        }
+      },
+      "verify": {
+        "cmd": "{installDir}\\bin\\go.exe",
+        "args": [
+          "version"
+        ],
+        "expectRegex": "go\\d+\\.\\d+"
+      }
+    }
+  ],
   "notes": {
-    "zh-CN": "版本信息待补：go.dev 的版本接口在清单采集时未返回数据，M2 补齐。",
-    "en-US": "Version info pending: the go.dev release endpoint returned no data when this manifest was collected. To be filled in M2."
+    "zh-CN": "SHA-256 与体积直接取自官方 https://go.dev/dl/?mode=json，不下载、不猜。",
+    "en-US": "SHA-256 and size come straight from the official https://go.dev/dl/?mode=json feed."
   }
 }

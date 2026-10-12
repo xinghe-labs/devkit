@@ -14,6 +14,8 @@ export interface RunOptions {
   cwd?: string
   timeoutMs?: number
   env?: NodeJS.ProcessEnv
+  /** 取消信号：触发后立即杀掉子进程（安装器可能跑很久，必须能中断） */
+  signal?: AbortSignal
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -112,10 +114,19 @@ function spawnOnce(cmd: string, args: string[], options: RunOptions): Promise<Ru
       child.kill()
     }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
 
+    const onAbort = (): void => {
+      child.kill()
+    }
+    if (options.signal) {
+      if (options.signal.aborted) onAbort()
+      else options.signal.addEventListener('abort', onAbort, { once: true })
+    }
+
     const finish = (code: number | null): void => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      options.signal?.removeEventListener('abort', onAbort)
       resolve({
         code,
         stdout: decode(Buffer.concat(stdoutChunks)),

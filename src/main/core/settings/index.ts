@@ -1,9 +1,18 @@
 import { app } from 'electron'
 import { normalizeLocale } from '@shared/localized'
-import { DEFAULT_LOCALE, type Locale, type MirrorPreference } from '@shared/types'
+import {
+  DEFAULT_LOCALE,
+  MIRROR_TARGETS,
+  type Locale,
+  type MirrorPreference,
+  type MirrorSetting,
+  type MirrorTarget,
+  type UserConfigView
+} from '@shared/types'
 import { getConfigFile } from '../../utils/app-paths'
 import { fileExists, readJsonFile, writeJsonFile } from '../../utils/fs'
 import { logger } from '../report/logger'
+import { readActivationState } from '../activate'
 
 export interface UserConfig {
   locale: Locale
@@ -19,9 +28,21 @@ export interface UserConfig {
   mirrorPreference: MirrorPreference
   /** http://host:port；null = 跟随系统 */
   proxy: string | null
+  /** 安装成功后自动激活（写用户 PATH 与环境变量） */
+  activateAfterInstall: boolean
+  /** 安装成功后自动写 npm/pip/git 镜像源 */
+  configureMirrors: boolean
+  /** 各镜像目标的取值 */
+  mirrors: MirrorSetting[]
 }
 
 const MIRRORS: readonly string[] = ['official', 'huaweicloud', 'aliyun', 'tuna', 'ustc']
+
+/** 默认镜像源：npm 与 pip 用国内镜像（国内开发者的实际选择） */
+const DEFAULT_MIRROR_URLS: Record<MirrorTarget, string> = {
+  npm: 'https://registry.npmmirror.com',
+  pip: 'https://pypi.tuna.tsinghua.edu.cn/simple'
+}
 
 const DEFAULTS: UserConfig = {
   locale: DEFAULT_LOCALE,
@@ -30,7 +51,14 @@ const DEFAULTS: UserConfig = {
   concurrency: 1,
   createRestorePoint: false,
   mirrorPreference: 'official',
-  proxy: null
+  proxy: null,
+  activateAfterInstall: true,
+  configureMirrors: false,
+  mirrors: MIRROR_TARGETS.map((target) => ({
+    target,
+    enabled: true,
+    url: DEFAULT_MIRROR_URLS[target]
+  }))
 }
 
 let cache: UserConfig | null = null
@@ -42,6 +70,25 @@ function systemLocale(): Locale {
   } catch {
     return DEFAULT_LOCALE
   }
+}
+
+const MIRROR_URL_PATTERN = /^https:\/\/[^\s"'`<>|]{3,200}$/
+
+function sanitizeMirrors(raw: unknown): MirrorSetting[] {
+  const input = Array.isArray(raw) ? raw : []
+  return MIRROR_TARGETS.map((target) => {
+    const found = input.find(
+      (item): item is Partial<MirrorSetting> =>
+        typeof item === 'object' && item !== null && (item as MirrorSetting).target === target
+    )
+    const url = typeof found?.url === 'string' ? found.url.trim() : DEFAULT_MIRROR_URLS[target]
+    const safeUrl = url === '' || MIRROR_URL_PATTERN.test(url) ? url : DEFAULT_MIRROR_URLS[target]
+    return {
+      target,
+      enabled: found?.enabled === true,
+      url: safeUrl
+    }
+  })
 }
 
 function sanitize(raw: unknown): UserConfig {
@@ -57,7 +104,10 @@ function sanitize(raw: unknown): UserConfig {
     concurrency: Number.isFinite(concurrency) ? Math.min(3, Math.max(1, concurrency)) : 1,
     createRestorePoint: input.createRestorePoint === true,
     mirrorPreference: MIRRORS.includes(mirror) ? (mirror as MirrorPreference) : 'official',
-    proxy
+    proxy,
+    activateAfterInstall: input.activateAfterInstall !== false,
+    configureMirrors: input.configureMirrors === true,
+    mirrors: sanitizeMirrors(input.mirrors)
   }
 }
 
@@ -92,6 +142,33 @@ export function saveConfig(patch: Partial<UserConfig>): UserConfig {
 
 export function getLocale(): Locale {
   return loadConfig().locale
+}
+
+/** 给界面用的配置视图（带上 PATH 备份文件等运行期信息） */
+export function getConfigView(): UserConfigView {
+  const config = loadConfig()
+  return { ...config, pathBackupFile: readActivationState().backupFile }
+}
+
+/** 只允许从界面改这些字段；其余（如 locale）走专门的 setLocale */
+export function saveConfigView(patch: unknown): UserConfigView {
+  const input = (patch ?? {}) as Partial<UserConfigView>
+  const allowed: Partial<UserConfig> = {}
+
+  if (typeof input.autoUpdate === 'boolean') allowed.autoUpdate = input.autoUpdate
+  if (typeof input.manifestHotUpdate === 'boolean') allowed.manifestHotUpdate = input.manifestHotUpdate
+  if (typeof input.activateAfterInstall === 'boolean') allowed.activateAfterInstall = input.activateAfterInstall
+  if (typeof input.configureMirrors === 'boolean') allowed.configureMirrors = input.configureMirrors
+  if (typeof input.createRestorePoint === 'boolean') allowed.createRestorePoint = input.createRestorePoint
+  if (typeof input.concurrency === 'number') allowed.concurrency = input.concurrency
+  if (typeof input.mirrorPreference === 'string') {
+    allowed.mirrorPreference = input.mirrorPreference as MirrorPreference
+  }
+  if (input.proxy === null || typeof input.proxy === 'string') allowed.proxy = input.proxy
+  if (Array.isArray(input.mirrors)) allowed.mirrors = sanitizeMirrors(input.mirrors)
+
+  saveConfig(allowed)
+  return getConfigView()
 }
 
 export function setLocale(input: unknown): Locale {

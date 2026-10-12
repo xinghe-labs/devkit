@@ -1,0 +1,71 @@
+{
+  "id": "sqlite",
+  "category": "database",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "SQLite",
+    "en-US": "SQLite"
+  },
+  "description": {
+    "zh-CN": "单文件嵌入式数据库，附 sqlite3 命令行工具。",
+    "en-US": "A single-file embedded database with the sqlite3 command line tool."
+  },
+  "homepage": "https://sqlite.org",
+  "license": {
+    "spdx": "blessing",
+    "redistributable": true
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "sqlite3",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "3.54.0",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "sizeBytes": 6982216,
+      "installScope": "user",
+      "source": {
+        "url": "https://sqlite.org/2026/sqlite-tools-win-x64-3540000.zip",
+        "sha256": "8d1ccff873455c7f83c6e03ee253e81406d0e432ca9e7247ed6183929a824b33"
+      },
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "0"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\sqlite3.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    }
+  ],
+  "notes": {
+    "zh-CN": "sqlite.org 只提供年份目录与版本号，没有校验和文件，因此本地下载后计算。",
+    "en-US": "sqlite.org provides no checksum file, so the SHA-256 is computed locally."
+  }
+}

@@ -6,7 +6,8 @@ const OPTIONS: PlanOptions = {
   concurrency: 1,
   mirrorPreference: 'official',
   proxy: null,
-  createRestorePoint: false
+  createRestorePoint: false,
+  dryRun: false
 }
 
 const VERSIONS_ROOT = 'C:\\Users\\屈\\.devkit\\versions'

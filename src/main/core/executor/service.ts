@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { indexById } from '@shared/manifest'
 import type {
+  ActivateSpec,
   InstallPlan,
   InstallProgressEvent,
   PendingPlanLoad,
@@ -9,13 +10,14 @@ import type {
   PlanSelection,
   StartInstallResult
 } from '@shared/types'
-import { getDownloadDir, getVersionsRoot } from '../../utils/app-paths'
+import { activateVersion } from '../activate'
+import { getDownloadDir, getLogDir, getVersionsRoot } from '../../utils/app-paths'
 import { loadManifests } from '../manifest'
 import { buildPlan, clearPendingPlan, loadPendingPlan } from '../plan'
 import { runPreflight } from '../preflight'
 import { loadConfig } from '../settings'
 import { logger } from '../report/logger'
-import { runPlan } from './index'
+import { runPlan, type ActivateOutcome } from './index'
 
 /**
  * 安装服务：持有当前计划与取消控制器，向 IPC 层暴露"准备 / 开始 / 取消"三个动作。
@@ -39,15 +41,35 @@ export function isInstalling(): boolean {
 function buildOptions(): PlanOptions {
   const config = loadConfig()
   return {
-    // M1a 只实现串行：并发安装的收益主要在 MSI/EXE 场景，属于 M1b
-    concurrency: 1,
+    concurrency: config.concurrency,
     mirrorPreference: config.mirrorPreference,
     proxy: config.proxy,
-    createRestorePoint: config.createRestorePoint
+    createRestorePoint: config.createRestorePoint,
+    dryRun: false
   }
 }
 
-export async function prepareInstall(selections: PlanSelection[]): Promise<PlanPreparation> {
+/** 执行器需要的"安装成功后激活"回调：由主进程提供，脚本模式不提供 */
+const activateHook = async (
+  item: { id: string; version: string; installDir: string | null },
+  version: { activate?: ActivateSpec }
+): Promise<ActivateOutcome> => {
+  if (!version.activate || !item.installDir) {
+    return { ok: true, note: null, error: null }
+  }
+  const result = await activateVersion({
+    toolId: item.id,
+    version: item.version,
+    installDir: item.installDir,
+    spec: version.activate
+  })
+  return { ok: result.ok, note: result.note, error: result.error }
+}
+
+export async function prepareInstall(
+  selections: PlanSelection[],
+  dryRun = false
+): Promise<PlanPreparation> {
   const manifests = loadManifests()
   const tools = manifests.tools
   const versionsRoot = getVersionsRoot()
@@ -55,7 +77,7 @@ export async function prepareInstall(selections: PlanSelection[]): Promise<PlanP
   const plan = buildPlan({
     selections,
     tools,
-    options: buildOptions(),
+    options: { ...buildOptions(), dryRun },
     devkitVersion: app.getVersion(),
     manifestRevision: manifests.loadedAt.slice(0, 10),
     versionsRoot
@@ -89,7 +111,10 @@ export function startInstall(planId: string): StartInstallResult {
     plan,
     tools: indexById(tools),
     downloadDir: getDownloadDir(),
+    logDir: getLogDir(),
     signal: activeController.signal,
+    dryRun: plan.options.dryRun,
+    activate: loadConfig().activateAfterInstall ? activateHook : undefined,
     onUpdate: (event) => listener?.(event)
   })
     .then((finished) => {

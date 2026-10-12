@@ -45,8 +45,20 @@ export type LicenseTier = 'L1' | 'L2' | 'L3'
  */
 export type ManifestStatus = 'detect-only' | 'ready'
 
-/** 安装包类型 */
-export type InstallType = 'msi' | 'exe-nsis' | 'exe-inno' | 'zip'
+/**
+ * 安装包类型。
+ *
+ * 每一种都对应一组**写死在代码里**的静默安装参数（见 core/templates），
+ * 清单只能引用模板名，不能自定义命令行 —— 否则热更新通道就等于任意命令执行通道。
+ *
+ * - zip        压缩包，解压到版本目录
+ * - msi        Windows Installer，走 msiexec /qn
+ * - exe-nsis   NSIS 安装器（7-Zip 等），走 /S
+ * - exe-inno   Inno Setup 安装器（VS Code 等），走 /VERYSILENT
+ * - exe-7zsfx  7-Zip 自解压包（PortableGit 等），走 -o<dir> -y
+ * - exe-custom 自带安装器（Python / rustup），参数由内置模板固定
+ */
+export type InstallType = 'msi' | 'exe-nsis' | 'exe-inno' | 'exe-7zsfx' | 'exe-custom' | 'zip'
 
 /**
  * 安装范围。必须逐项声明，不存在全局默认（见 SPEC §9）：
@@ -99,6 +111,25 @@ export interface UninstallSpec {
   template?: string
 }
 
+/**
+ * 激活声明（FR-11）。
+ *
+ * 「安装 ≠ 激活」：安装只把文件放进版本目录；只有声明了 activate 的版本
+ * 才会被真正接到用户环境里（PATH + 环境变量 + current 切换链接）。
+ * 这样用户可以「先装好、先不接进 PATH」，也可以在多版本之间来回切。
+ *
+ * 路径里可用占位符：{installDir} {currentDir} {version} {toolId}
+ * currentDir = %USERPROFILE%\.devkit\current\<linkName>（junction，指向当前激活的版本）
+ */
+export interface ActivateSpec {
+  /** 需要加进用户 PATH 的目录（顺序即优先级） */
+  pathEntries?: string[]
+  /** 需要写入的用户级环境变量，例如 JAVA_HOME / GOROOT / CARGO_HOME */
+  env?: Record<string, string>
+  /** 切换链接名，默认等于 tool id */
+  linkName?: string
+}
+
 export interface ToolVersionSpec {
   version: string
   channel: 'lts' | 'stable' | 'beta'
@@ -115,6 +146,8 @@ export interface ToolVersionSpec {
   mirrors?: { name: string; url: string }[]
   install?: InstallSpec
   uninstall?: UninstallSpec
+  /** 激活声明；不写表示该版本装完不接进 PATH（只落在版本目录里） */
+  activate?: ActivateSpec
   configure?: string[]
   verify?: DetectCommandSpec
 }
@@ -256,6 +289,8 @@ export interface PlanOptions {
   mirrorPreference: MirrorPreference
   proxy: string | null
   createRestorePoint: boolean
+  /** 只演练：不执行安装器、不激活，只把命令行算出来（虚拟机验收前的干跑） */
+  dryRun: boolean
 }
 
 export interface PlanSummary {
@@ -333,4 +368,154 @@ export type PendingPlanLoad =
 export interface StartInstallResult {
   started: boolean
   error?: string
+}
+
+/* ------------------------------------------------------------------ */
+/* 预设方案（FR-3）                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 预设 = 一组勾选结果，可导出成 JSON 在另一台机器导入复现。
+ * 内置预设 builtin=true，不可删除；用户预设存到 %APPDATA%\devkit\presets\。
+ */
+export interface Preset {
+  id: string
+  name: LocalizedText
+  description: LocalizedText
+  builtin: boolean
+  tools: PlanSelection[]
+}
+
+/* ------------------------------------------------------------------ */
+/* 激活状态（FR-11）                                                    */
+/* ------------------------------------------------------------------ */
+
+/** devkit 管理的一次激活记录，用于精确回滚（不靠猜 PATH 里哪条是脏数据） */
+export interface ActivationRecord {
+  toolId: string
+  version: string
+  linkName: string
+  /** %USERPROFILE%\.devkit\current\<linkName> */
+  linkPath: string
+  /** junction 指向的真实版本目录 */
+  target: string
+  pathEntries: string[]
+  env: Record<string, string>
+  activatedAt: string
+}
+
+/** 激活总览，设置页与「已安装」页要展示 */
+export interface ActivationSnapshot {
+  records: ActivationRecord[]
+  /** %USERPROFILE%\.devkit\bin（预留给未来的 shim） */
+  binDir: string
+  /** 当前用户 PATH 的完整值（只读展示，不含密码等敏感信息） */
+  userPath: string
+  /** PATH 备份文件路径；null 表示还没备份过 */
+  backupFile: string | null
+  /** PATH 里所有 devkit 管理的条目 */
+  managedPathEntries: string[]
+}
+
+/** 切换（激活）某个版本 */
+export interface ActivateRequest {
+  toolId: string
+  version: string
+}
+
+export interface ActivateResult {
+  ok: boolean
+  record: ActivationRecord | null
+  /** 需要用户重新打开终端才能生效的提示 */
+  note: string | null
+  error: string | null
+}
+
+/* ------------------------------------------------------------------ */
+/* 已安装项与卸载（FR-16）                                              */
+/* ------------------------------------------------------------------ */
+
+export interface InstalledTool {
+  toolId: string
+  version: string
+  installDir: string
+  /** 目录实际占用字节数 */
+  sizeBytes: number
+  /** 目录创建时间（近似安装时间） */
+  installedAt: string | null
+  /** 该版本当前是否是 current 链接指向的版本 */
+  active: boolean
+  /** 该版本是否声明了可激活 */
+  activatable: boolean
+}
+
+export interface UninstallRequest {
+  toolId: string
+  version: string
+}
+
+export interface UninstallResult {
+  ok: boolean
+  /** 实际删掉的内容说明 */
+  removed: string[]
+  error: string | null
+}
+
+/* ------------------------------------------------------------------ */
+/* 用户配置（FR-5 / FR-6）                                              */
+/* ------------------------------------------------------------------ */
+
+/** 可一键切换的国内镜像目标。只包含"用写配置文件就能生效、不需要先装好某个工具"的目标 */
+export type MirrorTarget = 'npm' | 'pip'
+
+export const MIRROR_TARGETS: readonly MirrorTarget[] = ['npm', 'pip'] as const
+
+/** 单个镜像目标的取值；url 为空表示用官方源 */
+export interface MirrorSetting {
+  target: MirrorTarget
+  enabled: boolean
+  url: string
+}
+
+/** 镜像写入结果 */
+export interface MirrorApplyResult {
+  ok: boolean
+  changed: string[]
+  backupFiles: string[]
+  error: string | null
+}
+
+export interface UserConfigView {
+  locale: Locale
+  autoUpdate: boolean
+  manifestHotUpdate: boolean
+  concurrency: number
+  createRestorePoint: boolean
+  mirrorPreference: MirrorPreference
+  proxy: string | null
+  /** 安装成功后自动激活（写用户 PATH 与环境变量） */
+  activateAfterInstall: boolean
+  /** 安装成功后自动写 npm/pip/git 镜像源 */
+  configureMirrors: boolean
+  mirrors: MirrorSetting[]
+  /** 是否已备份过用户 PATH */
+  pathBackupFile: string | null
+}
+
+/* ------------------------------------------------------------------ */
+/* 离线包（FR-12）                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface OfflinePackRequest {
+  toolIds: string[]
+  /** 目标目录，用户通过保存对话框选 */
+  outputDir?: string
+}
+
+export interface OfflinePackResult {
+  ok: boolean
+  packDir: string | null
+  fileCount: number
+  totalBytes: number
+  error: string | null
 }

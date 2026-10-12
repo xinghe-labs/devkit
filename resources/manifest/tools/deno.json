@@ -1,0 +1,77 @@
+{
+  "id": "deno",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "Deno",
+    "en-US": "Deno"
+  },
+  "description": {
+    "zh-CN": "安全的 TypeScript/JavaScript 运行时，单文件可执行程序。",
+    "en-US": "A secure TypeScript/JavaScript runtime shipped as a single executable."
+  },
+  "homepage": "https://deno.com",
+  "license": {
+    "spdx": "MIT",
+    "redistributable": true
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "deno",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "deno \\d+\\.\\d+"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "2.9.7",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "sizeBytes": 42630221,
+      "installScope": "user",
+      "source": {
+        "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+        "sha256": "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238"
+      },
+      "mirrors": [
+        {
+          "name": "npmmirror",
+          "url": "https://registry.npmmirror.com/-/binary/deno/v2.9.7/deno-x86_64-pc-windows-msvc.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "0"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\deno.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "deno \\d+\\.\\d+"
+      }
+    }
+  ],
+  "notes": {
+    "zh-CN": "Deno 官方发布 .sha256sum 文件，直接取。",
+    "en-US": "Deno publishes .sha256sum files, used directly."
+  }
+}

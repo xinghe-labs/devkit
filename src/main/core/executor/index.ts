@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-import { basename } from 'node:path'
+import { basename, join } from 'node:path'
 import { URL } from 'node:url'
 import type {
   InstallPlan,
@@ -21,19 +20,32 @@ import { logger } from '../report/logger'
 /**
  * 安装执行器（SPEC FR-4 的状态机）。
  *
- * 两条硬性约定：
+ * 四条硬性约定：
  *  1. **单项失败不中断整体** —— 记下错误继续下一项，最后汇总
  *  2. **依赖未成功则跳过** —— 而不是带着半成品硬跑
- *
- * M1a 只实现串行执行：并行安装的收益主要在 MSI/EXE 场景，而那属于 M1b。
+ *  3. **机器级安装串行** —— MSI/服务类安装互斥，并发只会互相踩
+ *  4. **安装 ≠ 激活** —— 安装只落版本目录；激活由注入的 activate 回调负责，
+ *     这样不开界面跑脚本（scripts/install-tool.ts）时不会误改用户 PATH
  */
+
+export interface ActivateOutcome {
+  ok: boolean
+  note: string | null
+  error: string | null
+}
 
 export interface RunPlanOptions {
   plan: InstallPlan
   tools: Map<string, ToolManifest>
   downloadDir: string
+  /** 安装器日志目录（%APPDATA%\devkit\logs） */
+  logDir: string
   signal: AbortSignal
   onUpdate: (event: InstallProgressEvent) => void
+  /** 只演练：不执行安装器、不激活，只把命令行算出来 */
+  dryRun?: boolean
+  /** 安装成功后激活该版本；不传表示不激活 */
+  activate?: (item: PlanItem, version: ToolVersionSpec) => Promise<ActivateOutcome>
 }
 
 type Emit = (currentItemId: string | null, detail?: InstallProgressEvent['detail']) => void
@@ -46,6 +58,20 @@ function markFailed(item: PlanItem, message: string): void {
 
 function findVersion(tool: ToolManifest, version: string): ToolVersionSpec | null {
   return tool.versions.find((entry) => entry.version === version) ?? null
+}
+
+/** 串行互斥锁：机器级安装（MSI/服务）必须一个一个来 */
+class Mutex {
+  private tail: Promise<void> = Promise.resolve()
+
+  run<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(task, task)
+    this.tail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
 }
 
 /**
@@ -98,8 +124,8 @@ async function runVerify(
     return { ok: false, detail: `自检命令退出码 ${result.code}：${firstLine}` }
   }
 
-  const version_ = extractVersion(output)
-  return { ok: true, detail: `自检通过${version_ ? `：${firstLine}` : ''}` }
+  const detected = extractVersion(output)
+  return { ok: true, detail: `自检通过${detected ? `：${firstLine}` : ''}` }
 }
 
 async function runItem(context: {
@@ -108,10 +134,13 @@ async function runItem(context: {
   version: ToolVersionSpec
   plan: InstallPlan
   downloadDir: string
+  logDir: string
+  dryRun: boolean
   signal: AbortSignal
   emit: Emit
+  activate?: RunPlanOptions['activate']
 }): Promise<void> {
-  const { item, tool, version, plan, downloadDir, signal, emit } = context
+  const { item, tool, version, plan, downloadDir, logDir, dryRun, signal, emit, activate } = context
 
   // 0. 幂等（NFR-2）：目录已存在且自检通过，就不重复下载安装
   if (item.installDir && existsSync(item.installDir)) {
@@ -121,6 +150,10 @@ async function runItem(context: {
       item.note = `已安装，跳过（${verify.detail}）`
       item.finishedAt = new Date().toISOString()
       logger.info('executor', `${item.id} 已安装且自检通过，跳过`)
+      if (activate && version.activate) {
+        const result = await activate(item, version)
+        if (!result.ok) logger.warn('executor', `${item.id} 已安装但激活失败：${result.error}`)
+      }
       emit(item.id)
       return
     }
@@ -158,15 +191,36 @@ async function runItem(context: {
   // 2. 安装
   item.state = 'installing'
   emit(item.id)
+  const logFile = join(logDir, `installer-${item.id}-${item.version}.log`)
   const outcome = await installVersion({
     tool,
     version,
     installDir: item.installDir ?? '',
     archivePath,
+    logFile,
+    dryRun,
     signal,
-    onProgress: (files) => emit(item.id, { received: files, total: null })
+    onProgress: (files) => emit(item.id, { received: files, total: null }),
+    onCommand: (command) =>
+      logger.info(
+        'executor',
+        `[dry-run] ${item.id} 将执行：${command.cmd} ${command.args
+          .map((arg) => (arg.includes(' ') ? `"${arg}"` : arg))
+          .join(' ')}`
+      )
   })
-  logger.info('executor', `${item.id} 安装完成：${outcome.files} 个文件 → ${outcome.installDir}`)
+  logger.info(
+    'executor',
+    `${item.id} 安装完成：${outcome.files} 个文件 / ${outcome.bytes} 字节 → ${outcome.installDir}`
+  )
+
+  if (dryRun) {
+    item.state = 'success'
+    item.note = '干跑模式：只演练命令行，未真正安装'
+    item.finishedAt = new Date().toISOString()
+    emit(item.id)
+    return
+  }
 
   // 3. 自检 —— 自检不过等于失败，即使解压过程毫无问题
   item.state = 'checking'
@@ -174,14 +228,29 @@ async function runItem(context: {
   const verify = await runVerify(item, version)
   if (!verify.ok) throw new Error(`自检未通过：${verify.detail}`)
 
+  // 4. 激活（可选）：把这份安装接到用户 PATH / 环境变量里
+  let note = verify.detail
+  if (activate && version.activate) {
+    const activated = await activate(item, version)
+    if (activated.ok) {
+      note = `${verify.detail}；${activated.note ?? '已激活'}`
+    } else {
+      // 激活失败不算安装失败：文件已经装好且自检通过，用户仍可手动用绝对路径
+      note = `${verify.detail}；激活失败：${activated.error ?? '未知原因'}`
+      logger.warn('executor', `${item.id} 激活失败：${activated.error}`)
+    }
+  }
+
   item.state = 'success'
-  item.note = verify.detail
+  item.note = note
   item.finishedAt = new Date().toISOString()
   emit(item.id)
 }
 
 export async function runPlan(options: RunPlanOptions): Promise<InstallPlan> {
-  const { plan, tools, downloadDir, signal, onUpdate } = options
+  const { plan, tools, downloadDir, logDir, signal, onUpdate } = options
+  const dryRun = options.dryRun === true
+  const concurrency = Math.min(3, Math.max(1, plan.options.concurrency))
 
   const emit: Emit = (currentItemId, detail = null) => {
     plan.summary = summarize(plan.items)
@@ -192,45 +261,26 @@ export async function runPlan(options: RunPlanOptions): Promise<InstallPlan> {
   emit(null)
 
   const startedAt = Date.now()
+  const adminMutex = new Mutex()
 
-  for (const item of plan.items) {
-    if (signal.aborted) {
-      if (item.state === 'pending') {
-        item.state = 'cancelled'
-        item.note = '用户取消'
-      }
-      continue
-    }
+  const remaining = new Map(plan.items.map((item) => [item.id, item]))
+  const inPlan = new Set(remaining.keys())
+  const finished = new Set<string>()
+  const succeeded = new Set<string>()
+  const inFlight = new Map<string, Promise<void>>()
 
-    // 已经处于终态的项（例如续跑时上次已成功）直接跳过
-    if (item.state === 'success' || item.state === 'skipped' || item.state === 'cancelled') continue
-
+  const runOne = async (item: PlanItem): Promise<void> => {
     const tool = tools.get(item.id)
     if (!tool) {
       markFailed(item, '清单里找不到这个工具')
       emit(item.id)
-      continue
+      return
     }
-
     const version = findVersion(tool, item.version)
     if (!version) {
       markFailed(item, `清单里找不到版本 ${item.version}`)
       emit(item.id)
-      continue
-    }
-
-    // 依赖未成功的项直接跳过，而不是带着半成品硬跑
-    const blocked = item.dependsOn.filter((dependency) => {
-      const dependencyItem = plan.items.find((entry) => entry.id === dependency)
-      return !dependencyItem || dependencyItem.state !== 'success'
-    })
-    if (blocked.length > 0) {
-      item.state = 'skipped'
-      item.note = `依赖未成功：${blocked.join('、')}`
-      item.finishedAt = new Date().toISOString()
-      logger.warn('executor', `${item.id} 已跳过：${item.note}`)
-      emit(item.id)
-      continue
+      return
     }
 
     item.startedAt = new Date().toISOString()
@@ -238,7 +288,18 @@ export async function runPlan(options: RunPlanOptions): Promise<InstallPlan> {
     logger.info('executor', `开始处理 ${item.id}@${item.version}`)
 
     try {
-      await runItem({ item, tool, version, plan, downloadDir, signal, emit })
+      await runItem({
+        item,
+        tool,
+        version,
+        plan,
+        downloadDir,
+        logDir,
+        dryRun,
+        signal,
+        emit,
+        activate: options.activate
+      })
     } catch (error) {
       // 单项失败不中断整体
       markFailed(item, (error as Error).message)
@@ -247,10 +308,87 @@ export async function runPlan(options: RunPlanOptions): Promise<InstallPlan> {
     }
   }
 
-  plan.summary = summarize(plan.items)
-  const remaining = unfinishedItems(plan)
+  /**
+   * 扫描一遍待办：能起的起，依赖已失败的直接跳过。
+   * 返回 true 表示这一轮改变了状态（需要重新扫描）。
+   */
+  const startReady = (): boolean => {
+    let changed = false
 
-  if (remaining.length === 0) {
+    for (const item of [...remaining.values()]) {
+      if (inFlight.size >= concurrency) break
+
+      const deps = item.dependsOn.filter((dependency) => inPlan.has(dependency))
+      if (deps.some((dependency) => !finished.has(dependency))) continue
+
+      const blocked = deps.filter((dependency) => !succeeded.has(dependency))
+      if (blocked.length > 0) {
+        item.state = 'skipped'
+        item.note = `依赖未成功：${blocked.join('、')}`
+        item.finishedAt = new Date().toISOString()
+        remaining.delete(item.id)
+        finished.add(item.id)
+        logger.warn('executor', `${item.id} 已跳过：${item.note}`)
+        emit(item.id)
+        changed = true
+        continue
+      }
+
+      if (signal.aborted) {
+        item.state = 'cancelled'
+        item.note = '用户取消'
+        item.finishedAt = new Date().toISOString()
+        remaining.delete(item.id)
+        finished.add(item.id)
+        emit(item.id)
+        changed = true
+        continue
+      }
+
+      remaining.delete(item.id)
+      const task = (
+        item.requiresAdmin ? adminMutex.run(() => runOne(item)) : runOne(item)
+      )
+        .catch((error: unknown) => {
+          markFailed(item, (error as Error).message)
+          emit(item.id)
+        })
+        .finally(() => {
+          inFlight.delete(item.id)
+          finished.add(item.id)
+          if (item.state === 'success') succeeded.add(item.id)
+        })
+
+      inFlight.set(item.id, task)
+      changed = true
+    }
+
+    return changed
+  }
+
+  while (remaining.size > 0 || inFlight.size > 0) {
+    startReady()
+
+    if (inFlight.size === 0) {
+      if (remaining.size === 0) break
+      // 没有在跑的任务、也起不来新的 —— 只可能是依赖环；标记掉，别死循环
+      for (const item of remaining.values()) {
+        item.state = 'skipped'
+        item.note = '依赖无法满足（可能存在依赖环）'
+        item.finishedAt = new Date().toISOString()
+        emit(item.id)
+      }
+      remaining.clear()
+      break
+    }
+
+    await Promise.race(inFlight.values())
+  }
+
+  plan.summary = summarize(plan.items)
+  const remainingItems = unfinishedItems(plan)
+
+  if (remainingItems.length === 0) {
     clearPendingPlan()
     logger.info(
       'executor',
@@ -259,7 +397,7 @@ export async function runPlan(options: RunPlanOptions): Promise<InstallPlan> {
     )
   } else {
     savePendingPlan(plan)
-    logger.warn('executor', `安装流程结束，仍有 ${remaining.length} 项未完成，已保留 pending.json 供续跑`)
+    logger.warn('executor', `安装流程结束，仍有 ${remainingItems.length} 项未完成，已保留 pending.json 供续跑`)
   }
 
   emit(null)

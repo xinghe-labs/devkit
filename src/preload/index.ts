@@ -2,11 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { DevkitApi } from '@shared/api'
 import { IPC } from '@shared/ipc'
 import type {
+  ActivateRequest,
   DetectRequest,
   InstallProgressEvent,
   Locale,
   LogEntry,
-  PlanSelection
+  MirrorSetting,
+  OfflinePackRequest,
+  PlanSelection,
+  UninstallRequest
 } from '@shared/types'
 
 /**
@@ -40,8 +44,8 @@ const api: DevkitApi = {
     }
   },
 
-  prepareInstall: (selections: PlanSelection[]) =>
-    ipcRenderer.invoke(IPC.installPrepare, { selections }),
+  prepareInstall: (selections: PlanSelection[], dryRun = false) =>
+    ipcRenderer.invoke(IPC.installPrepare, { selections, dryRun }),
 
   startInstall: (planId: string) => ipcRenderer.invoke(IPC.installStart, planId),
 
@@ -61,7 +65,31 @@ const api: DevkitApi = {
     return () => {
       ipcRenderer.off(IPC.installProgress, handler)
     }
-  }
+  },
+
+  /* ---------------- 预设方案 ---------------- */
+  listPresets: () => ipcRenderer.invoke(IPC.presetList),
+  savePreset: (preset: unknown) => ipcRenderer.invoke(IPC.presetSave, preset),
+  deletePreset: (id: string) => ipcRenderer.invoke(IPC.presetDelete, id),
+  importPreset: (raw: unknown) => ipcRenderer.invoke(IPC.presetImport, raw),
+
+  /* ---------------- 激活与版本切换 ---------------- */
+  getActivationSnapshot: () => ipcRenderer.invoke(IPC.activateSnapshot),
+  activateVersion: (request: ActivateRequest) => ipcRenderer.invoke(IPC.activateApply, request),
+  deactivateTool: (toolId: string) => ipcRenderer.invoke(IPC.activateRemove, toolId),
+
+  /* ---------------- 已安装项与卸载 ---------------- */
+  listInstalled: () => ipcRenderer.invoke(IPC.installedList),
+  uninstallTool: (request: UninstallRequest) => ipcRenderer.invoke(IPC.uninstallRun, request),
+
+  /* ---------------- 设置与镜像源 ---------------- */
+  getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
+  saveSettings: (patch: unknown) => ipcRenderer.invoke(IPC.settingsSave, patch),
+  applyMirrors: (settings: MirrorSetting[]) => ipcRenderer.invoke(IPC.mirrorsApply, settings),
+
+  /* ---------------- 离线包 ---------------- */
+  packOffline: (request: OfflinePackRequest) => ipcRenderer.invoke(IPC.offlinePack, request),
+  importOfflinePack: (packDir?: string) => ipcRenderer.invoke(IPC.offlineImport, { packDir })
 }
 
 contextBridge.exposeInMainWorld('devkit', api)

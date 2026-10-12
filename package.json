@@ -30,6 +30,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "manifest:check": "tsx scripts/check-manifest.ts",
+    "manifest:refresh": "tsx scripts/refresh-manifests.ts",
     "detect": "tsx scripts/detect-report.ts",
     "install:tool": "tsx scripts/install-tool.ts"
   },

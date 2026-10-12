@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { cp, mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import yauzl from 'yauzl'
@@ -141,6 +141,64 @@ async function* iterateEntries(zipfile: yauzl.ZipFile): AsyncGenerator<yauzl.Ent
     await new Promise<void>((resolve) => {
       notify = resolve
     })
+  }
+}
+
+export interface ExtractSingleFileOptions {
+  zipFile: string
+  destDir: string
+  /** 要从压缩包里取出的文件名（按 basename 匹配，取层级最浅的那个） */
+  fileName: string
+  /** 放到 destDir 下的哪个子目录；null 表示直接放 destDir 根 */
+  subDir?: string | null
+  signal?: AbortSignal
+}
+
+/**
+ * 从压缩包里只取一个文件放到版本目录（pnpm / ninja 这类单文件发行版）。
+ *
+ * 做法：先整体解到 destDir 下的临时暂存目录（仍然走同一套 zip-slip 校验），
+ * 找到目标文件后复制到最终位置，再删掉暂存目录 —— 这样不会把压缩包里的
+ * 其它杂物（license、文档、多余二进制）留在版本目录里。
+ */
+export async function extractZipSingleFile(
+  options: ExtractSingleFileOptions
+): Promise<{ file: string; bytes: number }> {
+  const staging = join(options.destDir, '.devkit-staging')
+  await rm(staging, { recursive: true, force: true })
+
+  try {
+    await extractZip({ zipFile: options.zipFile, destDir: staging, signal: options.signal })
+
+    const target = options.fileName.toLowerCase()
+    const matches: string[] = []
+    const walk = async (current: string): Promise<void> => {
+      const entries = await readdir(current, { withFileTypes: true })
+      for (const entry of entries) {
+        const full = join(current, entry.name)
+        if (entry.isDirectory()) await walk(full)
+        else if (entry.name.toLowerCase() === target) matches.push(full)
+      }
+    }
+    await walk(staging)
+
+    if (matches.length === 0) {
+      throw new ZipSlipError(`压缩包里找不到 ${options.fileName}`)
+    }
+
+    // 取层级最浅的那个，避免拿到嵌套的同名文件
+    matches.sort((a, b) => a.split(/[\\/]/).length - b.split(/[\\/]/).length)
+    const source = matches[0]
+
+    const finalDir = options.subDir ? join(options.destDir, options.subDir) : options.destDir
+    await mkdir(finalDir, { recursive: true })
+    const finalPath = join(finalDir, options.fileName)
+    await cp(source, finalPath)
+
+    const bytes = (await stat(finalPath)).size
+    return { file: finalPath, bytes }
+  } finally {
+    await rm(staging, { recursive: true, force: true })
   }
 }
 

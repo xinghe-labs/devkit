@@ -57,7 +57,13 @@ function plan(state: PlanItem['state']): InstallPlan {
     createdAt: new Date().toISOString(),
     devkitVersion: '0.1.0',
     manifestRevision: '2026-10-10',
-    options: { concurrency: 1, mirrorPreference: 'official', proxy: null, createRestorePoint: false },
+    options: {
+      concurrency: 1,
+      mirrorPreference: 'official',
+      proxy: null,
+      createRestorePoint: false,
+      dryRun: false
+    },
     items,
     summary: { total: 1, success: state === 'success' ? 1 : 0, failed: 0, skipped: 0, cancelled: 0 }
   }

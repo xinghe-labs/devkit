@@ -2,31 +2,72 @@
   "id": "cmake",
   "category": "build",
   "tier": "L1",
-  "status": "detect-only",
+  "status": "ready",
   "provider": "direct",
-  "name": { "zh-CN": "CMake", "en-US": "CMake" },
+  "name": {
+    "zh-CN": "CMake",
+    "en-US": "CMake"
+  },
   "description": {
     "zh-CN": "跨平台构建系统生成器，C/C++ 项目常用。",
     "en-US": "Cross-platform build system generator, common for C/C++ projects."
   },
   "homepage": "https://cmake.org",
-  "license": { "spdx": "BSD-3-Clause", "redistributable": true },
+  "license": {
+    "spdx": "BSD-3-Clause",
+    "redistributable": true
+  },
   "detect": {
-    "commands": [{ "cmd": "cmake", "args": ["--version"], "expectRegex": "cmake version \\d+" }],
-    "files": ["%ProgramFiles%\\CMake\\bin\\cmake.exe"],
-    "registry": [
+    "commands": [
       {
-        "hive": "HKLM",
-        "view": "64",
-        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        "match": { "DisplayName": "^CMake" },
-        "versionFrom": "DisplayVersion"
+        "cmd": "cmake",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "cmake version \\d+"
       }
+    ],
+    "files": [
+      "%ProgramFiles%\\CMake\\bin\\cmake.exe"
     ]
   },
-  "versions": [],
+  "versions": [
+    {
+      "version": "3.31.12",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "installScope": "user",
+      "source": {
+        "url": "https://cmake.org/files/v3.31/cmake-3.31.12-windows-x86_64.zip",
+        "sha256": "0c4baa40f28b3f8225eb3fdf6946c987b4fe901403b4eaf2fbbd9378100aaa0c"
+      },
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "1"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\bin"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\bin\\cmake.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "cmake version \\d+"
+      }
+    }
+  ],
   "notes": {
-    "zh-CN": "版本信息 M2 补齐。",
-    "en-US": "Version info to be filled in M2."
+    "zh-CN": "cmake.org 官方目录里有 .sha256 文件，直接取，不下载整个压缩包。",
+    "en-US": "cmake.org publishes .sha256 files next to each archive, so no full download is needed."
   }
 }

@@ -75,7 +75,13 @@ describe('runPreflight', () => {
     createdAt: new Date().toISOString(),
     devkitVersion: '0.1.0',
     manifestRevision: '2026-10-10',
-    options: { concurrency: 1, mirrorPreference: 'official', proxy: null, createRestorePoint: false },
+    options: {
+      concurrency: 1,
+      mirrorPreference: 'official',
+      proxy: null,
+      createRestorePoint: false,
+      dryRun: false
+    },
     items: [
       {
         id: 'nodejs',

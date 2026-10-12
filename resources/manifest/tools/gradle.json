@@ -1,0 +1,82 @@
+{
+  "id": "gradle",
+  "category": "build",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "Gradle",
+    "en-US": "Gradle"
+  },
+  "description": {
+    "zh-CN": "JVM 生态的构建工具，Android 与 Java 项目常用。",
+    "en-US": "Build tool for the JVM ecosystem, common in Android and Java projects."
+  },
+  "homepage": "https://gradle.org",
+  "license": {
+    "spdx": "Apache-2.0",
+    "redistributable": true
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "gradle",
+        "args": [
+          "-v"
+        ],
+        "expectRegex": "Gradle \\d+"
+      }
+    ],
+    "files": [
+      "%USERPROFILE%\\.gradle\\wrapper\\dists"
+    ]
+  },
+  "versions": [
+    {
+      "version": "9.8.1",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "installScope": "user",
+      "source": {
+        "url": "https://services.gradle.org/distributions/gradle-9.8.1-bin.zip",
+        "sha256": "dce76f55f8e251a3a1f130eb120f30b3d271de2b76c9b0729d316b5a1b6dc01f"
+      },
+      "mirrors": [
+        {
+          "name": "aliyun",
+          "url": "https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-9.8.1-bin.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "1"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\bin"
+        ],
+        "env": {
+          "GRADLE_HOME": "{currentDir}"
+        }
+      },
+      "verify": {
+        "cmd": "{installDir}\\bin\\gradle.bat",
+        "args": [
+          "-v"
+        ],
+        "expectRegex": "Gradle \\d+"
+      }
+    }
+  ],
+  "notes": {
+    "zh-CN": "版本、下载地址与 SHA-256 都取自官方 https://services.gradle.org/versions/current。",
+    "en-US": "Version, URL and SHA-256 all come from the official https://services.gradle.org/versions/current."
+  }
+}

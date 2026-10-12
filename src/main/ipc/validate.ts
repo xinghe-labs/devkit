@@ -61,6 +61,21 @@ export function asNonEmptyString(value: unknown, label: string, maxLength = 128)
   return value
 }
 
+/** 工具 id：与清单 Schema 保持一致的小写字母/数字/连字符 */
+export function asToolId(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(value)) {
+    throw new IpcValidationError(`${label} 不是合法的工具 id：${String(value)}`)
+  }
+  return value
+}
+
+/** 可选布尔：不传就用 fallback，传了必须是真布尔（不接受字符串 "true"） */
+export function asBoolean(value: unknown, label: string, fallback: boolean): boolean {
+  if (value === undefined || value === null) return fallback
+  if (typeof value !== 'boolean') throw new IpcValidationError(`${label} 必须是布尔值`)
+  return value
+}
+
 const TOOL_ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 const VERSION_TEXT = /^[0-9A-Za-z.\-_+]{1,40}$/
 

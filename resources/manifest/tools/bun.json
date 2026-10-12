@@ -1,0 +1,77 @@
+{
+  "id": "bun",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "Bun",
+    "en-US": "Bun"
+  },
+  "description": {
+    "zh-CN": "集运行时、包管理器、打包器与测试器于一体的 JavaScript 工具链。",
+    "en-US": "An all-in-one JavaScript runtime, package manager, bundler and test runner."
+  },
+  "homepage": "https://bun.sh",
+  "license": {
+    "spdx": "MIT",
+    "redistributable": true
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "bun",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "^\\d+\\.\\d+"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "1.4.3",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "sizeBytes": 44639930,
+      "installScope": "user",
+      "source": {
+        "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-windows-x64.zip",
+        "sha256": "0bf84e808552beea67bf1202a287a35c6c825d837b287b3f8e9dd513dba35d3d"
+      },
+      "mirrors": [
+        {
+          "name": "npmmirror",
+          "url": "https://registry.npmmirror.com/-/binary/bun/bun-v1.4.3/bun-windows-x64.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-into-version-dir",
+        "params": {
+          "stripComponents": "0"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\bun.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    }
+  ],
+  "notes": {
+    "zh-CN": "官方 release 附带 SHASUMS256.txt，直接取。",
+    "en-US": "The official release ships a SHASUMS256.txt, used directly."
+  }
+}

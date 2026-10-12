@@ -48,6 +48,37 @@ export function getDownloadDir(): string {
   return ensureDir(join(getUserDataDir(), 'downloads'))
 }
 
+/**
+ * 切换链接根目录：%USERPROFILE%\.devkit\current\
+ *
+ * 每个工具一个 junction（目录联接）指向当前激活的版本。
+ * junction 在 Windows 上**不需要管理员权限**（这点与符号链接不同），
+ * 而且切版本只改 junction 指向，不用改 PATH —— 这正是 FR-11 想要的形态。
+ */
+export function getCurrentRoot(): string {
+  return join(app.getPath('home'), '.devkit', 'current')
+}
+
+/** 预留给未来的 shim 目录：%USERPROFILE%\.devkit\bin */
+export function getShimDir(): string {
+  return join(app.getPath('home'), '.devkit', 'bin')
+}
+
+/** 激活记录（FR-11 回滚依据）：%APPDATA%\devkit\activated.json */
+export function getActivationFile(): string {
+  return join(getUserDataDir(), 'activated.json')
+}
+
+/** 用户自建预设目录：%APPDATA%\devkit\presets\ */
+export function getPresetDir(): string {
+  return ensureDir(join(getUserDataDir(), 'presets'))
+}
+
+/** 离线包目录：%APPDATA%\devkit\offline\ */
+export function getOfflineDir(): string {
+  return ensureDir(join(getUserDataDir(), 'offline'))
+}
+
 export function getBackupDir(): string {
   return ensureDir(join(getUserDataDir(), 'backup'))
 }

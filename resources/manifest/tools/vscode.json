@@ -2,38 +2,72 @@
   "id": "vscode",
   "category": "editor",
   "tier": "L2",
-  "status": "detect-only",
+  "status": "ready",
   "provider": "direct",
-  "name": { "zh-CN": "Visual Studio Code", "en-US": "Visual Studio Code" },
+  "name": {
+    "zh-CN": "Visual Studio Code",
+    "en-US": "Visual Studio Code"
+  },
   "description": {
-    "zh-CN": "轻量跨平台代码编辑器。",
-    "en-US": "Lightweight cross-platform code editor."
+    "zh-CN": "轻量级代码编辑器，用户级安装（不需要管理员）。",
+    "en-US": "Lightweight code editor, installed per-user (no admin required)."
   },
   "homepage": "https://code.visualstudio.com",
-  "license": { "spdx": "LicenseRef-Microsoft-VSCode", "redistributable": false },
+  "license": {
+    "spdx": "MIT",
+    "redistributable": false
+  },
   "detect": {
-    "commands": [{ "cmd": "code", "args": ["--version"], "expectRegex": "\\d+\\.\\d+\\.\\d+" }],
-    "files": ["%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe"],
-    "registry": [
+    "commands": [
       {
-        "hive": "HKCU",
-        "view": "64",
-        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        "match": { "DisplayName": "^Microsoft Visual Studio Code" },
-        "versionFrom": "DisplayVersion"
-      },
-      {
-        "hive": "HKLM",
-        "view": "64",
-        "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        "match": { "DisplayName": "^Microsoft Visual Studio Code" },
-        "versionFrom": "DisplayVersion"
+        "cmd": "code",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
       }
+    ],
+    "files": [
+      "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe"
     ]
   },
-  "versions": [],
+  "versions": [
+    {
+      "version": "1.141.0",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "installScope": "user",
+      "source": {
+        "url": "https://update.code.visualstudio.com/latest/win32-x64-user/stable",
+        "sha256": "e377a8e2e081a4b59dfd19514abdf4f35aa95aa697e217ad819a0fccff11c602"
+      },
+      "install": {
+        "type": "exe-inno",
+        "template": "exe-inno-silent",
+        "params": {
+          "extraArgs": "-MERGETASKS=!runcode"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\bin"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\Code.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    }
+  ],
   "notes": {
-    "zh-CN": "源码是 MIT，但官方发行物走 Microsoft 产品许可，因此标记为 L2：可自动下载安装，但不进离线包。",
-    "en-US": "The source is MIT but the official build ships under Microsoft's product license, hence L2: auto-download allowed, excluded from offline bundles."
+    "zh-CN": "按 L2 处理：可以自动下载安装，但发行物走 Microsoft 产品许可，不再分发，因此不进离线包。用 User 安装器，无需管理员。",
+    "en-US": "Treated as L2: auto-download and install are fine, but the shipped binaries are under a Microsoft product licence, so they are never redistributed and never included in offline packs."
   }
 }

@@ -1,0 +1,71 @@
+{
+  "id": "ninja",
+  "category": "build",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "Ninja",
+    "en-US": "Ninja"
+  },
+  "description": {
+    "zh-CN": "小而快的构建系统，CMake 生成器常用搭配。",
+    "en-US": "A small, fast build system, the usual partner of the CMake generator."
+  },
+  "homepage": "https://ninja-build.org",
+  "license": {
+    "spdx": "Apache-2.0",
+    "redistributable": true
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "ninja",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "1.13.2",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "sizeBytes": 291570,
+      "installScope": "user",
+      "source": {
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-win.zip",
+        "sha256": "07fc8261b42b20e71d1720b39068c2e14ffcee6396b76fb7a795fb460b78dc65"
+      },
+      "install": {
+        "type": "zip",
+        "template": "zip-single-file-into-version-dir",
+        "params": {
+          "fileName": "ninja.exe"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\ninja.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    }
+  ],
+  "notes": {
+    "zh-CN": "官方 release 里只有一个 ninja.exe，用单文件模板只保留它。GitHub 不提供校验和，本地计算。",
+    "en-US": "The official release is a zip containing a single ninja.exe. GitHub publishes no checksum, so it is computed locally."
+  }
+}

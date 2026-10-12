@@ -2,40 +2,89 @@
   "id": "git",
   "category": "tool",
   "tier": "L1",
-  "status": "detect-only",
+  "status": "ready",
   "provider": "direct",
-  "name": { "zh-CN": "Git", "en-US": "Git" },
+  "name": {
+    "zh-CN": "Git",
+    "en-US": "Git"
+  },
   "description": {
-    "zh-CN": "分布式版本控制，含 Git Bash 与 Git LFS。",
-    "en-US": "Distributed version control with Git Bash and Git LFS."
+    "zh-CN": "分布式版本控制，含 Git Bash 与 Git LFS（PortableGit 自解压版）。",
+    "en-US": "Distributed version control with Git Bash and Git LFS (PortableGit self-extracting build)."
   },
   "homepage": "https://git-scm.com",
-  "license": { "spdx": "GPL-2.0-only", "redistributable": true },
+  "license": {
+    "spdx": "GPL-2.0-only",
+    "redistributable": true
+  },
   "detect": {
-    "commands": [{ "cmd": "git", "args": ["--version"], "expectRegex": "git version \\d+" }],
-    "files": ["%ProgramFiles%\\Git\\cmd\\git.exe"],
+    "commands": [
+      {
+        "cmd": "git",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "git version \\d+"
+      }
+    ],
+    "files": [
+      "%ProgramFiles%\\Git\\cmd\\git.exe"
+    ],
     "registry": [
       {
         "hive": "HKLM",
         "view": "64",
         "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        "match": { "DisplayName": "^Git" },
+        "match": {
+          "DisplayName": "^Git"
+        },
         "versionFrom": "DisplayVersion"
       }
     ]
   },
   "versions": [
     {
-      "version": "2.56.0.windows.2",
+      "version": "2.56.0",
       "channel": "stable",
       "recommended": true,
       "arch": "x64",
-      "releaseDate": "2026-10-05",
-      "installScope": "machine"
+      "sizeBytes": 59958024,
+      "installScope": "user",
+      "source": {
+        "url": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.1/PortableGit-2.56.0-64-bit.7z.exe",
+        "sha256": "eceb5e061aa90df2f69ddd3e90f0030e1b8037a7829934bc40e4be1caa1accc1"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/git-for-windows/v2.56.0.windows.1/PortableGit-2.56.0-64-bit.7z.exe"
+        }
+      ],
+      "install": {
+        "type": "exe-7zsfx",
+        "template": "exe-7zsfx-extract"
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\cmd",
+          "{currentDir}\\mingw64\\bin",
+          "{currentDir}\\usr\\bin"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\cmd\\git.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "git version \\d+"
+      }
     }
   ],
   "notes": {
-    "zh-CN": "版本号取自 git-for-windows/git 的最新 Release tag。",
-    "en-US": "Version taken from the latest git-for-windows/git release tag."
+    "zh-CN": "用 PortableGit 自解压包而不是安装器：它是 7-Zip 自解压格式，-o 指定目录即可，不写注册表、不需要管理员、不覆盖系统里已有的 Git。",
+    "en-US": "Uses the PortableGit self-extracting archive instead of the installer: 7-Zip SFX with -o writes to a directory, touches no registry, needs no admin and never clobbers an existing Git."
   }
 }

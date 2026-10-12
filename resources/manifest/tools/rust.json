@@ -1,0 +1,88 @@
+{
+  "id": "rust",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "Rust",
+    "en-US": "Rust"
+  },
+  "description": {
+    "zh-CN": "Rust 工具链（rustc / cargo），通过 rustup 安装到版本目录，不污染全局。",
+    "en-US": "The Rust toolchain (rustc / cargo) installed via rustup into the version directory."
+  },
+  "homepage": "https://rustup.rs",
+  "license": {
+    "spdx": "MIT OR Apache-2.0",
+    "redistributable": true
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "rustc",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "rustc \\d+\\.\\d+"
+      },
+      {
+        "cmd": "cargo",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "cargo \\d+\\.\\d+"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "latest",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "installScope": "user",
+      "source": {
+        "url": "https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe",
+        "sha256": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e"
+      },
+      "mirrors": [
+        {
+          "name": "tuna",
+          "url": "https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe"
+        }
+      ],
+      "install": {
+        "type": "exe-custom",
+        "template": "exe-rustup-init",
+        "params": {
+          "profile": "minimal",
+          "defaultHost": "x86_64-pc-windows-msvc"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}\\cargo\\bin"
+        ],
+        "env": {
+          "CARGO_HOME": "{currentDir}\\cargo",
+          "RUSTUP_HOME": "{currentDir}\\rustup"
+        }
+      },
+      "verify": {
+        "cmd": "{installDir}\\cargo\\bin\\rustc.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "rustc \\d+\\.\\d+"
+      }
+    }
+  ],
+  "notes": {
+    "zh-CN": "rustup-init 本身很小，真正下载工具链是在安装过程中（约 300 MB，取决于网络）。用 CARGO_HOME / RUSTUP_HOME 把工具链整个关进版本目录，--no-modify-path 保证它不去改 PATH。",
+    "en-US": "rustup-init itself is tiny; the toolchain (~300 MB) is fetched during install. CARGO_HOME / RUSTUP_HOME keep everything inside the version directory and --no-modify-path stops it from touching PATH."
+  }
+}

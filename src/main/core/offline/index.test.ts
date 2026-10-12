@@ -1,0 +1,102 @@
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
+import { archiveFileName, importOfflinePack, OFFLINE_ARCHIVE_DIR, OFFLINE_INDEX_FILE } from './index'
+
+function sha256(content: string): string {
+  return createHash('sha256').update(content).digest('hex')
+}
+
+describe('离线包文件命名', () => {
+  it('与 executor 的下载缓存命名规则一致', () => {
+    expect(
+      archiveFileName('nodejs', '24.21.0', 'https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip')
+    ).toBe('nodejs-24.21.0-node-v24.21.0-win-x64.zip')
+  })
+
+  it('URL 带查询串时只取路径部分', () => {
+    expect(archiveFileName('x', '1.0', 'https://example.com/a/b/c.zip?token=1')).toBe('x-1.0-c.zip')
+  })
+})
+
+describe('离线包导入', () => {
+  let root: string
+  let packDir: string
+  let downloadDir: string
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'devkit-offline-'))
+    packDir = join(root, 'pack')
+    downloadDir = join(root, 'downloads')
+    mkdirSync(join(packDir, OFFLINE_ARCHIVE_DIR), { recursive: true })
+    mkdirSync(downloadDir, { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('校验通过的文件被放进下载缓存', async () => {
+    const content = 'pretend-this-is-a-7z-archive'
+    writeFileSync(join(packDir, OFFLINE_ARCHIVE_DIR, 'git-2.56.0-PortableGit.7z.exe'), content)
+    writeFileSync(
+      join(packDir, OFFLINE_INDEX_FILE),
+      JSON.stringify({
+        schemaVersion: 1,
+        createdAt: new Date().toISOString(),
+        devkitVersion: '0.1.0',
+        entries: [
+          {
+            toolId: 'git',
+            version: '2.56.0',
+            fileName: 'git-2.56.0-PortableGit.7z.exe',
+            sha256: sha256(content),
+            sizeBytes: content.length,
+            url: 'https://example.com/PortableGit.7z.exe'
+          }
+        ]
+      })
+    )
+
+    const result = await importOfflinePack(packDir, downloadDir)
+    expect(result.ok).toBe(true)
+    expect(result.imported).toBe(1)
+    expect(result.missing).toEqual([])
+    expect(existsSync(join(downloadDir, 'git-2.56.0-PortableGit.7z.exe'))).toBe(true)
+  })
+
+  it('校验失败的文件不会被放进下载缓存（否则安装时才会以"校验失败"暴露）', async () => {
+    writeFileSync(join(packDir, OFFLINE_ARCHIVE_DIR, 'bad.zip'), 'tampered')
+    writeFileSync(
+      join(packDir, OFFLINE_INDEX_FILE),
+      JSON.stringify({
+        schemaVersion: 1,
+        createdAt: new Date().toISOString(),
+        devkitVersion: '0.1.0',
+        entries: [
+          {
+            toolId: 'x',
+            version: '1.0',
+            fileName: 'bad.zip',
+            sha256: sha256('original'),
+            sizeBytes: 8,
+            url: 'https://example.com/bad.zip'
+          }
+        ]
+      })
+    )
+
+    const result = await importOfflinePack(packDir, downloadDir)
+    expect(result.imported).toBe(0)
+    expect(result.missing).toEqual(['bad.zip'])
+    expect(existsSync(join(downloadDir, 'bad.zip'))).toBe(false)
+  })
+
+  it('缺少索引文件时给出可读错误', async () => {
+    const result = await importOfflinePack(packDir, downloadDir)
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('offline.json')
+  })
+})

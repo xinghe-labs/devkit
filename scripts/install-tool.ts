@@ -13,7 +13,7 @@
  *
  * 用法：pnpm install:tool [toolId] [version]
  */
-import { readdirSync } from 'node:fs'
+import { mkdirSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { indexById } from '../src/shared/manifest'
@@ -71,6 +71,8 @@ async function main(): Promise<void> {
   const home = homedir()
   const versionsRoot = join(home, '.devkit', 'versions')
   const downloadDir = join(home, '.devkit', 'downloads')
+  const logDir = join(home, '.devkit', 'logs')
+  mkdirSync(logDir, { recursive: true })
 
   const plan = buildPlan({
     selections: [versionArg ? { toolId, version: versionArg } : { toolId }],
@@ -79,7 +81,8 @@ async function main(): Promise<void> {
       concurrency: 1,
       mirrorPreference: (process.env.DEVKIT_MIRROR as never) ?? 'huaweicloud',
       proxy: process.env.DEVKIT_PROXY ?? null,
-      createRestorePoint: false
+      createRestorePoint: false,
+      dryRun: process.env.DEVKIT_DRY_RUN === '1'
     },
     devkitVersion: '0.1.0-dev',
     manifestRevision: new Date().toISOString().slice(0, 10),
@@ -117,7 +120,9 @@ async function main(): Promise<void> {
     plan,
     tools: indexById(tools),
     downloadDir,
+    logDir,
     signal: controller.signal,
+    dryRun: plan.options.dryRun,
     onUpdate: (event) => {
       const item = event.plan.items[0]
       const detail = event.detail

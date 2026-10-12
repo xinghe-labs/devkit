@@ -38,6 +38,30 @@ export const IPC = {
   /** 导出安装报告（FR-9） */
   installExportReport: 'install:export-report',
 
+  /** 预设方案（FR-3） */
+  presetList: 'preset:list',
+  presetSave: 'preset:save',
+  presetDelete: 'preset:delete',
+  presetImport: 'preset:import',
+
+  /** 激活 / 版本切换（FR-11） */
+  activateSnapshot: 'activate:snapshot',
+  activateApply: 'activate:apply',
+  activateRemove: 'activate:remove',
+
+  /** 已安装项与卸载（FR-16） */
+  installedList: 'installed:list',
+  uninstallRun: 'uninstall:run',
+
+  /** 设置与镜像源（FR-5 / FR-6） */
+  settingsGet: 'settings:get',
+  settingsSave: 'settings:save',
+  mirrorsApply: 'mirrors:apply',
+
+  /** 离线包制作与导入（FR-12） */
+  offlinePack: 'offline:pack',
+  offlineImport: 'offline:import',
+
   /** 主进程 → 渲染进程 推送日志 */
   logLine: 'log:line',
 
