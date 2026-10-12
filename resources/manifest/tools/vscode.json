@@ -46,7 +46,7 @@
         "type": "exe-inno",
         "template": "exe-inno-silent",
         "params": {
-          "extraArgs": "-MERGETASKS=!runcode"
+          "extraArgs": "-MERGETASKS=!runcode,!addtopath"
         }
       },
       "uninstall": {

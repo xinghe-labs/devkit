@@ -1090,7 +1090,12 @@ const SPECS: ToolSpec[] = [
     install: {
       type: 'exe-inno',
       template: 'exe-inno-silent',
-      params: { extraArgs: '-MERGETASKS=!runcode' }
+      // !runcode  = 装完别自动启动
+      // !addtopath = 别自己往 PATH 里加目录
+      //   —— 实测 VS Code 的 Inno 安装器**默认带 addtopath 任务**，即使 /VERYSILENT 也会
+      //   往用户 PATH 里写一条 `...\vscode\<版本>\bin`。这与 devkit 的「安装 ≠ 激活」
+      //   原则冲突：用户没要求激活，PATH 却被改了。PATH 归 devkit 的激活机制管。
+      params: { extraArgs: '-MERGETASKS=!runcode,!addtopath' }
     },
     activate: { pathEntries: ['{currentDir}\\bin'] },
     // 必须用 bin\\code.cmd 而不是 Code.exe：Code.exe 是 GUI 子系统程序，

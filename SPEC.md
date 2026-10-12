@@ -706,6 +706,22 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 
 ---
 
+### 13.6 安装器擅自改 PATH 的处理（v0.5）
+
+实测发现：**VS Code 的 Inno 安装器即使在 `/VERYSILENT` 下也会自己往用户 PATH 写一条目录**，
+用 `/MERGETASKS=!addtopath` 阻止无效。这与「安装 ≠ 激活」直接冲突：用户没点过激活，
+命令却能用了；而且那条 PATH 不在 devkit 的记录里，将来卸载时也没人清它。
+
+结论：不跟各个安装器的任务名较劲，改成**通用的事后还原**——
+安装前后各取一次用户 PATH，有变化就整体还原，并把被移除的条目写进日志与安装报告。
+
+```jsonc
+// 安装报告里会看到：
+// vscode@1.141.0 安装器自己加的 PATH 条目已还原（%USERPROFILE%\.devkit\versions\vscode\1.141.0\bin），需要的话请点「激活」
+```
+
+这条规则对**任何**安装器都成立，不依赖对某个安装器参数的逆向。
+
 ### 13.5 安全审查结论（v0.5）
 
 独立安全审查（对抗性、只读）在 `core/templates`、`core/zip`、`core/activate`、`core/ipc`、

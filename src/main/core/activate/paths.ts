@@ -138,6 +138,18 @@ export function removePathEntries(currentPath: string, entries: string[]): strin
     .join(';')
 }
 
+/**
+ * 比较两次 PATH，列出"后来新增"的条目（大小写与尾随分隔符不敏感）。
+ *
+ * 用途：有些官方安装器会自己往用户 PATH 里写目录（实测 VS Code 的 Inno 安装器），
+ * 这跟 devkit 的「安装 ≠ 激活」原则冲突。安装前后各取一次 PATH，用这个函数算出
+ * 被加了什么，然后整体还原并告知用户。
+ */
+export function diffPathEntries(before: string, after: string): string[] {
+  const known = new Set(splitPath(before).map(normalizePathEntry))
+  return splitPath(after).filter((entry) => !known.has(normalizePathEntry(entry)))
+}
+
 /** PATH 里是否已经有某个条目 */
 export function hasPathEntry(currentPath: string, entry: string): boolean {
   const key = normalizePathEntry(entry)

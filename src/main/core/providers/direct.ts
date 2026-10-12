@@ -5,6 +5,8 @@ import { runCommand } from '../../utils/exec'
 import { logger } from '../report/logger'
 import { resolveInstallTemplate, type CommandContext, type InstallerCommand } from '../templates'
 import { extractZip, extractZipSingleFile } from '../installer/zip'
+import { diffPathEntries } from '../activate/paths'
+import { readUserPath, writeUserPath } from '../activate/windows'
 
 /**
  * 直连安装提供者（SPEC §6.3 的 DirectProvider）。
@@ -41,6 +43,16 @@ export interface InstallOutcome {
   logFile: string | null
   /** 干跑模式没有真正执行任何安装器 */
   dryRun: boolean
+  /**
+   * 安装器自己往用户 PATH 里加的条目（已被 devkit 还原）。
+   *
+   * 为什么必须管这件事：devkit 的原则是「安装 ≠ 激活」，PATH 归激活机制统一管。
+   * 但有些官方安装器（实测 VS Code 的 Inno 安装器）会**自己**往用户 PATH 写一条目录，
+   * 于是用户没点过「激活」命令却能用了 —— 状态与界面不一致，而且那条 PATH 不受
+   * devkit 的记录管理，将来卸载时也没人清它。
+   * 试过用 /MERGETASKS=!addtopath 阻止，实测无效，所以改成"事后还原 + 明确告知"。
+   */
+  revertedPathEntries: string[]
 }
 
 export class InstallError extends Error {
@@ -143,7 +155,8 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
       files: 0,
       bytes: 0,
       logFile: preview ? request.logFile : null,
-      dryRun: true
+      dryRun: true,
+      revertedPathEntries: []
     }
   }
 
@@ -164,7 +177,8 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
         files: result.files,
         bytes: result.bytes,
         logFile: null,
-        dryRun: false
+        dryRun: false,
+        revertedPathEntries: []
       }
     }
 
@@ -181,7 +195,8 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
         files: 1,
         bytes: result.bytes,
         logFile: null,
-        dryRun: false
+        dryRun: false,
+        revertedPathEntries: []
       }
     }
 
@@ -208,7 +223,14 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
             `${`${result.stdout}${result.stderr}`.trim().split(/\r?\n/).slice(0, 2).join(' | ')}`
         )
       }
-      return { installDir: request.installDir, files: 0, bytes: size, logFile: null, dryRun: false }
+      return {
+        installDir: request.installDir,
+        files: 0,
+        bytes: size,
+        logFile: null,
+        dryRun: false,
+        revertedPathEntries: []
+      }
     }
   }
 
@@ -223,11 +245,36 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
   await mkdir(request.installDir, { recursive: true })
   await mkdir(dirname(request.logFile), { recursive: true })
 
+  // 安装器类模板可能自己改用户 PATH，跑之前先留一份原文用于比对。
+  // 只有 exe/msi 类需要；zip 解压不可能改环境变量。
+  const pathBefore = await readUserPath().catch(() => null)
+
   if (command.requiresAdmin && request.runElevatedCommand) {
     // 机器级安装（MSI / 写 HKLM）：交给提权助手，整个作业只弹一次 UAC
     await request.runElevatedCommand(command, request.version.source?.sha256)
   } else {
     await runInstaller(command, request)
+  }
+
+  const revertedPathEntries: string[] = []
+  if (pathBefore !== null) {
+    try {
+      const pathAfter = await readUserPath()
+      if (pathAfter !== pathBefore) {
+        const added = diffPathEntries(pathBefore, pathAfter)
+
+        await writeUserPath(pathBefore)
+        revertedPathEntries.push(...added)
+        logger.warn(
+          'installer',
+          `${request.tool.id} 的安装器自己改了用户 PATH，已还原。被移除的条目：` +
+            `${added.join('、') || '（无法定位具体条目，已整体还原）'}。` +
+            '需要让命令可用请在 devkit 里点「激活」。'
+        )
+      }
+    } catch (error) {
+      logger.warn('installer', `检查/还原用户 PATH 失败：${(error as Error).message}`)
+    }
   }
 
   const size = await directorySize(request.installDir)
@@ -242,7 +289,8 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
     files: 0,
     bytes: size,
     logFile: request.logFile,
-    dryRun: false
+    dryRun: false,
+    revertedPathEntries
   }
 }
 

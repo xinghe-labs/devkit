@@ -81,8 +81,16 @@ function decode(buffer: Buffer): string {
  * 元字符才是真正的风险，所以这里只挡元字符。
  */
 const SAFE_COMMAND_PATH = /^[^"&|<>^%!\r\n\t]+$/
-/** 参数保持严格白名单：版本检测参数（-v / --version / -3）全是这种形态 */
-const SAFE_ARG = /^[A-Za-z0-9_\-./:=@+,]+$/
+/**
+ * 参数：**只禁 cmd 元字符、通配符与空白**，不禁中文。
+ *
+ * 为什么不能是纯 ASCII 白名单：回退路径是给 `.cmd` / `.bat` 用的，而它们的参数里
+ * 经常带着 devkit 自己的路径 —— `%USERPROFILE%\.devkit\versions\...`。
+ * 用 ASCII 白名单会把中文用户名下的每一次回退都拒掉（实测：假的 .cmd 安装器
+ * 收到 `/DIR=C:\Users\张三\AppData\Local\Temp\...` 就被拒了）。
+ * 真正的风险是 cmd 的元字符与 %VAR% / 延迟展开，不是汉字。
+ */
+const SAFE_ARG = /^[^\s"&|<>^%!()*?\r\n\t]+$/
 
 export function isFallbackSafe(cmd: string, args: string[]): boolean {
   return SAFE_COMMAND_PATH.test(cmd) && args.every((arg) => SAFE_ARG.test(arg))

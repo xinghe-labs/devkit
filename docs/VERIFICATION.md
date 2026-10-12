@@ -299,6 +299,8 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 | `cmd /s /c` 处理不了带空格的路径 | `cmd /d /s /c "C:\\a b\\x.cmd"` 里 `/s` 会剥掉首尾引号，空格变成参数分隔符，命令以 code=1 静默失败 | 回退改用 `cmd /d /c`（实测该写法能正确处理带空格路径） |
 | VS Code 自检永远拿到空输出 | `Code.exe` 是 GUI 子系统程序，`Code.exe --version` 退出码 0 但**什么都不输出**，用 `\d+\.\d+` 匹配会一直失败 | 清单自检改用 `bin\\code.cmd --version`（实测输出 `1.141.0`） |
 | 下载产物没有扩展名 | VS Code 的下载地址以 `/stable` 结尾，产物叫 `vscode-1.141.0-stable`（无扩展名），能不能被当程序跑全看运气 | URL 末段没有扩展名且不是 zip 时补 `.exe` |
+| 官方安装器会**自己**写用户 PATH | 实测 VS Code 的 Inno 安装器在 `/VERYSILENT` 下仍然往用户 PATH 写了 `...\vscode\<版本>\bin`；试过 `/MERGETASKS=!addtopath` 阻止，**无效**。这与 devkit 的「安装 ≠ 激活」原则冲突：用户没点过激活，命令却能用了，而且那条 PATH 不受 devkit 的记录管理、卸载时也没人清 | 改成通用方案：安装前后各取一次用户 PATH，有变化就**整体还原**并把被移除的条目写进日志与报告。不依赖任何安装器的任务名，任何安装器都拦得住 |
+| `.cmd` 回退的参数白名单也是纯 ASCII | 假安装器收到的 `/DIR=C:\Users\张三\AppData...` 被判为"不安全字符"直接拒执行 —— devkit 自己的中文路径会让回退彻底失效 | 参数白名单同样放宽为「只禁 cmd 元字符、通配符与空白」，不禁中文 |
 | 预检拿"用不到的条件"拦人 | 所有项都已安装（本次根本不需要下载）时，网络探测失败仍会让预检阻断，重跑一个已装好的工具被卡住 | 预检先判断是否真有需要下载的项；全部已安装时跳过网络探测并给出 ok 级结论 |
  用户选到带尾随分隔符或相对路径的目录时，`mkdir` 会失败（实测报 `ENOENT ... AgentWork\tmpoffline-test`） | 改用 `path.join(outputDir, name)` |
 
@@ -376,6 +378,7 @@ ExpandString；热更新不合并 detect/install/activate；提权脚本不混�
 | 下载缓存 | `%USERPROFILE%\.devkit\downloads\` | 直接删 |
 | 应用配置 / 日志 / 激活记录 | `%APPDATA%\devkit\` | 直接删（不会影响系统） |
 | 用户 PATH（**已逐字节还原**） | `HKCU\Environment\Path` | 备份文件：`%APPDATA%\devkit\backup\user-path-20261012-153737.txt` |
+| VS Code 安装器自己加的那条 PATH（**已移除**） | `...\versions\vscode\1.141.0\bin` | 已移除，PATH 与测试前逐字节一致（82 字符） |
 | 一个 junction（**已删除**） | `%USERPROFILE%\.devkit\current\nodejs` | 已不存在 |
 
 **没有发生的变化**（这是"安装 ≠ 激活"的直接结果）：

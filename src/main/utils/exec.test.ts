@@ -116,6 +116,15 @@ describe('isFallbackSafe 参数白名单', () => {
     }
   })
 
+  it('允许带中文的参数（devkit 自己的路径就是中文）', () => {
+    expect(
+      isFallbackSafe('C:\\Users\\屈\\.devkit\\versions\\maven\\3.10.0\\bin\\mvn.cmd', [
+        '/DIR=C:\\Users\\屈\\.devkit\\versions\\x',
+        '-v'
+      ])
+    ).toBe(true)
+  })
+
   it('拒绝空白、引号与通配符', () => {
     for (const bad of ['', ' ', 'a b', '"x"', 'a*b', 'a?b']) {
       expect(isFallbackSafe('dk-echo', [bad]), `参数 ${JSON.stringify(bad)}`).toBe(false)

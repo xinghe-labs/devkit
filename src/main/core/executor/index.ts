@@ -254,6 +254,10 @@ async function runItem(context: {
 
   // 4. 激活（可选）：把这份安装接到用户 PATH / 环境变量里
   let note = verify.detail
+  if (outcome.revertedPathEntries.length > 0) {
+    note += `；安装器自己加的 PATH 条目已还原（${outcome.revertedPathEntries.join('、')}），` +
+      '需要的话请点「激活」'
+  }
   if (activate && version.activate) {
     const activated = await activate(item, version, tool)
     if (activated.ok) {
