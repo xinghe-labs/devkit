@@ -183,7 +183,13 @@
     "hotUpdateAutoHint": "启动后台拉取一次，失败不影响使用",
     "hotUpdateRun": "立即检查更新",
     "hotUpdateReset": "恢复内置清单",
-    "hotUpdateRejected": "条被拒绝（原因见下）"
+    "hotUpdateRejected": "条被拒绝（原因见下）",
+    "system": "系统配置",
+    "systemHint": "每一项都先检测再写入。能用户级做的绝不提权；需要写 HKLM 的会弹一次 UAC。",
+    "gitName": "user.name",
+    "gitEmail": "user.email",
+    "apply": "配置",
+    "configured": "已配置"
   },
   "installed": {
     "title": "已安装（devkit 管理的版本目录）",

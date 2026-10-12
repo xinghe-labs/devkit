@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Button,
@@ -14,6 +14,7 @@ import {
   Typography
 } from 'antd'
 import { useTranslation } from 'react-i18next'
+import { localizedText, normalizeLocale } from '@shared/localized'
 import { MIRROR_PREFERENCES, type MirrorPreference, type MirrorTarget } from '@shared/types'
 import { useAppStore } from '../store/app-store'
 import { useManageStore } from '../store/manage-store'
@@ -61,7 +62,7 @@ function Row({
  * 所以每一项都写清楚"它会改什么"，而不是只给一个光秃秃的开关。
  */
 export function SettingsDrawer() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const open = useManageStore((state) => state.settingsOpen)
   const openSettings = useManageStore((state) => state.openSettings)
   const settings = useManageStore((state) => state.settings)
@@ -76,7 +77,13 @@ export function SettingsDrawer() {
   const runHotUpdate = useManageStore((state) => state.runHotUpdate)
   const clearManifestOverride = useManageStore((state) => state.clearManifestOverride)
   const hotUpdateResult = useManageStore((state) => state.hotUpdateResult)
+  const systemConfig = useManageStore((state) => state.systemConfig)
+  const loadSystemConfig = useManageStore((state) => state.loadSystemConfig)
+  const applySystemConfig = useManageStore((state) => state.applySystemConfig)
   const busy = useManageStore((state) => state.busy)
+
+  const [gitName, setGitName] = useState('')
+  const [gitEmail, setGitEmail] = useState('')
 
   const selections = useAppStore((state) => state.selections)
   const info = useAppStore((state) => state.info)
@@ -85,8 +92,9 @@ export function SettingsDrawer() {
     if (open) {
       void loadSettings()
       void loadInstalled()
+      void loadSystemConfig()
     }
-  }, [open, loadSettings, loadInstalled])
+  }, [open, loadSettings, loadInstalled, loadSystemConfig])
 
   const patchMirror = (target: MirrorTarget, patch: { enabled?: boolean; url?: string }): void => {
     if (!settings) return
@@ -306,6 +314,85 @@ export function SettingsDrawer() {
               ) : null}
             </div>
           ) : null}
+
+          <Divider style={{ margin: '10px 0' }} />
+          <Title level={5} style={{ margin: '4px 0' }}>
+            {t('settings.system')}
+          </Title>
+          <Text type="secondary" style={{ fontSize: 12.5 }}>
+            {t('settings.systemHint')}
+          </Text>
+
+          <List
+            size="small"
+            dataSource={systemConfig}
+            renderItem={(item) => (
+              <List.Item
+                actions={[
+                  item.id === 'git-identity' ? (
+                    <Space key="git" size={4}>
+                      <Input
+                        size="small"
+                        style={{ width: 110 }}
+                        placeholder={t('settings.gitName')}
+                        value={gitName}
+                        onChange={(event) => setGitName(event.target.value)}
+                      />
+                      <Input
+                        size="small"
+                        style={{ width: 170 }}
+                        placeholder={t('settings.gitEmail')}
+                        value={gitEmail}
+                        onChange={(event) => setGitEmail(event.target.value)}
+                      />
+                      <Button
+                        size="small"
+                        loading={busy}
+                        disabled={!gitName.trim() || !gitEmail.trim()}
+                        onClick={() =>
+                          void applySystemConfig({
+                            id: 'git-identity',
+                            gitName: gitName.trim(),
+                            gitEmail: gitEmail.trim()
+                          })
+                        }
+                      >
+                        {t('settings.apply')}
+                      </Button>
+                    </Space>
+                  ) : (
+                    <Button
+                      key={item.id}
+                      size="small"
+                      loading={busy}
+                      disabled={item.configured}
+                      onClick={() => void applySystemConfig({ id: item.id })}
+                    >
+                      {item.configured ? t('settings.configured') : t('settings.apply')}
+                    </Button>
+                  )
+                ]}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <Space size={6}>
+                    <Text>{localizedText(item.label, normalizeLocale(i18n.language), item.id)}</Text>
+                    {item.requiresAdmin ? <Tag color="gold">{t('tool.requiresAdmin')}</Tag> : null}
+                    {item.configured ? <Tag color="green">{t('settings.configured')}</Tag> : null}
+                  </Space>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {item.detail}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {localizedText(item.hint, normalizeLocale(i18n.language), '')}
+                    </Text>
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
 
           <Divider style={{ margin: '10px 0' }} />
           <Title level={5} style={{ margin: '4px 0' }}>

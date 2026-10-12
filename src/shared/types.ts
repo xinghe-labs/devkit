@@ -478,6 +478,41 @@ export interface MirrorSetting {
 }
 
 /** 镜像写入结果 */
+/* ------------------------------------------------------------------ */
+/* 系统配置（FR-6）                                                     */
+/* ------------------------------------------------------------------ */
+
+export type SystemConfigId =
+  | 'git-identity'
+  | 'powershell-policy'
+  | 'long-paths'
+  | 'developer-mode'
+  | 'ssh-key'
+
+export interface SystemConfigItem {
+  id: SystemConfigId
+  label: LocalizedText
+  /** true = 需要管理员（会弹一次 UAC） */
+  requiresAdmin: boolean
+  configured: boolean
+  /** 当前状态的可读描述，例如 "张三 <a@b.com>" 或 "未启用" */
+  detail: string
+  hint: LocalizedText
+}
+
+export interface SystemConfigRequest {
+  id: SystemConfigId
+  gitName?: string
+  gitEmail?: string
+}
+
+export interface SystemConfigResult {
+  ok: boolean
+  detail: string | null
+  error: string | null
+  requiresAdmin: boolean
+}
+
 /** 清单热更新结果（FR-15） */
 export interface HotUpdateResultView {
   ok: boolean

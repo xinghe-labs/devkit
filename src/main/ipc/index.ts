@@ -21,6 +21,9 @@ import type {
   PlanPreparation,
   Preset,
   StartInstallResult,
+  SystemConfigId,
+  SystemConfigItem,
+  SystemConfigResult,
   UninstallRequest,
   UninstallResult,
   UserConfigView
@@ -40,6 +43,7 @@ import {
 import { loadManifests } from '../core/manifest'
 import { importOfflinePack, packOffline } from '../core/offline'
 import { clearUserManifests, runHotUpdate } from '../core/hotupdate'
+import { applySystemConfig, getSystemConfigStatus } from '../core/systemconfig'
 import { deleteUserPreset, importPreset, listPresets, saveUserPreset } from '../core/presets'
 import { renderPlanReport } from '../core/report/markdown'
 import { logger } from '../core/report/logger'
@@ -277,6 +281,18 @@ export function registerIpcHandlers(): void {
     const result = applyMirrors(settings)
     if (result.ok) saveConfigView({ mirrors: settings })
     return result
+  })
+
+  /* ---------------- 系统配置（FR-6） ---------------- */
+
+  handle(IPC.systemStatus, (): Promise<SystemConfigItem[]> => getSystemConfigStatus())
+
+  handle(IPC.systemApply, async (_event, payload: unknown): Promise<SystemConfigResult> => {
+    const request = asOptionalObject(payload, 'system 请求')
+    const id = asNonEmptyString(request.id, 'id', 40) as SystemConfigId
+    const gitName = typeof request.gitName === 'string' ? request.gitName : undefined
+    const gitEmail = typeof request.gitEmail === 'string' ? request.gitEmail : undefined
+    return applySystemConfig({ id, gitName, gitEmail })
   })
 
   /* ---------------- 清单热更新（FR-15） ---------------- */

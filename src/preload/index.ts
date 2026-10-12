@@ -10,6 +10,7 @@ import type {
   MirrorSetting,
   OfflinePackRequest,
   PlanSelection,
+  SystemConfigRequest,
   UninstallRequest
 } from '@shared/types'
 
@@ -86,6 +87,10 @@ const api: DevkitApi = {
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
   saveSettings: (patch: unknown) => ipcRenderer.invoke(IPC.settingsSave, patch),
   applyMirrors: (settings: MirrorSetting[]) => ipcRenderer.invoke(IPC.mirrorsApply, settings),
+
+  /* ---------------- 系统配置 ---------------- */
+  getSystemConfig: () => ipcRenderer.invoke(IPC.systemStatus),
+  applySystemConfig: (request: SystemConfigRequest) => ipcRenderer.invoke(IPC.systemApply, request),
 
   /* ---------------- 清单热更新 ---------------- */
   runHotUpdate: (url: string) => ipcRenderer.invoke(IPC.manifestHotUpdate, url),

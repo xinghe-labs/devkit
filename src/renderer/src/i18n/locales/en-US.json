@@ -183,7 +183,13 @@
     "hotUpdateAutoHint": "One background fetch at startup; failures never block the app",
     "hotUpdateRun": "Check now",
     "hotUpdateReset": "Revert to built-in",
-    "hotUpdateRejected": "entries were rejected (see below)"
+    "hotUpdateRejected": "entries were rejected (see below)",
+    "system": "System configuration",
+    "systemHint": "Each item is inspected first, then written. Nothing that can be done per-user asks for admin; HKLM writes trigger one UAC prompt.",
+    "gitName": "user.name",
+    "gitEmail": "user.email",
+    "apply": "Apply",
+    "configured": "Configured"
   },
   "installed": {
     "title": "Installed (devkit-managed version dirs)",

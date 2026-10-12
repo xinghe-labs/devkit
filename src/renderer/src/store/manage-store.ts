@@ -5,6 +5,8 @@ import type {
   InstalledTool,
   OfflinePackResult,
   Preset,
+  SystemConfigItem,
+  SystemConfigRequest,
   UserConfigView
 } from '@shared/types'
 
@@ -30,6 +32,7 @@ interface ManageState {
   activation: ActivationSnapshot | null
   offlineResult: OfflinePackResult | null
   hotUpdateResult: HotUpdateResultView | null
+  systemConfig: SystemConfigItem[]
 
   settingsOpen: boolean
   installedOpen: boolean
@@ -58,6 +61,9 @@ interface ManageState {
   importOfflinePack: () => Promise<void>
   runHotUpdate: (url: string) => Promise<void>
   clearManifestOverride: () => Promise<void>
+
+  loadSystemConfig: () => Promise<void>
+  applySystemConfig: (request: SystemConfigRequest) => Promise<void>
 }
 
 function describeError(error: unknown): string {
@@ -73,6 +79,7 @@ export const useManageStore = create<ManageState>()((set, get) => ({
   activation: null,
   offlineResult: null,
   hotUpdateResult: null,
+  systemConfig: [],
   settingsOpen: false,
   installedOpen: false,
   busy: false,
@@ -306,6 +313,33 @@ export const useManageStore = create<ManageState>()((set, get) => ({
         hotUpdateResult: null,
         notice: { kind: 'success', text: `已清除 ${removed} 个热更新覆盖，重启后回到内置清单` }
       })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  loadSystemConfig: async () => {
+    try {
+      set({ systemConfig: await window.devkit.getSystemConfig() })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  applySystemConfig: async (request) => {
+    set({ busy: true })
+    try {
+      const result = await window.devkit.applySystemConfig(request)
+      if (!result.ok) throw new Error(result.error ?? '应用失败')
+      set({
+        notice: {
+          kind: 'success',
+          text: `${request.id} 已配置：${result.detail ?? '完成'}`
+        }
+      })
+      await get().loadSystemConfig()
     } catch (error) {
       set({ notice: { kind: 'error', text: describeError(error) } })
     } finally {

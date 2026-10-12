@@ -20,6 +20,9 @@ import type {
   PlanSelection,
   Preset,
   StartInstallResult,
+  SystemConfigItem,
+  SystemConfigRequest,
+  SystemConfigResult,
   UninstallRequest,
   UninstallResult,
   UserConfigView
@@ -87,6 +90,10 @@ export interface DevkitApi {
   getSettings(): Promise<UserConfigView>
   saveSettings(patch: unknown): Promise<UserConfigView>
   applyMirrors(settings: MirrorSetting[]): Promise<MirrorApplyResult>
+
+  /* ---------------- 系统配置（FR-6） ---------------- */
+  getSystemConfig(): Promise<SystemConfigItem[]>
+  applySystemConfig(request: SystemConfigRequest): Promise<SystemConfigResult>
 
   /* ---------------- 清单热更新（FR-15） ---------------- */
   runHotUpdate(url: string): Promise<HotUpdateResultView>
