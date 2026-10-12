@@ -22,6 +22,8 @@ export interface UserConfig {
   manifestHotUpdate: boolean
   /** 清单热更新索引地址（https）；null = 未配置 */
   manifestHotUpdateUrl: string | null
+  /** 更新检查源（latest.json / latest.yml）；null = 未配置 */
+  updateFeedUrl: string | null
   /** 1 = 串行；最大 3（FR-4） */
   concurrency: number
   /** 安装前创建系统还原点（FR-10） */
@@ -51,6 +53,7 @@ const DEFAULTS: UserConfig = {
   autoUpdate: true,
   manifestHotUpdate: true,
   manifestHotUpdateUrl: null,
+  updateFeedUrl: null,
   concurrency: 1,
   createRestorePoint: false,
   mirrorPreference: 'official',
@@ -108,6 +111,10 @@ function sanitize(raw: unknown): UserConfig {
       typeof input.manifestHotUpdateUrl === 'string' &&
       MIRROR_URL_PATTERN.test(input.manifestHotUpdateUrl.trim())
         ? input.manifestHotUpdateUrl.trim()
+        : null,
+    updateFeedUrl:
+      typeof input.updateFeedUrl === 'string' && MIRROR_URL_PATTERN.test(input.updateFeedUrl.trim())
+        ? input.updateFeedUrl.trim()
         : null,
     concurrency: Number.isFinite(concurrency) ? Math.min(3, Math.max(1, concurrency)) : 1,
     createRestorePoint: input.createRestorePoint === true,
@@ -167,6 +174,9 @@ export function saveConfigView(patch: unknown): UserConfigView {
   if (typeof input.manifestHotUpdate === 'boolean') allowed.manifestHotUpdate = input.manifestHotUpdate
   if (input.manifestHotUpdateUrl === null || typeof input.manifestHotUpdateUrl === 'string') {
     allowed.manifestHotUpdateUrl = input.manifestHotUpdateUrl
+  }
+  if (input.updateFeedUrl === null || typeof input.updateFeedUrl === 'string') {
+    allowed.updateFeedUrl = input.updateFeedUrl
   }
   if (typeof input.activateAfterInstall === 'boolean') allowed.activateAfterInstall = input.activateAfterInstall
   if (typeof input.configureMirrors === 'boolean') allowed.configureMirrors = input.configureMirrors

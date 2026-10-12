@@ -506,7 +506,14 @@ const SPECS: ToolSpec[] = [
             url: 'https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe'
           }
         ],
-        discover: async () => [{ version: 'latest' }],
+        // rustup 的下载地址不含版本号，所以版本标签取官方 release-stable.toml 里的 rustup 版本
+        discover: async () => {
+          const toml = await fetchText('https://static.rust-lang.org/rustup/release-stable.toml')
+          // 行首锚定：否则会先匹配到 schema-version = '1'
+          const match = toml.match(/^version\s*=\s*'([0-9.]+)'/m)
+          if (!match) throw new Error('无法从 release-stable.toml 解析 rustup 版本')
+          return [{ version: match[1] }]
+        },
         resolve: async (_v, candidates) => {
           const text = await fetchText(`${candidates[0]}.sha256`)
           const hash = text.trim().split(/\s+/)[0]

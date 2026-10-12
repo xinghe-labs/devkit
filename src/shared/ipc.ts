@@ -58,6 +58,12 @@ export const IPC = {
   settingsSave: 'settings:save',
   mirrorsApply: 'mirrors:apply',
 
+  /** 用系统浏览器打开 https 链接 */
+  appOpenExternal: 'app:open-external',
+
+  /** 更新检查（FR-13） */
+  updateCheck: 'update:check',
+
   /** 系统配置（FR-6） */
   systemStatus: 'system:status',
   systemApply: 'system:apply',

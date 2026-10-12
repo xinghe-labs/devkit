@@ -189,7 +189,11 @@
     "gitName": "user.name",
     "gitEmail": "user.email",
     "apply": "Apply",
-    "configured": "Configured"
+    "configured": "Configured",
+    "updateFeed": "Update feed",
+    "updateFeedHint": "Points at a latest.json or latest.yml; empty disables the check",
+    "checkUpdate": "Check for updates",
+    "downloadUpdate": "Download {{version}}"
   },
   "installed": {
     "title": "Installed (devkit-managed version dirs)",

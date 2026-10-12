@@ -80,6 +80,8 @@ export function SettingsDrawer() {
   const systemConfig = useManageStore((state) => state.systemConfig)
   const loadSystemConfig = useManageStore((state) => state.loadSystemConfig)
   const applySystemConfig = useManageStore((state) => state.applySystemConfig)
+  const checkUpdate = useManageStore((state) => state.checkUpdate)
+  const updateInfo = useManageStore((state) => state.updateInfo)
   const busy = useManageStore((state) => state.busy)
 
   const [gitName, setGitName] = useState('')
@@ -466,6 +468,42 @@ export function SettingsDrawer() {
               {t('settings.logDir')}：<Text code>{info?.logDir ?? '—'}</Text>
             </Text>
           </div>
+
+          <Row label={t('settings.updateFeed')} hint={t('settings.updateFeedHint')}>
+            <Input
+              size="small"
+              style={{ width: 340 }}
+              placeholder="https://example.com/devkit/latest.json"
+              defaultValue={settings.updateFeedUrl ?? ''}
+              onBlur={(event) => {
+                const value = event.target.value.trim()
+                if (value !== (settings.updateFeedUrl ?? '')) {
+                  void saveSettings({ updateFeedUrl: value || null })
+                }
+              }}
+            />
+          </Row>
+          <Space>
+            <Button size="small" loading={busy} onClick={() => void checkUpdate()}>
+              {t('settings.checkUpdate')}
+            </Button>
+            {updateInfo?.hasUpdate && updateInfo.downloadUrl ? (
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => void window.devkit.openExternal(updateInfo.downloadUrl ?? '')}
+              >
+                {t('settings.downloadUpdate', { version: updateInfo.latestVersion ?? '' })}
+              </Button>
+            ) : null}
+          </Space>
+          {updateInfo?.notes ? (
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {updateInfo.notes}
+              </Text>
+            </div>
+          ) : null}
           <Text type="secondary" style={{ fontSize: 12 }}>
             {t('settings.privacy')}
           </Text>

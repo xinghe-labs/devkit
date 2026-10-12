@@ -88,6 +88,11 @@ const api: DevkitApi = {
   saveSettings: (patch: unknown) => ipcRenderer.invoke(IPC.settingsSave, patch),
   applyMirrors: (settings: MirrorSetting[]) => ipcRenderer.invoke(IPC.mirrorsApply, settings),
 
+  openExternal: (url: string) => ipcRenderer.invoke(IPC.appOpenExternal, url),
+
+  /* ---------------- 更新检查 ---------------- */
+  checkForUpdate: () => ipcRenderer.invoke(IPC.updateCheck),
+
   /* ---------------- 系统配置 ---------------- */
   getSystemConfig: () => ipcRenderer.invoke(IPC.systemStatus),
   applySystemConfig: (request: SystemConfigRequest) => ipcRenderer.invoke(IPC.systemApply, request),

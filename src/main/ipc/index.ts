@@ -25,6 +25,7 @@ import type {
   SystemConfigItem,
   SystemConfigResult,
   UninstallRequest,
+  UpdateInfo,
   UninstallResult,
   UserConfigView
 } from '@shared/types'
@@ -44,6 +45,7 @@ import { loadManifests } from '../core/manifest'
 import { importOfflinePack, packOffline } from '../core/offline'
 import { clearUserManifests, runHotUpdate } from '../core/hotupdate'
 import { applySystemConfig, getSystemConfigStatus } from '../core/systemconfig'
+import { checkForUpdate } from '../core/updater'
 import { deleteUserPreset, importPreset, listPresets, saveUserPreset } from '../core/presets'
 import { renderPlanReport } from '../core/report/markdown'
 import { logger } from '../core/report/logger'
@@ -281,6 +283,36 @@ export function registerIpcHandlers(): void {
     const result = applyMirrors(settings)
     if (result.ok) saveConfigView({ mirrors: settings })
     return result
+  })
+
+  handle(IPC.appOpenExternal, async (_event, url: unknown): Promise<boolean> => {
+    const target = asNonEmptyString(url, 'url', 2000)
+    // 只允许 https：file:// 或自定义协议会把"打开链接"变成"执行本地东西"
+    if (!/^https:\/\//i.test(target)) throw new Error('只允许打开 https 链接')
+    await shell.openExternal(target)
+    logger.info('app', `已在系统浏览器打开：${target}`)
+    return true
+  })
+
+  /* ---------------- 更新检查（FR-13） ---------------- */
+
+  handle(IPC.updateCheck, async (): Promise<UpdateInfo> => {
+    const config = loadConfig()
+    if (!config.updateFeedUrl) {
+      return {
+        hasUpdate: false,
+        currentVersion: app.getVersion(),
+        latestVersion: null,
+        downloadUrl: null,
+        notes: null,
+        error: '还没有配置更新源（设置 → 关于 → 更新源）'
+      }
+    }
+    return checkForUpdate({
+      feedUrl: config.updateFeedUrl,
+      currentVersion: app.getVersion(),
+      proxy: config.proxy
+    })
   })
 
   /* ---------------- 系统配置（FR-6） ---------------- */

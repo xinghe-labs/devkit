@@ -37,7 +37,7 @@
   },
   "versions": [
     {
-      "version": "latest",
+      "version": "1.29.1",
       "channel": "stable",
       "recommended": true,
       "arch": "x64",

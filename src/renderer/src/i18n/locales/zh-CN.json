@@ -189,7 +189,11 @@
     "gitName": "user.name",
     "gitEmail": "user.email",
     "apply": "配置",
-    "configured": "已配置"
+    "configured": "已配置",
+    "updateFeed": "更新源",
+    "updateFeedHint": "指向一个 latest.json 或 latest.yml；留空表示关闭检查",
+    "checkUpdate": "检查更新",
+    "downloadUpdate": "下载 {{version}}"
   },
   "installed": {
     "title": "已安装（devkit 管理的版本目录）",

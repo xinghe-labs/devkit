@@ -24,6 +24,7 @@ import type {
   SystemConfigRequest,
   SystemConfigResult,
   UninstallRequest,
+  UpdateInfo,
   UninstallResult,
   UserConfigView
 } from './types'
@@ -90,6 +91,12 @@ export interface DevkitApi {
   getSettings(): Promise<UserConfigView>
   saveSettings(patch: unknown): Promise<UserConfigView>
   applyMirrors(settings: MirrorSetting[]): Promise<MirrorApplyResult>
+
+  /** 用系统浏览器打开一个 https 链接（只接受 https） */
+  openExternal(url: string): Promise<boolean>
+
+  /* ---------------- 更新检查（FR-13） ---------------- */
+  checkForUpdate(): Promise<UpdateInfo>
 
   /* ---------------- 系统配置（FR-6） ---------------- */
   getSystemConfig(): Promise<SystemConfigItem[]>

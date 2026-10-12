@@ -28,7 +28,7 @@ jobs:
         run: pnpm install --frozen-lockfile
         env:
           # 校验任务不需要 Electron 运行时二进制（约 250MB），跳过下载以加速 CI。
-          # 发布任务（release.yml，M4 加入）必须去掉这个变量。
+          # 需要跑界面冒烟的是下面的 smoke 任务，它必须下载。
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       - name: 清单校验（JSON Schema + 语义约束）
@@ -42,3 +42,43 @@ jobs:
 
       - name: 单元测试
         run: pnpm test
+
+  smoke:
+    name: 界面冒烟（渲染进程不得报错）
+    runs-on: windows-latest
+    needs: check
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖（需要 Electron 运行时）
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建
+        run: pnpm build
+
+      - name: 启动应用并断言界面无报错
+        shell: pwsh
+        run: |
+          # DEVKIT_SMOKE 下：渲染进程只要报过 error，退出码就是 1。
+          # 这样"界面白屏"不会再被当成启动成功。
+          $env:DEVKIT_SMOKE = '1'
+          $env:DEVKIT_SMOKE_DELAY_MS = '20000'
+          $process = Start-Process -FilePath 'node_modules/electron/dist/electron.exe' -ArgumentList '.' -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($process.ExitCode)" }
+          Write-Host "冒烟测试通过"
+
+      - name: 上传日志（失败时排查用）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devkit-logs
+          path: ~/AppData/Roaming/devkit/logs
+          if-no-files-found: ignore

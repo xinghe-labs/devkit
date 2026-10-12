@@ -45,6 +45,10 @@ export interface DownloadRequest {
   timeoutMs?: number
   /** 无数据超时（不是总时长限制，大文件慢速下载不会被误杀） */
   idleTimeoutMs?: number
+  /** 平均速度低于此值就换源（默认 32 KB/s） */
+  minSpeedBytesPerSec?: number
+  /** 速度哨兵的宽限期（默认 15 秒，大文件慢启动不误杀）；单测会调小 */
+  speedGraceMs?: number
   retriesPerSource?: number
   /** 仅测试用：允许 http:// 源。生产环境一律 https */
   allowInsecure?: boolean
@@ -80,6 +84,26 @@ class SourceUnavailableError extends Error {
     this.name = 'SourceUnavailableError'
   }
 }
+
+/**
+ * 源太慢：不是"连不上"，而是"连上了但慢到不可用"。
+ *
+ * 为什么必须单独识别：实测 GitHub release 资产在国内有时会以 1~5 KB/s 的速度"慢慢滴"，
+ * 连接正常、也不断流，所以空闲超时永远不会触发 —— 一个 10 MB 的包要下三个小时，
+ * 而且会卡在那里挡住后面明明更快的镜像。把"平均速度长期低于阈值"当成可回退错误，
+ * 是让镜像回退真正生效的关键一步（SPEC 风险表里"镜像速度差异巨大"那条）。
+ */
+class SlowSourceError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SlowSourceError'
+  }
+}
+
+/** 低于这个速度就换源（32 KB/s）；正常国内镜像都是 MB/s 级 */
+export const MIN_ACCEPTABLE_BYTES_PER_SEC = 32 * 1024
+/** 前 15 秒不计速度：大文件刚建立连接时可能有一段慢启动 */
+export const SPEED_GRACE_MS = 15_000
 
 /** 把"连接被掐断"这类底层报错翻译成用户能看懂的话 */
 function describeStreamError(error: Error, received: number, expected: number | null): Error {
@@ -118,20 +142,34 @@ function pipeToFile(params: {
   baseSize: number
   expectedTotal: number | null
   idleTimeoutMs: number
+  minSpeedBytesPerSec: number
+  speedGraceMs: number
   onProgress: (received: number) => void
   signal?: AbortSignal
 }): Promise<number> {
-  const { stream, file, append, baseSize, expectedTotal, idleTimeoutMs, onProgress, signal } =
-    params
+  const {
+    stream,
+    file,
+    append,
+    baseSize,
+    expectedTotal,
+    idleTimeoutMs,
+    minSpeedBytesPerSec,
+    speedGraceMs,
+    onProgress,
+    signal
+  } = params
 
   return new Promise<number>((resolve, reject) => {
     const out = createWriteStream(file, { flags: append ? 'a' : 'w' })
+    const startedAt = Date.now()
     let received = 0
     let settled = false
 
     const finish = (error?: Error): void => {
       if (settled) return
       settled = true
+      clearInterval(speedTimer)
       signal?.removeEventListener('abort', onAbort)
       stream.destroy()
       out.destroy()
@@ -141,6 +179,24 @@ function pipeToFile(params: {
 
     const onAbort = (): void => finish(new Error('下载已取消'))
     signal?.addEventListener('abort', onAbort, { once: true })
+
+    // 速度哨兵：过了宽限期还在爬，就换源
+    const speedTimer = setInterval(() => {
+      const elapsed = Date.now() - startedAt
+      if (elapsed < speedGraceMs) return
+
+      const total = baseSize + received
+      const speed = total / (elapsed / 1000)
+      if (speed >= minSpeedBytesPerSec) return
+
+      finish(
+        new SlowSourceError(
+          `下载速度只有 ${(speed / 1024).toFixed(1)} KB/s（低于 ${(
+            minSpeedBytesPerSec / 1024
+          ).toFixed(0)} KB/s），已放弃这个源`
+        )
+      )
+    }, 4000)
 
     stream.setTimeout(idleTimeoutMs, () => {
       finish(new Error(`下载中断：${idleTimeoutMs}ms 内没有收到任何数据`))
@@ -233,6 +289,8 @@ async function downloadFromSource(
     baseSize,
     expectedTotal: total,
     idleTimeoutMs,
+    minSpeedBytesPerSec: request.minSpeedBytesPerSec ?? MIN_ACCEPTABLE_BYTES_PER_SEC,
+    speedGraceMs: request.speedGraceMs ?? SPEED_GRACE_MS,
     onProgress: (received) =>
       request.onProgress?.({ source: source.name, received: baseSize + received, total }),
     signal: request.signal
@@ -339,8 +397,8 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
         attempts.push({ source: source.name, url: source.url, error: message })
         logger.warn('download', `${label} 失败：${message}`)
         if (request.signal?.aborted) return failed('已取消')
-        // 源级别的问题（镜像没同步 / 拒绝访问）重试无意义，直接换下一个源
-        if (error instanceof SourceUnavailableError) break
+        // 源级别的问题（镜像没同步 / 拒绝访问 / 慢到不可用）重试无意义，直接换下一个源
+        if (error instanceof SourceUnavailableError || error instanceof SlowSourceError) break
       }
     }
   }

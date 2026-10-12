@@ -7,6 +7,7 @@ import type {
   Preset,
   SystemConfigItem,
   SystemConfigRequest,
+  UpdateInfo,
   UserConfigView
 } from '@shared/types'
 
@@ -33,6 +34,7 @@ interface ManageState {
   offlineResult: OfflinePackResult | null
   hotUpdateResult: HotUpdateResultView | null
   systemConfig: SystemConfigItem[]
+  updateInfo: UpdateInfo | null
 
   settingsOpen: boolean
   installedOpen: boolean
@@ -64,6 +66,8 @@ interface ManageState {
 
   loadSystemConfig: () => Promise<void>
   applySystemConfig: (request: SystemConfigRequest) => Promise<void>
+
+  checkUpdate: () => Promise<void>
 }
 
 function describeError(error: unknown): string {
@@ -80,6 +84,7 @@ export const useManageStore = create<ManageState>()((set, get) => ({
   offlineResult: null,
   hotUpdateResult: null,
   systemConfig: [],
+  updateInfo: null,
   settingsOpen: false,
   installedOpen: false,
   busy: false,
@@ -325,6 +330,25 @@ export const useManageStore = create<ManageState>()((set, get) => ({
       set({ systemConfig: await window.devkit.getSystemConfig() })
     } catch (error) {
       set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  checkUpdate: async () => {
+    set({ busy: true, updateInfo: null })
+    try {
+      const info = await window.devkit.checkForUpdate()
+      set({ updateInfo: info })
+      set({
+        notice: info.error
+          ? { kind: 'warning', text: info.error }
+          : info.hasUpdate
+            ? { kind: 'success', text: `发现新版本 ${info.latestVersion}` }
+            : { kind: 'info', text: `已是最新版本（${info.currentVersion}）` }
+      })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
     }
   },
 

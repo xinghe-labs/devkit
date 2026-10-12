@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: build / verify / publish
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖（发布必须下载 Electron 运行时）
+        run: pnpm install --frozen-lockfile
+
+      # 发布前的门禁：任何一项不过都不允许出包。
+      # 这里刻意重复跑一遍 CI 的内容 —— 打 tag 的人可能跳过过 PR 检查。
+      - name: 清单校验
+        run: pnpm manifest:check
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 代码规范
+        run: pnpm lint
+
+      - name: 单元测试
+        run: pnpm test
+
+      - name: 构建并打包（NSIS + portable）
+        run: pnpm dist
+        env:
+          # 没有配置 publish 时不尝试上传，避免出现"假仓库地址"导致的失败
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: 生成更新索引 latest.json
+        run: pnpm release:index
+
+      - name: 校验产物确实存在
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'release/latest.json')) { throw '缺少 latest.json' }
+          Get-Content release/latest.json
+          Get-ChildItem release -Filter '*.exe' | Select-Object Name, Length
+
+      - name: 冒烟测试打包产物（界面必须能渲染且无渲染进程报错）
+        shell: pwsh
+        run: |
+          $env:DEVKIT_SMOKE = '1'
+          $env:DEVKIT_SMOKE_DELAY_MS = '20000'
+          $exe = 'release/win-unpacked/devkit.exe'
+          if (-not (Test-Path $exe)) { throw "找不到 $exe" }
+          $process = Start-Process -FilePath $exe -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($process.ExitCode)" }
+          Write-Host "冒烟测试通过"
+
+      - name: 发布到 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            release/devkit Setup *.exe
+            release/devkit-*-portable.exe
+            release/latest.json

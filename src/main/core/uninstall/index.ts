@@ -17,7 +17,8 @@ import { directorySize, removeInstallDir } from '../providers/direct'
  * 不会去猜某个工具是不是还在别处有系统级安装。
  */
 
-const VERSION_DIR = /^\d[\w.+-]*$/
+// 版本目录名：数字或字母开头都接受（rust 的版本标签来自 rustup 自己的版本号）
+const VERSION_DIR = /^[0-9A-Za-z][\w.+-]{0,39}$/
 
 /** 列出一个工具目录下的版本目录；不是目录或读不到就返回 null */
 function listVersionDirs(toolDir: string): string[] | null {

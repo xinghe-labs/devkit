@@ -363,3 +363,52 @@ describe('取消与协议约束', () => {
     expect(hits).toHaveLength(0)
   })
 })
+
+describe('慢速源回退（SPEC 风险表：镜像速度差异巨大）', () => {
+  it('源连得上但速度长期不达标时会放弃它，改用下一个源', async () => {
+    // 每 400ms 只吐 200 字节：连接不断，但平均速度只有几百 B/s。
+    // 这正是 GitHub release 资产在国内的典型表现 —— 空闲超时永远不会触发。
+    routes['/trickle'] = (_req, res) => {
+      res.writeHead(200, { 'content-length': String(PAYLOAD.length) })
+      const timer = setInterval(() => {
+        if (res.writableEnded) {
+          clearInterval(timer)
+          return
+        }
+        res.write(Buffer.alloc(200, 0x61))
+      }, 400)
+      res.on('close', () => clearInterval(timer))
+    }
+
+    const file = target('slow.bin')
+    const startedAt = Date.now()
+
+    const result = await download({
+      sources: [source('/trickle', 'slow-github'), source('/file', 'fast-mirror')],
+      targetFile: file,
+      minSpeedBytesPerSec: 100_000,
+      speedGraceMs: 800
+    })
+
+    expect(result.ok).toBe(true)
+    // 第一个源被判定为太慢并记进 attempts
+    expect(result.attempts[0]?.source).toBe('slow-github')
+    expect(result.attempts[0]?.error).toContain('KB/s')
+    // 最终落盘的是第二个源的文件，且内容正确
+    expect((await readFile(file)).length).toBe(PAYLOAD.length)
+    expect(Date.now() - startedAt).toBeLessThan(60_000)
+  }, 90_000)
+
+  it('速度达标时不会误杀（正常镜像不该被换掉）', async () => {
+    const file = target('ok.bin')
+    const result = await download({
+      sources: [source('/file', 'fast')],
+      targetFile: file,
+      minSpeedBytesPerSec: 1024,
+      speedGraceMs: 200
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.attempts).toHaveLength(0)
+  }, 60_000)
+})

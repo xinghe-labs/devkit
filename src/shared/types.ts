@@ -513,6 +513,16 @@ export interface SystemConfigResult {
   requiresAdmin: boolean
 }
 
+/** 更新检查结果（FR-13） */
+export interface UpdateInfo {
+  hasUpdate: boolean
+  currentVersion: string
+  latestVersion: string | null
+  downloadUrl: string | null
+  notes: string | null
+  error: string | null
+}
+
 /** 清单热更新结果（FR-15） */
 export interface HotUpdateResultView {
   ok: boolean
@@ -536,6 +546,8 @@ export interface UserConfigView {
   manifestHotUpdate: boolean
   /** 清单热更新索引地址（https）；null 表示未配置，功能关闭 */
   manifestHotUpdateUrl: string | null
+  /** 更新检查源（latest.json / latest.yml）；null 表示未配置 */
+  updateFeedUrl: string | null
   concurrency: number
   createRestorePoint: boolean
   mirrorPreference: MirrorPreference
