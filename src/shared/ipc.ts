@@ -58,6 +58,10 @@ export const IPC = {
   settingsSave: 'settings:save',
   mirrorsApply: 'mirrors:apply',
 
+  /** 清单热更新（FR-15） */
+  manifestHotUpdate: 'manifest:hot-update',
+  manifestClearOverride: 'manifest:clear-override',
+
   /** 离线包制作与导入（FR-12） */
   offlinePack: 'offline:pack',
   offlineImport: 'offline:import',

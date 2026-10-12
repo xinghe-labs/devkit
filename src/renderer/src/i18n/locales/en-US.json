@@ -174,7 +174,16 @@
     "about": "About",
     "manifestDir": "Manifest dir",
     "logDir": "Log dir",
-    "privacy": "Zero telemetry: devkit uploads nothing."
+    "privacy": "Zero telemetry: devkit uploads nothing.",
+    "hotUpdate": "Manifest update",
+    "hotUpdateHint": "Fetch the latest versions and checksums remotely. Only version/URL/SHA-256/size/mirrors are accepted; install commands and activation always come from the local manifest.",
+    "hotUpdateUrl": "Manifest index URL",
+    "hotUpdateUrlHint": "Point this at your own manifest index once published; empty disables it",
+    "hotUpdateAuto": "Check on startup",
+    "hotUpdateAutoHint": "One background fetch at startup; failures never block the app",
+    "hotUpdateRun": "Check now",
+    "hotUpdateReset": "Revert to built-in",
+    "hotUpdateRejected": "entries were rejected (see below)"
   },
   "installed": {
     "title": "Installed (devkit-managed version dirs)",

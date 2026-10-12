@@ -20,6 +20,8 @@ export interface UserConfig {
   autoUpdate: boolean
   /** 启动时拉取最新清单（FR-15） */
   manifestHotUpdate: boolean
+  /** 清单热更新索引地址（https）；null = 未配置 */
+  manifestHotUpdateUrl: string | null
   /** 1 = 串行；最大 3（FR-4） */
   concurrency: number
   /** 安装前创建系统还原点（FR-10） */
@@ -48,6 +50,7 @@ const DEFAULTS: UserConfig = {
   locale: DEFAULT_LOCALE,
   autoUpdate: true,
   manifestHotUpdate: true,
+  manifestHotUpdateUrl: null,
   concurrency: 1,
   createRestorePoint: false,
   mirrorPreference: 'official',
@@ -101,6 +104,11 @@ function sanitize(raw: unknown): UserConfig {
     locale: normalizeLocale(input.locale ?? systemLocale()),
     autoUpdate: input.autoUpdate !== false,
     manifestHotUpdate: input.manifestHotUpdate !== false,
+    manifestHotUpdateUrl:
+      typeof input.manifestHotUpdateUrl === 'string' &&
+      MIRROR_URL_PATTERN.test(input.manifestHotUpdateUrl.trim())
+        ? input.manifestHotUpdateUrl.trim()
+        : null,
     concurrency: Number.isFinite(concurrency) ? Math.min(3, Math.max(1, concurrency)) : 1,
     createRestorePoint: input.createRestorePoint === true,
     mirrorPreference: MIRRORS.includes(mirror) ? (mirror as MirrorPreference) : 'official',
@@ -157,6 +165,9 @@ export function saveConfigView(patch: unknown): UserConfigView {
 
   if (typeof input.autoUpdate === 'boolean') allowed.autoUpdate = input.autoUpdate
   if (typeof input.manifestHotUpdate === 'boolean') allowed.manifestHotUpdate = input.manifestHotUpdate
+  if (input.manifestHotUpdateUrl === null || typeof input.manifestHotUpdateUrl === 'string') {
+    allowed.manifestHotUpdateUrl = input.manifestHotUpdateUrl
+  }
   if (typeof input.activateAfterInstall === 'boolean') allowed.activateAfterInstall = input.activateAfterInstall
   if (typeof input.configureMirrors === 'boolean') allowed.configureMirrors = input.configureMirrors
   if (typeof input.createRestorePoint === 'boolean') allowed.createRestorePoint = input.createRestorePoint

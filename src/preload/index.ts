@@ -87,6 +87,10 @@ const api: DevkitApi = {
   saveSettings: (patch: unknown) => ipcRenderer.invoke(IPC.settingsSave, patch),
   applyMirrors: (settings: MirrorSetting[]) => ipcRenderer.invoke(IPC.mirrorsApply, settings),
 
+  /* ---------------- 清单热更新 ---------------- */
+  runHotUpdate: (url: string) => ipcRenderer.invoke(IPC.manifestHotUpdate, url),
+  clearManifestOverride: () => ipcRenderer.invoke(IPC.manifestClearOverride),
+
   /* ---------------- 离线包 ---------------- */
   packOffline: (request: OfflinePackRequest) => ipcRenderer.invoke(IPC.offlinePack, request),
   importOfflinePack: (packDir?: string) => ipcRenderer.invoke(IPC.offlineImport, { packDir })

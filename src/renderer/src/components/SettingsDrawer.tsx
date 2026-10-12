@@ -73,6 +73,9 @@ export function SettingsDrawer() {
   const deactivate = useManageStore((state) => state.deactivate)
   const packOffline = useManageStore((state) => state.packOffline)
   const importOfflinePack = useManageStore((state) => state.importOfflinePack)
+  const runHotUpdate = useManageStore((state) => state.runHotUpdate)
+  const clearManifestOverride = useManageStore((state) => state.clearManifestOverride)
+  const hotUpdateResult = useManageStore((state) => state.hotUpdateResult)
   const busy = useManageStore((state) => state.busy)
 
   const selections = useAppStore((state) => state.selections)
@@ -229,6 +232,80 @@ export function SettingsDrawer() {
               {t('settings.importOffline')}
             </Button>
           </Space>
+
+          <Divider style={{ margin: '10px 0' }} />
+          <Title level={5} style={{ margin: '4px 0' }}>
+            {t('settings.hotUpdate')}
+          </Title>
+          <Text type="secondary" style={{ fontSize: 12.5 }}>
+            {t('settings.hotUpdateHint')}
+          </Text>
+
+          <Row label={t('settings.hotUpdateUrl')} hint={t('settings.hotUpdateUrlHint')}>
+            <Input
+              size="small"
+              style={{ width: 340 }}
+              placeholder="https://example.com/devkit/manifest-index.json"
+              defaultValue={settings.manifestHotUpdateUrl ?? ''}
+              onBlur={(event) => {
+                const value = event.target.value.trim()
+                if (value !== (settings.manifestHotUpdateUrl ?? '')) {
+                  void saveSettings({ manifestHotUpdateUrl: value || null })
+                }
+              }}
+            />
+          </Row>
+
+          <Row label={t('settings.hotUpdateAuto')} hint={t('settings.hotUpdateAutoHint')}>
+            <Switch
+              size="small"
+              checked={settings.manifestHotUpdate}
+              onChange={(checked) => void saveSettings({ manifestHotUpdate: checked })}
+            />
+          </Row>
+
+          <Space>
+            <Button
+              size="small"
+              disabled={!settings.manifestHotUpdateUrl}
+              loading={busy}
+              onClick={() => void runHotUpdate(settings.manifestHotUpdateUrl ?? '')}
+            >
+              {t('settings.hotUpdateRun')}
+            </Button>
+            <Button size="small" loading={busy} onClick={() => void clearManifestOverride()}>
+              {t('settings.hotUpdateReset')}
+            </Button>
+          </Space>
+
+          {hotUpdateResult ? (
+            <div style={{ marginTop: 8 }}>
+              {hotUpdateResult.updated.map((item) => (
+                <div key={item.id}>
+                  <Text type="secondary" style={{ fontSize: 12.5 }}>
+                    ✔ {item.id} → {item.versions.join(' / ')}
+                  </Text>
+                </div>
+              ))}
+              {hotUpdateResult.rejected.length > 0 ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginTop: 6 }}
+                  message={`${hotUpdateResult.rejected.length} ${t('settings.hotUpdateRejected')}`}
+                  description={
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {hotUpdateResult.rejected.slice(0, 8).map((item, index) => (
+                        <li key={`${item.id}-${index}`}>
+                          <Text style={{ fontSize: 12 }}>{item.reason}</Text>
+                        </li>
+                      ))}
+                    </ul>
+                  }
+                />
+              ) : null}
+            </div>
+          ) : null}
 
           <Divider style={{ margin: '10px 0' }} />
           <Title level={5} style={{ margin: '4px 0' }}>

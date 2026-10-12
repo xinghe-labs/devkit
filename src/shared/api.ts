@@ -9,6 +9,7 @@ import type {
   InstalledTool,
   Locale,
   LogEntry,
+  HotUpdateResultView,
   ManifestLoadResult,
   MirrorApplyResult,
   MirrorSetting,
@@ -86,6 +87,10 @@ export interface DevkitApi {
   getSettings(): Promise<UserConfigView>
   saveSettings(patch: unknown): Promise<UserConfigView>
   applyMirrors(settings: MirrorSetting[]): Promise<MirrorApplyResult>
+
+  /* ---------------- 清单热更新（FR-15） ---------------- */
+  runHotUpdate(url: string): Promise<HotUpdateResultView>
+  clearManifestOverride(): Promise<number>
 
   /* ---------------- 离线包（FR-12） ---------------- */
   packOffline(request: OfflinePackRequest): Promise<OfflinePackResult>

@@ -174,7 +174,16 @@
     "about": "关于",
     "manifestDir": "清单目录",
     "logDir": "日志目录",
-    "privacy": "零遥测：devkit 不会上传任何数据。"
+    "privacy": "零遥测：devkit 不会上传任何数据。",
+    "hotUpdate": "清单更新",
+    "hotUpdateHint": "从远程拉取最新的版本号与校验和。只接受版本/地址/SHA-256/体积/镜像这些字段，安装命令与激活方式永远以本地清单为准。",
+    "hotUpdateUrl": "清单索引地址",
+    "hotUpdateUrlHint": "发布后填你自己的清单索引地址；留空表示关闭",
+    "hotUpdateAuto": "启动时自动检查",
+    "hotUpdateAutoHint": "启动后台拉取一次，失败不影响使用",
+    "hotUpdateRun": "立即检查更新",
+    "hotUpdateReset": "恢复内置清单",
+    "hotUpdateRejected": "条被拒绝（原因见下）"
   },
   "installed": {
     "title": "已安装（devkit 管理的版本目录）",

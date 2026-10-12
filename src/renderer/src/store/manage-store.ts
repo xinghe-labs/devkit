@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   ActivationSnapshot,
+  HotUpdateResultView,
   InstalledTool,
   OfflinePackResult,
   Preset,
@@ -28,6 +29,7 @@ interface ManageState {
   installed: InstalledTool[]
   activation: ActivationSnapshot | null
   offlineResult: OfflinePackResult | null
+  hotUpdateResult: HotUpdateResultView | null
 
   settingsOpen: boolean
   installedOpen: boolean
@@ -54,6 +56,8 @@ interface ManageState {
 
   packOffline: (toolIds: string[]) => Promise<void>
   importOfflinePack: () => Promise<void>
+  runHotUpdate: (url: string) => Promise<void>
+  clearManifestOverride: () => Promise<void>
 }
 
 function describeError(error: unknown): string {
@@ -68,6 +72,7 @@ export const useManageStore = create<ManageState>()((set, get) => ({
   installed: [],
   activation: null,
   offlineResult: null,
+  hotUpdateResult: null,
   settingsOpen: false,
   installedOpen: false,
   busy: false,
@@ -264,6 +269,42 @@ export const useManageStore = create<ManageState>()((set, get) => ({
             `已导入 ${result.imported} 个文件到下载缓存` +
             (result.missing.length > 0 ? `；${result.missing.length} 个文件缺失或校验失败` : '')
         }
+      })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  runHotUpdate: async (url) => {
+    set({ busy: true, hotUpdateResult: null })
+    try {
+      const result = await window.devkit.runHotUpdate(url)
+      set({
+        hotUpdateResult: result,
+        notice: result.ok
+          ? {
+              kind: result.applied > 0 ? 'success' : 'info',
+              text: `清单更新：拉取 ${result.fetched} 个，应用 ${result.applied} 个，拒绝 ${result.rejected.length} 个`
+            }
+          : { kind: 'error', text: result.error ?? '清单更新失败' }
+      })
+      if (result.applied > 0) await get().loadSettings()
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  clearManifestOverride: async () => {
+    set({ busy: true })
+    try {
+      const removed = await window.devkit.clearManifestOverride()
+      set({
+        hotUpdateResult: null,
+        notice: { kind: 'success', text: `已清除 ${removed} 个热更新覆盖，重启后回到内置清单` }
       })
     } catch (error) {
       set({ notice: { kind: 'error', text: describeError(error) } })

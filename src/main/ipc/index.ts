@@ -8,6 +8,7 @@ import type {
   ActivationSnapshot,
   AppInfo,
   DetectionResult,
+  HotUpdateResultView,
   InstalledTool,
   Locale,
   LogEntry,
@@ -38,6 +39,7 @@ import {
 } from '../core/executor/service'
 import { loadManifests } from '../core/manifest'
 import { importOfflinePack, packOffline } from '../core/offline'
+import { clearUserManifests, runHotUpdate } from '../core/hotupdate'
 import { deleteUserPreset, importPreset, listPresets, saveUserPreset } from '../core/presets'
 import { renderPlanReport } from '../core/report/markdown'
 import { logger } from '../core/report/logger'
@@ -276,6 +278,17 @@ export function registerIpcHandlers(): void {
     if (result.ok) saveConfigView({ mirrors: settings })
     return result
   })
+
+  /* ---------------- 清单热更新（FR-15） ---------------- */
+
+  handle(IPC.manifestHotUpdate, async (_event, url: unknown): Promise<HotUpdateResultView> => {
+    const target = asNonEmptyString(url, 'url', 500)
+    const { tools } = loadManifests()
+    const result = await runHotUpdate({ url: target, tools, proxy: loadConfig().proxy })
+    return result
+  })
+
+  handle(IPC.manifestClearOverride, (): number => clearUserManifests())
 
   /* ---------------- 离线包（FR-12） ---------------- */
 

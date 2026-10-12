@@ -69,6 +69,17 @@ export function getActivationFile(): string {
   return join(getUserDataDir(), 'activated.json')
 }
 
+/**
+ * 用户清单覆盖目录：%APPDATA%\devkit\manifest\
+ *
+ * 热更新（FR-15）把白名单过滤后的清单写到这里，启动时优先于内置清单。
+ * 放在用户数据目录而不是安装目录：便携版可能装在只读位置，而且这样升级 devkit
+ * 不会把用户更新的清单冲掉。
+ */
+export function getUserManifestDir(): string {
+  return join(getUserDataDir(), 'manifest')
+}
+
 /** 用户自建预设目录：%APPDATA%\devkit\presets\ */
 export function getPresetDir(): string {
   return ensureDir(join(getUserDataDir(), 'presets'))

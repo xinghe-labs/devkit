@@ -478,6 +478,16 @@ export interface MirrorSetting {
 }
 
 /** 镜像写入结果 */
+/** 清单热更新结果（FR-15） */
+export interface HotUpdateResultView {
+  ok: boolean
+  fetched: number
+  applied: number
+  rejected: { id: string; reason: string }[]
+  updated: { id: string; versions: string[] }[]
+  error: string | null
+}
+
 export interface MirrorApplyResult {
   ok: boolean
   changed: string[]
@@ -489,6 +499,8 @@ export interface UserConfigView {
   locale: Locale
   autoUpdate: boolean
   manifestHotUpdate: boolean
+  /** 清单热更新索引地址（https）；null 表示未配置，功能关闭 */
+  manifestHotUpdateUrl: string | null
   concurrency: number
   createRestorePoint: boolean
   mirrorPreference: MirrorPreference
