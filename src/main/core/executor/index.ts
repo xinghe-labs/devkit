@@ -46,6 +46,8 @@ export interface RunPlanOptions {
   dryRun?: boolean
   /** 安装成功后激活该版本；不传表示不激活 */
   activate?: (item: PlanItem, version: ToolVersionSpec) => Promise<ActivateOutcome>
+  /** 需要管理员的安装命令交给它执行（提权助手）；不传则直接执行 */
+  runElevatedCommand?: (label: string, command: { cmd: string; args: string[] }) => Promise<void>
 }
 
 type Emit = (currentItemId: string | null, detail?: InstallProgressEvent['detail']) => void
@@ -139,6 +141,7 @@ async function runItem(context: {
   signal: AbortSignal
   emit: Emit
   activate?: RunPlanOptions['activate']
+  runElevatedCommand?: RunPlanOptions['runElevatedCommand']
 }): Promise<void> {
   const { item, tool, version, plan, downloadDir, logDir, dryRun, signal, emit, activate } = context
 
@@ -207,7 +210,10 @@ async function runItem(context: {
         `[dry-run] ${item.id} 将执行：${command.cmd} ${command.args
           .map((arg) => (arg.includes(' ') ? `"${arg}"` : arg))
           .join(' ')}`
-      )
+      ),
+    runElevatedCommand: context.runElevatedCommand
+      ? (command) => context.runElevatedCommand!(`安装 ${item.id}@${item.version}`, command)
+      : undefined
   })
   logger.info(
     'executor',
@@ -298,7 +304,8 @@ export async function runPlan(options: RunPlanOptions): Promise<InstallPlan> {
         dryRun,
         signal,
         emit,
-        activate: options.activate
+        activate: options.activate,
+        runElevatedCommand: options.runElevatedCommand
       })
     } catch (error) {
       // 单项失败不中断整体

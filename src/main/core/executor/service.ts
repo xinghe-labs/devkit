@@ -11,6 +11,7 @@ import type {
   StartInstallResult
 } from '@shared/types'
 import { activateVersion } from '../activate'
+import { createRestorePoint, runElevated, toExecStep } from '../elevation'
 import { getDownloadDir, getLogDir, getVersionsRoot } from '../../utils/app-paths'
 import { loadManifests } from '../manifest'
 import { buildPlan, clearPendingPlan, loadPendingPlan } from '../plan'
@@ -106,17 +107,42 @@ export function startInstall(planId: string): StartInstallResult {
 
   const plan = currentPlan
   const { tools } = loadManifests()
+  const config = loadConfig()
 
-  void runPlan({
-    plan,
-    tools: indexById(tools),
-    downloadDir: getDownloadDir(),
-    logDir: getLogDir(),
-    signal: activeController.signal,
-    dryRun: plan.options.dryRun,
-    activate: loadConfig().activateAfterInstall ? activateHook : undefined,
-    onUpdate: (event) => listener?.(event)
-  })
+  void (async () => {
+    // 安装前还原点（FR-10）：只在确实有机器级安装、且用户开了开关时才做
+    if (config.createRestorePoint && plan.items.some((item) => item.requiresAdmin)) {
+      logger.info('install', '安装前创建系统还原点')
+      const restore = await createRestorePoint((message) => logger.info('elevation', message))
+      if (!restore.ok) {
+        // 还原点失败不阻断安装：它是锦上添花，而且很多机器根本没开系统保护
+        logger.warn('install', `创建还原点失败（继续安装）：${restore.error}`)
+      }
+    }
+
+    return runPlan({
+      plan,
+      tools: indexById(tools),
+      downloadDir: getDownloadDir(),
+      logDir: getLogDir(),
+      signal: activeController.signal,
+      dryRun: plan.options.dryRun,
+      activate: config.activateAfterInstall ? activateHook : undefined,
+      runElevatedCommand: async (label, command) => {
+        const outcome = await runElevated([toExecStep(label, { ...command, requiresAdmin: true })], (message) =>
+          logger.info('elevation', message)
+        )
+        if (!outcome.ok) {
+          throw new Error(
+            outcome.cancelled
+              ? '用户取消了管理员授权，机器级安装未执行'
+              : `提权安装失败：${outcome.error ?? '未知原因'}`
+          )
+        }
+      },
+      onUpdate: (event) => listener?.(event)
+    })
+  })()
     .then((finished) => {
       logger.info(
         'install',
