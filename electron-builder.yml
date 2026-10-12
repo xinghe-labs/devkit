@@ -1,5 +1,10 @@
 # electron-builder 配置
-# 说明：M0 阶段不配置 publish（自动更新在 M4 接入），避免出现假的仓库地址。
+# 说明：这里**刻意不配 publish**。
+#  · package.json 里已经有 repository 字段，electron-builder 会据此推断「要自动发布」并要求 GH_TOKEN；
+#    所以 npm script 里的 dist 显式带了 --publish never（实测踩到过：打包成功却因为缺 token 报错）。
+#  · 更新走的是提示式方案（core/updater）：从用户配置的更新源拉 latest.json / latest.yml，
+#    比较版本后把下载地址交给用户 —— 不依赖构建期的 publish 地址，也不静默替换二进制。
+#  · 发布产物由 .github/workflows/release.yml 用 action-gh-release 上传。
 
 appId: io.github.devkit
 productName: devkit

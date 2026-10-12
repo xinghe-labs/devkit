@@ -15,7 +15,7 @@
 | `pnpm manifest:check` | 19 个清单文件，19 个通过校验；16 个 `ready`、3 个 `detect-only`；校验失败 0 |
 | `pnpm typecheck` | 主进程 + 渲染进程，0 错误 |
 | `pnpm lint` | ESLint 0 问题 |
-| `pnpm test` | 23 个测试文件 / **266 个测试全部通过** |
+| `pnpm test` | 27 个测试文件 / **333 个测试全部通过** |
 | `pnpm build` | 三端产物生成成功（main / preload / renderer） |
 | `pnpm dist` | `release/devkit-0.1.0-setup.exe`（111.9 MB）+ `release/devkit-0.1.0-portable.exe`（111.7 MB） |
 | `pnpm release:index` | 生成 `release/latest.json`（含两个产物的 SHA-256 与体积） |
@@ -295,14 +295,55 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 
 | 问题 | 现象 | 修复 |
 | --- | --- | --- |
-| 离线包输出目录用手拼分隔符 || `.cmd` 自检在 Node 22 下全部失败 | Maven 的 `mvn.cmd`、Gradle 的 `gradle.bat`、VS Code 的 `code.cmd` 自检报 EINVAL —— Node 18.20.2 / 20.12.2 起（CVE-2024-27980 的修复）不带 shell 直接 spawn 批处理文件会抛 EINVAL，而回退条件只匹配了 ENOENT | 回退条件加上「EINVAL + 目标是 .cmd/.bat」；同时把命令路径的白名单从纯 ASCII 放宽为「只禁 cmd 元字符」—— 否则 devkit 自己的中文安装路径会被自己拒掉 |
+| 离线包输出目录用手拼分隔符 | 用户选到带尾随分隔符或相对路径的目录时，`mkdir` 会失败（实测报 `ENOENT ... AgentWork\tmpoffline-test`） | 改用 `path.join(outputDir, name)` |
+| `.cmd` 自检在 Node 22 下全部失败 | Maven 的 `mvn.cmd`、Gradle 的 `gradle.bat`、VS Code 的 `code.cmd` 自检报 EINVAL —— Node 18.20.2 / 20.12.2 起（CVE-2024-27980 的修复）不带 shell 直接 spawn 批处理文件会抛 EINVAL，而回退条件只匹配了 ENOENT | 回退条件加上「EINVAL + 目标是 .cmd/.bat」；同时把命令路径的白名单从纯 ASCII 放宽为「只禁 cmd 元字符」—— 否则 devkit 自己的中文安装路径会被自己拒掉 |
 | `cmd /s /c` 处理不了带空格的路径 | `cmd /d /s /c "C:\\a b\\x.cmd"` 里 `/s` 会剥掉首尾引号，空格变成参数分隔符，命令以 code=1 静默失败 | 回退改用 `cmd /d /c`（实测该写法能正确处理带空格路径） |
 | VS Code 自检永远拿到空输出 | `Code.exe` 是 GUI 子系统程序，`Code.exe --version` 退出码 0 但**什么都不输出**，用 `\d+\.\d+` 匹配会一直失败 | 清单自检改用 `bin\\code.cmd --version`（实测输出 `1.141.0`） |
 | 下载产物没有扩展名 | VS Code 的下载地址以 `/stable` 结尾，产物叫 `vscode-1.141.0-stable`（无扩展名），能不能被当程序跑全看运气 | URL 末段没有扩展名且不是 zip 时补 `.exe` |
 | 官方安装器会**自己**写用户 PATH | 实测 VS Code 的 Inno 安装器在 `/VERYSILENT` 下仍然往用户 PATH 写了 `...\vscode\<版本>\bin`；试过 `/MERGETASKS=!addtopath` 阻止，**无效**。这与 devkit 的「安装 ≠ 激活」原则冲突：用户没点过激活，命令却能用了，而且那条 PATH 不受 devkit 的记录管理、卸载时也没人清 | 改成通用方案：安装前后各取一次用户 PATH，有变化就**整体还原**并把被移除的条目写进日志与报告。不依赖任何安装器的任务名，任何安装器都拦得住 |
 | `.cmd` 回退的参数白名单也是纯 ASCII | 假安装器收到的 `/DIR=C:\Users\张三\AppData...` 被判为"不安全字符"直接拒执行 —— devkit 自己的中文路径会让回退彻底失效 | 参数白名单同样放宽为「只禁 cmd 元字符、通配符与空白」，不禁中文 |
 | 预检拿"用不到的条件"拦人 | 所有项都已安装（本次根本不需要下载）时，网络探测失败仍会让预检阻断，重跑一个已装好的工具被卡住 | 预检先判断是否真有需要下载的项；全部已安装时跳过网络探测并给出 ok 级结论 |
- 用户选到带尾随分隔符或相对路径的目录时，`mkdir` 会失败（实测报 `ENOENT ... AgentWork\tmpoffline-test`） | 改用 `path.join(outputDir, name)` |
+
+---
+
+## 3.10 GitHub Actions 实测（CI + Release）
+
+仓库建在 `xinghe-labs/devkit`（私有），`main` 与 tag `v0.1.0` 都已推送。
+两条流水线在 GitHub 的 Windows runner 上**真实跑通**：
+
+| 流水线 | 触发 | 耗时 | 结果 |
+| --- | --- | --- | --- |
+| CI | push `main` | 4m9s | ✅ 两个任务全绿：`lint / typecheck / manifest / test`（1m58s）+ `界面冒烟`（1m44s） |
+| Release | push tag `v0.1.0` | 4m58s | ✅ 完整门禁 → `pnpm dist` → 打包产物冒烟 → 发布 Release |
+
+CI 冒烟任务的实测输出（说明 Electron 在 runner 上真的启动并渲染了）：
+
+```
+确保 Electron 运行时存在   electron.exe 就绪：D:\a\devkit\devkit\node_modules\electron\dist\electron.exe
+启动应用并断言界面无报错   冒烟测试通过
+```
+
+发布产物（`gh release view v0.1.0`）：
+
+| 资产 | 体积 |
+| --- | --- |
+| `devkit-0.1.0-setup.exe` | 105.8 MB |
+| `devkit-0.1.0-portable.exe` | 105.6 MB |
+| `latest.json` | 546 B |
+
+### 首次上 GitHub 才暴露的 3 个问题（都已修）
+
+| 问题 | 现象 | 原因 | 修法 |
+| --- | --- | --- | --- |
+| 测试依赖系统语言 | `expected '…退出码…' to match /找不到\|不是内部或外部命令/` | 断言了 cmd 的**中文**报错文案，GitHub runner 是英文 Windows | 只断言我们自己拼的那部分（命令名 + 退出码） |
+| 冒烟任务起不来 Electron | `Start-Process: An error occurred trying to start process` | pnpm store 命中缓存（`reused 516 / downloaded 0`）时 electron 的 postinstall **不执行**，`node_modules/electron/dist` 是空的 | 冒烟任务显式检查 `electron.exe`，缺失就用官方源手动下载；`Start-Process` 改用绝对路径 + `-WorkingDirectory` |
+| Release 在打包后失败 | `GitHub Personal Access Token is not set` | `package.json` 里的 `repository` 字段让 electron-builder 推断「要自动发布」，于是索要 `GH_TOKEN`（其实**打包已经成功**） | `dist` 显式加 `--publish never`，另加 `dist:publish`；发布交给 `action-gh-release` |
+
+### 另外自己核对产物时发现的一个真实不一致（已修）
+
+产物名里带空格（`devkit Setup 0.1.0.exe`）会被上传工具改写成 `devkit.Setup.0.1.0.exe`，
+而 `latest.json` 里写的仍是带空格的名字 —— 更新检查会指向一个**不存在的文件名**。
+已把 NSIS 产物改名成 `devkit-<version>-setup.exe`（无空格），索引与实际资产名现在一致。
 
 ---
 
@@ -357,14 +398,17 @@ ExpandString；热更新不合并 detect/install/activate；提权脚本不混�
 | 1 | 机器级 MSI 真实安装（7-Zip） | 需要 UAC 与写 HKLM，不能在本机做 | 干净虚拟机里跑一次，确认只弹一次 UAC、装完能激活、卸载干净 |
 | 2 | `exe-nsis-silent` 模板真机行为 | 当前清单里没有用这个模板的可装项 | 找一个 NSIS 发行版（如 7-Zip 的 `7z*-x64.exe`）在虚拟机里验证 |
 | 3 | "新开终端 `node -v` 生效" | 需要一台原本没装过 Node 的机器 | 干净虚拟机 + 打开一个新的 cmd 窗口 |
-| 4 | 用户 PATH 的真实写入 | 会改用户环境变量，属于系统级改动 | 已用单测覆盖全部计算逻辑；真机写入应在虚拟机里做 |
-| 5 | `Checkpoint-Computer` 还原点 | 需要管理员，且多数机器未启用系统保护 | 虚拟机里开启系统保护后验证 |
-| 6 | 代码签名 | 需要 SignPath 账号与 CI 凭据 | 申请后接入 `release.yml` |
-| 7 | GitHub Release 发布 | 仓库还没有远程地址 | `git remote add` 后打 tag 触发 `release.yml` |
-| 8 | 更新检查的端到端 | 需要一个可访问的 `latest.json` | 把 `release/latest.json` 传到任意 https 静态托管，填进设置即可验证 |
+| 4 | `Checkpoint-Computer` 还原点 | 需要管理员，且多数机器未启用系统保护 | 虚拟机里开启系统保护后验证 |
+| 5 | 代码签名 | 需要 SignPath 账号与 CI 凭据 | 申请后接入 `release.yml` |
+| 6 | 更新检查的端到端 | 需要一个**可匿名访问**的 https 更新源；私有仓库的 Release 资产需要鉴权，取不到 | 把 `latest.json` 放到任意可公开访问的 https 静态托管，填进设置即可验证 |
 
-> 第 1~5 项都需要一台**干净虚拟机**。SPEC §12 已经确认过用户愿意安装
+> 第 1~4 项都需要一台**干净虚拟机**。SPEC §12 已经确认过用户愿意安装
 > VMware Workstation Player / VirtualBox 用于这类验收。
+
+**已从本清单移出（本轮已实测）**：
+
+- ~~用户 PATH 的真实写入~~ → §3.5 已真机完成「写入 + 备份 + 逐字节还原」
+- ~~GitHub Release 发布~~ → §3.10 已在 GitHub 上跑通 `release.yml` 并发布 v0.1.0
 
 ---
 
