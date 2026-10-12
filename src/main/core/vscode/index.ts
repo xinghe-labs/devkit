@@ -25,6 +25,56 @@ interface CatalogEntry {
 }
 
 const CATALOG: CatalogEntry[] = [
+  // AI 编码助手（放在最前面：这是现在最常被问"该装哪个"的一类）
+  {
+    id: 'saoudrizwan.claude-dev',
+    category: 'ai',
+    name: { 'zh-CN': 'Cline', 'en-US': 'Cline' },
+    description: {
+      'zh-CN': '在编辑器里自主读写文件、跑命令的 AI 助手',
+      'en-US': 'Autonomous AI agent that edits files and runs commands in your editor'
+    }
+  },
+  {
+    id: 'RooVeterinaryInc.roo-cline',
+    category: 'ai',
+    name: { 'zh-CN': 'Roo Code', 'en-US': 'Roo Code' },
+    description: {
+      'zh-CN': 'Cline 的分支，支持自定义模式与多模型切换',
+      'en-US': 'A Cline fork with custom modes and multi-model switching'
+    }
+  },
+  {
+    id: 'kilocode.kilo-code',
+    category: 'ai',
+    name: { 'zh-CN': 'Kilo Code', 'en-US': 'Kilo Code' },
+    description: {
+      'zh-CN': '另一个开源 AI 编码 agent 扩展',
+      'en-US': 'Another open-source AI coding agent extension'
+    }
+  },
+  {
+    id: 'Continue.continue',
+    category: 'ai',
+    name: { 'zh-CN': 'Continue', 'en-US': 'Continue' },
+    description: {
+      'zh-CN': '可接自建/本地模型的补全与对话',
+      'en-US': 'Completion and chat that can point at your own or local models'
+    }
+  },
+  {
+    id: 'GitHub.copilot',
+    category: 'ai',
+    name: { 'zh-CN': 'GitHub Copilot', 'en-US': 'GitHub Copilot' },
+    description: { 'zh-CN': '行内代码补全（需订阅）', 'en-US': 'Inline code completion (subscription required)' }
+  },
+  {
+    id: 'GitHub.copilot-chat',
+    category: 'ai',
+    name: { 'zh-CN': 'GitHub Copilot Chat', 'en-US': 'GitHub Copilot Chat' },
+    description: { 'zh-CN': 'Copilot 的对话面板', 'en-US': 'The Copilot chat panel' }
+  },
+
   // 前端
   {
     id: 'dbaeumer.vscode-eslint',

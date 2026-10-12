@@ -154,6 +154,22 @@
 > `code --version` 的真实报错。**只接受推荐列表里的插件 id** —— 这既挡住渲染进程传任意 id，
 > 也避免"一键安装"变成一条任意命令通道。
 
+### FR-20 AI 编码 agent 安装（v0.6 新增）
+
+- 内置主流 AI 编码 agent 清单，与其它工具一样走「勾选 → 预检 → 下载 → 安装 → 激活 → 自检」
+- 两种发行方式分别处理：
+  - **有官方独立二进制的**（Codex CLI、OpenCode）走 `zip-single-file-into-version-dir`，
+    与其它工具一样是「官方直链 + SHA-256」
+  - **只有 npm 发行物的**（Claude Code、Gemini CLI、Copilot CLI、Qwen Code）走
+    `npm-global-into-version-dir`：`npm install --global --prefix <版本目录>`，
+    **不污染用户的全局 npm**
+- **供应链差异必须显式告知**：npm 类工具只固定顶层包 tarball 的版本与 SHA-256，
+  其依赖与平台二进制由 npm 在安装时从 registry 解析，不在 devkit 校验范围内。
+  这条差异要写进清单 `notes`、在界面「详情」里可见，不允许含糊表述为"已校验"
+- npm 类清单一律 `tier: L2`（第三方发行物，不进离线包），由代码强制 + 单测覆盖
+- VS Code 插件面板新增 `ai` 分类（Cline / Roo Code / Kilo Code / Continue / Copilot 系列）
+- 内置「AI 编码」预设
+
 ### FR-8 安装后自检
 - 每个已安装项执行 `verify` 命令（如 `node -v`），匹配预期正则
 - 自检**不通过 = 该项失败**，即使安装器返回 0
@@ -483,7 +499,7 @@ devkit/
 }
 ```
 
-**安全说明**：`install.template` 与 `install.params` 是唯一允许触达命令行的字段，模板本身写死在 `src/main/core/templates/`，清单只能选模板名并填受限占位符。热更新的清单**不得覆盖** `install.*`（见 FR-15）。
+**安全说明**：`install.template` 与 `install.params` 是唯一允许触达命令行的字段，模板本身写死在 `src/main/core/templates/`，清单只能选模板名并填受限占位符。**唯一的例外是 npm 模板**（`npm-global-into-version-dir`）：它执行的是 `npm install`，npm 会在安装时从 registry 解析该包的依赖 —— 这部分不受模板白名单保护。因此 npm 类清单一律 L2、不进离线包，并在 `notes` 里如实说明（见 FR-20 与 §13.7）。热更新的清单**不得覆盖** `install.*`（见 FR-15）。
 
 ### 7.2 预设格式（可导出分享）
 
@@ -612,7 +628,7 @@ devkit/
 全程 UI 实时日志；中途强杀 devkit 再启动能提示并继续；卸载 = 删目录。
 
 ### M1b — 系统级安装（需提权，虚拟机验收）
-**状态**：🟡 已实现；8 个安装模板里 6 个已在真机跑通（含 Inno 的 VS Code），
+**状态**：🟡 已实现；**9 个安装模板**里 7 个已在真机跑通（含 Inno 的 VS Code、npm 的 AI agent），
 MSI 与 NSIS 两个模板仍需干净虚拟机验收
 
 **产出**：MSI / EXE 静默安装 + §6.6 常驻提权 helper + 系统级 PATH 写入 + 安装前还原点
@@ -721,6 +737,16 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 ```
 
 这条规则对**任何**安装器都成立，不依赖对某个安装器参数的逆向。
+
+### 13.7 AI agent 的发行方式与供应链边界（v0.6）
+
+| # | 问题 | 结论 |
+|---|---|---|
+| 18 | AI agent 该不该都走「官方直链 + SHA-256」 | 能走的必须走。实测只有 **Codex CLI** 与 **OpenCode** 提供官方独立二进制，这两个就按直链 + SHA-256 处理 |
+| 19 | 只有 npm 发行物的怎么办 | 新增 `npm-global-into-version-dir` 模板，`npm install --global --prefix <版本目录>`，装进版本目录、不污染全局 npm。**但必须如实标注**：固定的只是顶层包 tarball，依赖与平台二进制由 npm 在安装时解析，不在 devkit 校验范围内 |
+| 20 | 为什么不用「下载 npm tarball 再解压」来回避 npm | 因为那样解不出平台二进制。实测 `@anthropic-ai/claude-code` 顶层包 **29 KB**，真正可执行文件在 `@anthropic-ai/claude-code-win32-x64` 可选依赖里（装完 **249 MB**）。"只解压顶层包"会得到一个跑不起来的空壳 |
+| 21 | npm 类工具的许可证分级 | 一律 **L2**：可以自动下载安装，但发行物不得再分发 → 不进离线包。这条由 `partitionByRedistributable` 在代码里强制，并加了单测 |
+| 22 | 离线包该不该按 tier 过滤 | **该**。之前 `packOffline` 不按 tier 过滤，用户能把 L2（不可再分发）的工具打进离线包 —— 这是许可证问题不是技术问题。已加过滤，并把被排除的项写进结果与界面提示 |
 
 ### 13.5 安全审查结论（v0.5）
 

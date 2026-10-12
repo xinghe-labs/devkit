@@ -6,7 +6,8 @@ const CONTEXT: CommandContext = {
   installDir: 'C:\\Users\\屈\\.devkit\\versions\\nodejs\\24.21.0',
   logFile: 'C:\\Users\\屈\\AppData\\Roaming\\devkit\\logs\\installer-nodejs-24.21.0.log',
   version: '24.21.0',
-  toolId: 'nodejs'
+  toolId: 'nodejs',
+  npmCmd: 'C:\\Users\\屈\\.devkit\\current\\nodejs\\npm.cmd'
 }
 
 describe('安装模板白名单', () => {
@@ -236,5 +237,68 @@ describe('安装器类模板：命令行只能由代码拼', () => {
     const msi = resolveInstallTemplate({ type: 'msi', template: 'msi-install' })
     expect(msi!.extract).toBeUndefined()
     expect(msi!.buildCommand).toBeDefined()
+  })
+})
+
+describe('npm 类模板（AI 编码 agent 这类只发 npm 的工具）', () => {
+  it('命令固定为 install --global --prefix <版本目录> <本地 tgz>', () => {
+    const resolved = resolveInstallTemplate({
+      type: 'npm',
+      template: 'npm-global-into-version-dir',
+      params: { binName: 'claude' }
+    })
+    const command = resolved!.buildCommand!(CONTEXT)
+
+    expect(command.cmd).toBe(CONTEXT.npmCmd)
+    expect(command.args).toContain('install')
+    expect(command.args).toContain('--global')
+    // 关键：装进版本目录，而不是全局 %APPDATA%\npm
+    expect(command.args[command.args.indexOf('--prefix') + 1]).toBe(CONTEXT.installDir)
+    // 装的是已经校验过哈希的本地 tgz
+    expect(command.args).toContain(CONTEXT.archivePath)
+    expect(command.args).not.toContain('-g')
+    expect(command.requiresAdmin).toBe(false)
+  })
+
+  it('binName 是必填项', () => {
+    expect(() =>
+      resolveInstallTemplate({ type: 'npm', template: 'npm-global-into-version-dir' })
+    ).toThrow(/缺少必填参数 "binName"/)
+  })
+
+  it('binName 拒绝路径穿越与奇怪字符', () => {
+    for (const bad of ['../evil', 'a/b', 'a b', 'a.exe;calc', '']) {
+      expect(() =>
+        resolveInstallTemplate({
+          type: 'npm',
+          template: 'npm-global-into-version-dir',
+          params: { binName: bad }
+        }),
+        `binName=${JSON.stringify(bad)}`
+      ).toThrow(TemplateError)
+    }
+  })
+
+  it('extraArgs 只接受白名单开关', () => {
+    const ok = resolveInstallTemplate({
+      type: 'npm',
+      template: 'npm-global-into-version-dir',
+      params: { binName: 'gemini', extraArgs: '--omit=optional' }
+    })
+    expect(ok!.buildCommand!(CONTEXT).args).toContain('--omit=optional')
+
+    expect(() =>
+      resolveInstallTemplate({
+        type: 'npm',
+        template: 'npm-global-into-version-dir',
+        params: { binName: 'gemini', extraArgs: '--registry=http://evil;calc' }
+      })
+    ).toThrow(TemplateError)
+  })
+
+  it('类型不匹配会被拒绝', () => {
+    expect(() =>
+      resolveInstallTemplate({ type: 'zip', template: 'npm-global-into-version-dir' })
+    ).toThrow(/类型是 npm/)
   })
 })

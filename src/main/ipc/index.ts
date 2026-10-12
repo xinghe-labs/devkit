@@ -388,7 +388,7 @@ export function registerIpcHandlers(): void {
         properties: ['openDirectory', 'createDirectory']
       })
       if (picked.canceled || picked.filePaths.length === 0) {
-        return { ok: false, packDir: null, fileCount: 0, totalBytes: 0, error: '已取消' }
+        return { ok: false, packDir: null, fileCount: 0, totalBytes: 0, skipped: [], error: '已取消' }
       }
       outputDir = picked.filePaths[0]
     }

@@ -17,7 +17,14 @@ export const DEFAULT_LOCALE: Locale = 'zh-CN'
 export type LocalizedText = Partial<Record<Locale, string>> & Record<string, string | undefined>
 
 /** 清单分类，决定左侧导航分组 */
-export type ToolCategory = 'runtime' | 'build' | 'database' | 'container' | 'editor' | 'tool'
+export type ToolCategory =
+  | 'runtime'
+  | 'build'
+  | 'database'
+  | 'container'
+  | 'editor'
+  | 'ai'
+  | 'tool'
 
 export const TOOL_CATEGORIES: readonly ToolCategory[] = [
   'runtime',
@@ -25,6 +32,7 @@ export const TOOL_CATEGORIES: readonly ToolCategory[] = [
   'database',
   'container',
   'editor',
+  'ai',
   'tool'
 ] as const
 
@@ -57,8 +65,9 @@ export type ManifestStatus = 'detect-only' | 'ready'
  * - exe-inno   Inno Setup 安装器（VS Code 等），走 /VERYSILENT
  * - exe-7zsfx  7-Zip 自解压包（PortableGit 等），走 -o<dir> -y
  * - exe-custom 自带安装器（Python / rustup），参数由内置模板固定
+ * - npm        npm 包（AI 编码 agent 这类只发 npm 的工具）：装进版本目录，不污染全局 npm
  */
-export type InstallType = 'msi' | 'exe-nsis' | 'exe-inno' | 'exe-7zsfx' | 'exe-custom' | 'zip'
+export type InstallType = 'msi' | 'exe-nsis' | 'exe-inno' | 'exe-7zsfx' | 'exe-custom' | 'zip' | 'npm'
 
 /**
  * 安装范围。必须逐项声明，不存在全局默认（见 SPEC §9）：
@@ -543,7 +552,15 @@ export interface SystemConfigResult {
 /* VS Code 插件（FR-7）                                                 */
 /* ------------------------------------------------------------------ */
 
-export type VscodeCategory = 'frontend' | 'java' | 'python' | 'go' | 'rust' | 'cpp' | 'general'
+export type VscodeCategory =
+  | 'ai'
+  | 'frontend'
+  | 'java'
+  | 'python'
+  | 'go'
+  | 'rust'
+  | 'cpp'
+  | 'general'
 
 export interface VscodeExtension {
   id: string
@@ -629,5 +646,10 @@ export interface OfflinePackResult {
   packDir: string | null
   fileCount: number
   totalBytes: number
+  /**
+   * 因为许可证分级被排除的项（L2/L3 不得再分发，SPEC §8）。
+   * 必须让用户看到"为什么少了几个"，而不是悄悄少打包。
+   */
+  skipped: { id: string; tier: LicenseTier; reason: string }[]
   error: string | null
 }

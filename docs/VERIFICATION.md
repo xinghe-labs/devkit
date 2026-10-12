@@ -12,10 +12,10 @@
 
 | 命令 | 结果 |
 | --- | --- |
-| `pnpm manifest:check` | 19 个清单文件，19 个通过校验；16 个 `ready`、3 个 `detect-only`；校验失败 0 |
+| `pnpm manifest:check` | 25 个清单文件，25 个通过校验；22 个 `ready`、3 个 `detect-only`；校验失败 0 |
 | `pnpm typecheck` | 主进程 + 渲染进程，0 错误 |
 | `pnpm lint` | ESLint 0 问题 |
-| `pnpm test` | 27 个测试文件 / **333 个测试全部通过** |
+| `pnpm test` | 28 个测试文件 / **354 个测试全部通过** |
 | `pnpm build` | 三端产物生成成功（main / preload / renderer） |
 | `pnpm dist` | `release/devkit-0.1.0-setup.exe`（111.9 MB）+ `release/devkit-0.1.0-portable.exe`（111.7 MB） |
 | `pnpm release:index` | 生成 `release/latest.json`（含两个产物的 SHA-256 与体积） |
@@ -344,6 +344,82 @@ CI 冒烟任务的实测输出（说明 Electron 在 runner 上真的启动并�
 产物名里带空格（`devkit Setup 0.1.0.exe`）会被上传工具改写成 `devkit.Setup.0.1.0.exe`，
 而 `latest.json` 里写的仍是带空格的名字 —— 更新检查会指向一个**不存在的文件名**。
 已把 NSIS 产物改名成 `devkit-<version>-setup.exe`（无空格），索引与实际资产名现在一致。
+
+---
+
+## 3.11 AI 编码 agent 安装（6 个，全部真机跑通）
+
+先做事实调研再动手：查了各家到底有没有**可校验的独立发行物**。结论是只有两家有 ——
+Codex CLI 与 OpenCode 提供官方二进制，其余四家只有 npm 包。因此分两条路径实现。
+
+| 工具 | 版本 | 发行方式 | 模板 | 自检输出 | 耗时 |
+| --- | --- | --- | --- | --- | --- |
+| Claude Code | 2.1.296 | npm 包 | `npm-global-into-version-dir` | `2.1.296 (Claude Code)` | 10.2s |
+| Gemini CLI | 0.63.0 | npm 包 | `npm-global-into-version-dir` | `0.63.0` | 38.8s |
+| GitHub Copilot CLI | 1.0.95 | npm 包 | `npm-global-into-version-dir` | `GitHub Copilot CLI 1.0.95.` | 35.5s |
+| Qwen Code | 0.25.1 | npm 包 | `npm-global-into-version-dir` | `0.25.1` | 62.0s |
+| OpenCode | 1.19.0 | 官方独立二进制 | `zip-single-file-into-version-dir` | `1.19.0` | 52.2s |
+| Codex CLI | 0.162.1 | 官方独立二进制 | `zip-single-file-into-version-dir` | `codex-cli 0.162.1` | 65.0s |
+
+安装后的版本目录体积：
+
+```
+claude-code    249M
+gemini-cli     106M
+copilot-cli    152M
+qwen-code      167M
+opencode       173M   （解出的 opencode.exe）
+codex          319M   （zip 里叫 codex-x86_64-pc-windows-msvc.exe，asName 落成 codex.exe）
+```
+
+### 供应链差异的实测数字（写进了清单 notes，不是猜测）
+
+```
+@anthropic-ai/claude-code 顶层 tarball :      29,001 字节  ← devkit 固定的就是它（SHA-256）
+装完版本目录                            : 249 MB          ← 多出来的部分由 npm 在安装时下载
+                                                            （@anthropic-ai/claude-code-win32-x64 可选依赖）
+```
+
+→ 所以 npm 类工具**不能**宣称与「官方直链 + SHA-256」等价。清单 `notes` 里写清了这一点，
+`docs/UPGRADE-PLAN` 之外的读者也能在界面「详情」里看到。Codex / OpenCode 走的是直链 + SHA-256，
+与其它工具完全一致。
+
+### 没有污染全局 npm（独立核对）
+
+用的是 `npm install --global --prefix <版本目录>`，bin 落在版本目录里：
+
+```
+$ ls %USERPROFILE%\.devkit\versions\claude-code\2.1.296
+claude  claude.cmd  claude.ps1  node_modules
+```
+
+顺带查了一下 `%APPDATA%\npm`（那里确实有 `claude.cmd` / `codex.cmd` 等），结论是**与本次安装无关**：
+
+```
+$ ls -lad %APPDATA%/npm
+lrwxrwxrwx ... C:\Users\张三\AppData\Roaming\npm -> /d/npm/npm-global
+
+那些 .cmd 的时间戳：claude/codex/gemini = 10-10 16:45，copilot = 03-19（用户此前自己全局装的）
+本次安装发生在 10-12 18:36~18:50，该目录里**没有任何 10-12 的文件**。
+```
+
+### 顺带修掉的一个许可证策略缺口
+
+加 AI 清单时发现：`packOffline` **不按 tier 过滤**，用户能把 L2（不可再分发）的工具打进离线包 ——
+这违反 SPEC §8 自己的规定，而且是许可证问题不是技术问题。已修：
+
+- 抽出纯函数 `partitionByRedistributable()`，只让 L1 进离线包
+- 被排除的项写进 `OfflinePackResult.skipped`，界面提示里列出来（`vscode(L2)` 这样）
+- 4 个单测覆盖（含「全是 L2 时 packable 为空，而不是硬塞进去」）
+
+### npm 模板的两条硬约束（都有单测）
+
+1. `binName` 必填且拒绝路径穿越（`../evil`、`a/b`、`a b`、`a.exe;calc` 全部拒绝）
+2. `extraArgs` 只接受白名单开关（`--registry=http://evil;calc` 被拒）
+
+另外 AI 类清单加了一组**跨清单不变量测试**：每个 AI 工具必须有 `activate` 且指向 `{currentDir}`、
+必须有 `verify`、npm 类必须是 L2、有官方二进制的必须是 L1、npm 类的 `notes` 必须写明供应链差异、
+`verify` 必须指向 `binName.cmd`、每个版本必须有镜像回退。
 
 ---
 

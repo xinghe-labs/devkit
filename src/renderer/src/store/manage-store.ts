@@ -274,7 +274,17 @@ export const useManageStore = create<ManageState>()((set, get) => ({
       set({
         offlineResult: result,
         notice: result.ok
-          ? { kind: 'success', text: `离线包已生成：${result.packDir}（${result.fileCount} 个文件）` }
+          ? {
+              kind: result.skipped.length > 0 ? 'warning' : 'success',
+              text:
+                `离线包已生成：${result.packDir}（${result.fileCount} 个文件）` +
+                // 许可证分级导致的排除必须说出来，不能让用户以为"少打包了但没人告诉我"
+                (result.skipped.length > 0
+                  ? `；${result.skipped.length} 项因许可证分级未打包：${result.skipped
+                      .map((item) => `${item.id}(${item.tier})`)
+                      .join('、')}`
+                  : '')
+            }
           : { kind: 'error', text: result.error ?? '生成离线包失败' }
       })
     } catch (error) {

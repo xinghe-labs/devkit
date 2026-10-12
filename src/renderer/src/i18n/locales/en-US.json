@@ -33,7 +33,8 @@
     "database": "Databases",
     "container": "Containers",
     "editor": "Editors / IDEs",
-    "tool": "Utilities"
+    "tool": "Utilities",
+    "ai": "AI coding agents"
   },
   "status": {
     "not-installed": "Not installed",
@@ -241,7 +242,8 @@
       "python": "Python",
       "go": "Go",
       "rust": "Rust",
-      "cpp": "C/C++"
+      "cpp": "C/C++",
+      "ai": "AI assistants"
     }
   }
 }

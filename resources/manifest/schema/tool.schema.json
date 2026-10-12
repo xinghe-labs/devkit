@@ -13,7 +13,7 @@
       "description": "全局唯一，同时用作文件名与依赖引用键"
     },
     "category": {
-      "enum": ["runtime", "build", "database", "container", "editor", "tool"]
+      "enum": ["runtime", "build", "database", "container", "editor", "ai", "tool"]
     },
     "tier": {
       "enum": ["L1", "L2", "L3"],
@@ -138,7 +138,7 @@
       "required": ["type", "template"],
       "additionalProperties": false,
       "properties": {
-        "type": { "enum": ["msi", "exe-nsis", "exe-inno", "exe-7zsfx", "exe-custom", "zip"] },
+        "type": { "enum": ["msi", "exe-nsis", "exe-inno", "exe-7zsfx", "exe-custom", "zip", "npm"] },
         "template": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]*$",

@@ -1,0 +1,82 @@
+{
+  "id": "codex",
+  "category": "ai",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "Codex CLI",
+    "en-US": "Codex CLI"
+  },
+  "description": {
+    "zh-CN": "OpenAI 的终端 AI 编码 agent，官方提供单文件可执行，不需要 Node.js。",
+    "en-US": "OpenAI terminal AI coding agent, shipped as a standalone executable; no Node.js needed."
+  },
+  "homepage": "https://github.com/openai/codex",
+  "license": {
+    "spdx": "Apache-2.0",
+    "redistributable": true
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "codex",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "0.162.1",
+      "channel": "stable",
+      "recommended": true,
+      "arch": "x64",
+      "sizeBytes": 164672399,
+      "installScope": "user",
+      "source": {
+        "url": "https://github.com/openai/codex/releases/download/rust-v0.162.1/codex-x86_64-pc-windows-msvc.exe.zip",
+        "sha256": "4b17206ed3045de64064b2016627d51fba3bde386d03838312054882a64d781d"
+      },
+      "mirrors": [
+        {
+          "name": "ghproxy",
+          "url": "https://gh-proxy.com/https://github.com/openai/codex/releases/download/rust-v0.162.1/codex-x86_64-pc-windows-msvc.exe.zip"
+        },
+        {
+          "name": "ghfast",
+          "url": "https://ghfast.top/https://github.com/openai/codex/releases/download/rust-v0.162.1/codex-x86_64-pc-windows-msvc.exe.zip"
+        }
+      ],
+      "install": {
+        "type": "zip",
+        "template": "zip-single-file-into-version-dir",
+        "params": {
+          "fileName": "codex-x86_64-pc-windows-msvc.exe",
+          "asName": "codex.exe"
+        }
+      },
+      "uninstall": {
+        "type": "custom"
+      },
+      "activate": {
+        "pathEntries": [
+          "{currentDir}"
+        ]
+      },
+      "verify": {
+        "cmd": "{installDir}\\codex.exe",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "\\d+\\.\\d+"
+      }
+    }
+  ],
+  "notes": {
+    "zh-CN": "官方 release 的 Windows x64 资产（约 157 MB 压缩包，解出约 318 MB），走「官方直链 + SHA-256」，不需要 Node.js。同一个包里还有 app-server、sandbox-setup 等辅助可执行文件，devkit 只取主程序（zip-single-file 模板）。GitHub release 资产在国内直连不通，清单带了两个加速代理作为镜像；它们只是转发同一份字节，SHA-256 会兜底。",
+    "en-US": "Official Windows x64 release asset (~157 MB archive, ~318 MB extracted), verified with SHA-256 — no Node.js needed. The archive also contains app-server / sandbox-setup helpers; devkit takes only the main binary (zip-single-file template). GitHub release assets are unreachable from mainland China, so the manifest lists two acceleration proxies as mirrors — they only forward the same bytes and SHA-256 is enforced."
+  }
+}

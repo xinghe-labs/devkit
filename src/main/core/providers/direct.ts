@@ -1,7 +1,11 @@
 import { basename, dirname, join } from 'node:path'
+import { existsSync, readdirSync } from 'node:fs'
 import { cp, mkdir, rm, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { compareVersions } from '@shared/version'
 import type { ToolManifest, ToolVersionSpec } from '@shared/types'
 import { runCommand } from '../../utils/exec'
+import { getCurrentRoot } from '../../utils/app-paths'
 import { logger } from '../report/logger'
 import { resolveInstallTemplate, type CommandContext, type InstallerCommand } from '../templates'
 import { extractZip, extractZipSingleFile } from '../installer/zip'
@@ -60,6 +64,42 @@ export class InstallError extends Error {
     super(message)
     this.name = 'InstallError'
   }
+}
+
+/**
+ * 解析 npm 可执行文件。
+ *
+ * 顺序：devkit 激活的 Node.js → devkit 装过的最新 Node.js → PATH 上的 npm。
+ * 为什么不能只用 PATH：devkit 的模型是「装进版本目录但不一定激活」，
+ * 用户完全可能刚用 devkit 装了 Node.js 却没点激活，这时 PATH 上根本没有 npm。
+ */
+function resolveNpmCmd(): { cmd: string; fromDevkit: boolean } {
+  // 1) 激活链接
+  try {
+    const activated = join(getCurrentRoot(), 'nodejs', 'npm.cmd')
+    if (existsSync(activated)) return { cmd: activated, fromDevkit: true }
+  } catch {
+    // 脚本模式（tsx）里没有 electron 运行时，getCurrentRoot 会抛；忽略即可
+  }
+
+  // 2) 版本目录里最新的一个 Node.js
+  try {
+    const root = join(homedir(), '.devkit', 'versions', 'nodejs')
+    if (existsSync(root)) {
+      const versions = readdirSync(root)
+        .filter((name) => /^\d/.test(name))
+        .sort((a, b) => compareVersions(b, a))
+      for (const version of versions) {
+        const candidate = join(root, version, 'npm.cmd')
+        if (existsSync(candidate)) return { cmd: candidate, fromDevkit: true }
+      }
+    }
+  } catch {
+    // 读不到就当没有
+  }
+
+  // 3) 交给 PATH
+  return { cmd: 'npm.cmd', fromDevkit: false }
 }
 
 /** 安装器最长允许跑 30 分钟（VS Code / Python 这类在慢机器上可能要几分钟） */
@@ -138,12 +178,28 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
     )
   }
 
+  const npm = resolveNpmCmd()
+
+  // npm 类模板的前置检查：给一条能直接照做的报错，而不是让用户看到
+  // 「spawn npm.cmd ENOENT」这种无从下手的消息
+  if (resolved.template.type === 'npm' && !request.dryRun) {
+    const probe = await runCommand(npm.cmd, ['--version'], { timeoutMs: 30_000 })
+    if (probe.spawnError || probe.code !== 0) {
+      throw new InstallError(
+        `${request.tool.id} 需要通过 npm 安装，但没找到可用的 npm。\n` +
+          'npm 随 Node.js 一起提供：请在 devkit 里把 Node.js 一起勾选安装（或先装好 Node.js 再回来）。\n' +
+          `已尝试的 npm 路径：${npm.cmd}${probe.spawnError ? `（${probe.spawnError}）` : ''}`
+      )
+    }
+  }
+
   const context: CommandContext = {
     archivePath: request.archivePath,
     installDir: request.installDir,
     logFile: request.logFile,
     version: request.version.version,
-    toolId: request.tool.id
+    toolId: request.tool.id,
+    npmCmd: npm.cmd
   }
 
   if (request.dryRun) {
@@ -188,6 +244,7 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
         destDir: request.installDir,
         fileName: plan.fileName,
         subDir: plan.subDir,
+        asName: plan.asName,
         signal: request.signal
       })
       return {

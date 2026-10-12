@@ -210,6 +210,77 @@ async function downloadAndHash(candidates: string[]): Promise<{ sha256: string; 
   throw new Error(`${chosen.url} → ${errors.join(' / ')}`)
 }
 
+const NPM_OFFICIAL = 'https://registry.npmjs.org'
+const NPM_MIRROR = 'https://registry.npmmirror.com'
+
+interface NpmInfo {
+  version: string
+  /** 官方 registry 的 tarball 地址 */
+  officialTarball: string
+  /** npmmirror 的 tarball 地址（国内快得多） */
+  mirrorTarball: string
+}
+
+function npmTarballFor(base: string, pkg: string, version: string): string {
+  // scoped 包的 tarball 文件名只取最后一段：@anthropic-ai/claude-code → claude-code-<v>.tgz
+  const short = pkg.includes('/') ? pkg.slice(pkg.indexOf('/') + 1) : pkg
+  return `${base}/${pkg}/-/${short}-${version}.tgz`
+}
+
+/**
+ * 取一个 npm 包的版本信息。
+ *
+ * 元数据走 npmmirror（快），但 tarball 地址**同时给出官方与镜像两份**：
+ * 清单里 official 排第一（来源可追溯），镜像作为回退（实测国内快几十倍）。
+ * 两份的字节内容相同，由 SHA-256 兜底 —— 不一致会被下载器拒绝。
+ */
+async function npmInfo(pkg: string, want: string | 'latest'): Promise<NpmInfo> {
+  const meta = await fetchJson<{
+    'dist-tags'?: { latest?: string }
+    versions?: Record<string, unknown>
+  }>(`${NPM_MIRROR}/${pkg}`)
+
+  const version = want === 'latest' ? meta['dist-tags']?.latest : want
+  if (!version) throw new Error(`${pkg} 的 registry 元数据里没有版本信息`)
+  if (!meta.versions?.[version]) throw new Error(`${pkg} 的 registry 里没有版本 ${version}`)
+
+  return {
+    version,
+    officialTarball: npmTarballFor(NPM_OFFICIAL, pkg, version),
+    mirrorTarball: npmTarballFor(NPM_MIRROR, pkg, version)
+  }
+}
+
+/**
+ * npm 类工具的供应链说明。
+ *
+ * 必须写清楚：devkit 固定的是**顶层包 tarball** 的 SHA-256，而 npm 在安装时会去
+ * registry 解析这个包的依赖与平台二进制 —— 这一部分不在 devkit 的校验范围内。
+ * 实测 `@anthropic-ai/claude-code` 本身只有 0.2 MB，真正的可执行文件在
+ * `@anthropic-ai/claude-code-win32-x64` 这个可选依赖里。
+ * 这与"官方直链 + SHA-256"的模型**不等价**，不写清楚就是误导用户。
+ */
+function npmNotes(pkg: string, bin: string): { 'zh-CN': string; 'en-US': string } {
+  return {
+    'zh-CN':
+      `${pkg} 只发 npm 包，没有独立二进制，所以用 npm 装进版本目录（不污染全局 npm）。` +
+      `装完在终端里敲的命令是 \`${bin}\`（激活后）。` +
+      `devkit 固定的是顶层包 tarball 的 SHA-256 与版本号；但 npm 在安装时仍会去 registry ` +
+      `解析该包的依赖与平台二进制（例如 claude-code 本体只有 0.2 MB，真正的可执行文件在 ` +
+      `平台专用可选依赖里）—— **这一部分不在 devkit 的校验范围内**。` +
+      `这是 npm 生态的固有特性，与"官方直链 + SHA-256"的模型不等价，选之前请知悉。` +
+      `安装需要机器上有 Node.js（npm 随它一起提供）。`,
+    'en-US':
+      `${pkg} ships only as an npm package with no standalone binary, so it is installed with npm ` +
+      `into a version directory (your global npm stays clean). devkit pins the top-level tarball's ` +
+      `SHA-256 and version, but npm still resolves that package's dependencies and platform binary ` +
+      `from the registry at install time (claude-code itself is only 0.2 MB; the real executable ` +
+      `lives in a platform-specific optional dependency) — **that part is outside devkit's ` +
+      `verification**. This is inherent to the npm ecosystem and is NOT equivalent to the ` +
+      `"official direct link + SHA-256" model. Node.js is required (npm ships with it).`
+  }
+}
+
 /** 从 "hash  filename" 形式的校验和文本里取出指定文件名的哈希 */
 function pickHash(text: string, fileName: string): string | null {
   for (const line of text.split(/\r?\n/)) {
@@ -257,12 +328,13 @@ interface VersionSource {
 
 interface ToolSpec {
   id: string
-  category: 'runtime' | 'build' | 'database' | 'container' | 'editor' | 'tool'
+  category: 'runtime' | 'build' | 'database' | 'container' | 'editor' | 'ai' | 'tool'
   tier: 'L1' | 'L2' | 'L3'
   name: { 'zh-CN': string; 'en-US': string }
   description: { 'zh-CN': string; 'en-US': string }
   homepage: string
-  license: { spdx: string; redistributable: boolean }
+  /** 可选的：专有/商业 CLI（如 Claude Code、Copilot CLI）没有 SPDX，如实留空 */
+  license?: { spdx: string; redistributable: boolean }
   detect: unknown
   installScope: 'user' | 'machine'
   install: { type: string; template: string; params?: Record<string, string> }
@@ -1133,6 +1205,306 @@ const SPECS: ToolSpec[] = [
         }
       }
     ]
+  },
+
+  /* ---------------- AI 编码 agent ---------------- */
+  // npm 类：这些工具**只有 npm 发行物**，没有独立二进制，所以走 npm 模板装进版本目录。
+  // 供应链差异（npm 会在安装时解析依赖与平台二进制）已写进每条清单的 notes。
+  {
+    id: 'claude-code',
+    category: 'ai',
+    // L2：可以自动下载安装，但它是第三方 npm 包，不打包进离线包
+    tier: 'L2',
+    name: { 'zh-CN': 'Claude Code', 'en-US': 'Claude Code' },
+    description: {
+      'zh-CN': 'Anthropic 的终端 AI 编码助手。装进版本目录，不污染全局 npm。',
+      'en-US': 'Anthropic terminal AI coding agent. Installed into a version directory; your global npm stays clean.'
+    },
+    homepage: 'https://www.npmjs.com/package/@anthropic-ai/claude-code',
+    detect: {
+      commands: [{ cmd: 'claude', args: ['--version'], expectRegex: '\\d+\\.\\d+' }]
+    },
+    installScope: 'user',
+    install: {
+      type: 'npm',
+      template: 'npm-global-into-version-dir',
+      params: { binName: 'claude' }
+    },
+    activate: { pathEntries: ['{currentDir}'] },
+    verify: {
+      cmd: '{installDir}\\claude.cmd',
+      args: ['--version'],
+      expectRegex: '\\d+\\.\\d+'
+    },
+    notes: npmNotes('@anthropic-ai/claude-code', 'claude'),
+    versions: [
+      {
+        want: 'latest',
+        channel: 'stable',
+        recommended: true,
+        // 地址由 discover 从 registry 元数据里取；official 那份排第一，镜像作为回退
+        url: () => '',
+        discover: async () => {
+          const info = await npmInfo('@anthropic-ai/claude-code', 'latest')
+          return [{ version: info.version, url: info.officialTarball }]
+        },
+        mirrors: (v) => [
+          { name: 'npmmirror', url: npmTarballFor(NPM_MIRROR, '@anthropic-ai/claude-code', v) }
+        ],
+        resolve: async (_v, candidates) => downloadAndHash(candidates)
+      }
+    ]
+  },
+  {
+    id: 'gemini-cli',
+    category: 'ai',
+    tier: 'L2',
+    name: { 'zh-CN': 'Gemini CLI', 'en-US': 'Gemini CLI' },
+    description: {
+      'zh-CN': 'Google 的终端 AI 编码助手。装进版本目录，不污染全局 npm。',
+      'en-US': 'Google terminal AI coding agent. Installed into a version directory.'
+    },
+    homepage: 'https://www.npmjs.com/package/@google/gemini-cli',
+    license: { spdx: 'Apache-2.0', redistributable: true },
+    detect: {
+      commands: [{ cmd: 'gemini', args: ['--version'], expectRegex: '\\d+\\.\\d+' }]
+    },
+    installScope: 'user',
+    install: {
+      type: 'npm',
+      template: 'npm-global-into-version-dir',
+      params: { binName: 'gemini' }
+    },
+    activate: { pathEntries: ['{currentDir}'] },
+    verify: {
+      cmd: '{installDir}\\gemini.cmd',
+      args: ['--version'],
+      expectRegex: '\\d+\\.\\d+'
+    },
+    notes: npmNotes('@google/gemini-cli', 'gemini'),
+    versions: [
+      {
+        want: 'latest',
+        channel: 'stable',
+        recommended: true,
+        url: () => '',
+        discover: async () => {
+          const info = await npmInfo('@google/gemini-cli', 'latest')
+          return [{ version: info.version, url: info.officialTarball }]
+        },
+        mirrors: (v) => [
+          { name: 'npmmirror', url: npmTarballFor(NPM_MIRROR, '@google/gemini-cli', v) }
+        ],
+        resolve: async (_v, candidates) => downloadAndHash(candidates)
+      }
+    ]
+  },
+  {
+    id: 'copilot-cli',
+    category: 'ai',
+    tier: 'L2',
+    name: { 'zh-CN': 'GitHub Copilot CLI', 'en-US': 'GitHub Copilot CLI' },
+    description: {
+      'zh-CN': 'GitHub Copilot 的终端版本。装进版本目录，不污染全局 npm。',
+      'en-US': 'The terminal build of GitHub Copilot. Installed into a version directory.'
+    },
+    homepage: 'https://www.npmjs.com/package/@github/copilot',
+    detect: {
+      commands: [{ cmd: 'copilot', args: ['--version'], expectRegex: '\\d+\\.\\d+' }]
+    },
+    installScope: 'user',
+    install: {
+      type: 'npm',
+      template: 'npm-global-into-version-dir',
+      params: { binName: 'copilot' }
+    },
+    activate: { pathEntries: ['{currentDir}'] },
+    verify: {
+      cmd: '{installDir}\\copilot.cmd',
+      args: ['--version'],
+      expectRegex: '\\d+\\.\\d+'
+    },
+    notes: npmNotes('@github/copilot', 'copilot'),
+    versions: [
+      {
+        want: 'latest',
+        channel: 'stable',
+        recommended: true,
+        url: () => '',
+        discover: async () => {
+          const info = await npmInfo('@github/copilot', 'latest')
+          return [{ version: info.version, url: info.officialTarball }]
+        },
+        mirrors: (v) => [{ name: 'npmmirror', url: npmTarballFor(NPM_MIRROR, '@github/copilot', v) }],
+        resolve: async (_v, candidates) => downloadAndHash(candidates)
+      }
+    ]
+  },
+  {
+    id: 'qwen-code',
+    category: 'ai',
+    tier: 'L2',
+    name: { 'zh-CN': 'Qwen Code', 'en-US': 'Qwen Code' },
+    description: {
+      'zh-CN': '阿里通义的终端 AI 编码助手。装进版本目录，不污染全局 npm。',
+      'en-US': 'Alibaba Qwen terminal AI coding agent. Installed into a version directory.'
+    },
+    homepage: 'https://www.npmjs.com/package/@qwen-code/qwen-code',
+    license: { spdx: 'Apache-2.0', redistributable: true },
+    detect: {
+      commands: [{ cmd: 'qwen', args: ['--version'], expectRegex: '\\d+\\.\\d+' }]
+    },
+    installScope: 'user',
+    install: {
+      type: 'npm',
+      template: 'npm-global-into-version-dir',
+      params: { binName: 'qwen' }
+    },
+    activate: { pathEntries: ['{currentDir}'] },
+    verify: {
+      cmd: '{installDir}\\qwen.cmd',
+      args: ['--version'],
+      expectRegex: '\\d+\\.\\d+'
+    },
+    notes: npmNotes('@qwen-code/qwen-code', 'qwen'),
+    versions: [
+      {
+        want: 'latest',
+        channel: 'stable',
+        recommended: true,
+        url: () => '',
+        discover: async () => {
+          const info = await npmInfo('@qwen-code/qwen-code', 'latest')
+          return [{ version: info.version, url: info.officialTarball }]
+        },
+        mirrors: (v) => [
+          { name: 'npmmirror', url: npmTarballFor(NPM_MIRROR, '@qwen-code/qwen-code', v) }
+        ],
+        resolve: async (_v, candidates) => downloadAndHash(candidates)
+      }
+    ]
+  },
+
+  // 独立二进制：有官方 release 资产，走 zip-single-file，
+  // 与其它工具一样是「官方直链 + SHA-256」，不需要 Node.js。
+  {
+    id: 'opencode',
+    category: 'ai',
+    tier: 'L1',
+    name: { 'zh-CN': 'OpenCode', 'en-US': 'OpenCode' },
+    description: {
+      'zh-CN': '开源的终端 AI 编码 agent，单文件可执行，不需要 Node.js。',
+      'en-US': 'Open-source terminal AI coding agent shipped as a single executable; no Node.js needed.'
+    },
+    homepage: 'https://opencode.ai',
+    license: { spdx: 'MIT', redistributable: true },
+    detect: {
+      commands: [{ cmd: 'opencode', args: ['--version'], expectRegex: '\\d+\\.\\d+' }]
+    },
+    installScope: 'user',
+    install: {
+      type: 'zip',
+      template: 'zip-single-file-into-version-dir',
+      params: { fileName: 'opencode.exe' }
+    },
+    activate: { pathEntries: ['{currentDir}'] },
+    verify: {
+      cmd: '{installDir}\\opencode.exe',
+      args: ['--version'],
+      expectRegex: '\\d+\\.\\d+'
+    },
+    notes: {
+      'zh-CN':
+        '官方 release 提供 Windows x64 独立二进制（约 59 MB），走「官方直链 + SHA-256」模型，不需要 Node.js。仓库在 GitHub 上从 sst/opencode 迁到了 anomalyco/opencode，清单用的是迁移后的地址。',
+      'en-US':
+        'The official release ships a Windows x64 standalone binary (~59 MB) verified with SHA-256 — no Node.js needed. The repo moved from sst/opencode to anomalyco/opencode and the manifest uses the new location.'
+    },
+    versions: [
+      {
+        want: 'latest',
+        channel: 'stable',
+        recommended: true,
+        url: (v) =>
+          `https://github.com/anomalyco/opencode/releases/download/v${v}/opencode-windows-x64.zip`,
+        // GitHub release 资产在国内实测直连不通（ETIMEDOUT）。加两个加速代理作为镜像：
+        // 它们只是转发同一份字节，SHA-256 会兜底 —— 换了内容就会被下载器拒绝。
+        mirrors: (v) => [
+          {
+            name: 'ghproxy',
+            url: `https://gh-proxy.com/https://github.com/anomalyco/opencode/releases/download/v${v}/opencode-windows-x64.zip`
+          },
+          {
+            name: 'ghfast',
+            url: `https://ghfast.top/https://github.com/anomalyco/opencode/releases/download/v${v}/opencode-windows-x64.zip`
+          }
+        ],
+        discover: async () => [
+          { version: (await githubLatestTag('anomalyco/opencode')).replace(/^v/, '') }
+        ],
+        resolve: async (_v, candidates) => downloadAndHash(candidates)
+      }
+    ]
+  },
+
+  {
+    id: 'codex',
+    category: 'ai',
+    tier: 'L1',
+    name: { 'zh-CN': 'Codex CLI', 'en-US': 'Codex CLI' },
+    description: {
+      'zh-CN': 'OpenAI 的终端 AI 编码 agent，官方提供单文件可执行，不需要 Node.js。',
+      'en-US': 'OpenAI terminal AI coding agent, shipped as a standalone executable; no Node.js needed.'
+    },
+    homepage: 'https://github.com/openai/codex',
+    license: { spdx: 'Apache-2.0', redistributable: true },
+    detect: {
+      commands: [{ cmd: 'codex', args: ['--version'], expectRegex: '\\d+\\.\\d+' }]
+    },
+    installScope: 'user',
+    install: {
+      type: 'zip',
+      template: 'zip-single-file-into-version-dir',
+      // 压缩包里根目录就是这个名字；asName 让它落成 codex.exe，
+      // 否则用户得敲 codex-x86_64-pc-windows-msvc 这么一长串
+      params: { fileName: 'codex-x86_64-pc-windows-msvc.exe', asName: 'codex.exe' }
+    },
+    activate: { pathEntries: ['{currentDir}'] },
+    verify: {
+      cmd: '{installDir}\\codex.exe',
+      args: ['--version'],
+      expectRegex: '\\d+\\.\\d+'
+    },
+    notes: {
+      'zh-CN':
+        '官方 release 的 Windows x64 资产（约 157 MB 压缩包，解出约 318 MB），走「官方直链 + SHA-256」，不需要 Node.js。' +
+        '同一个包里还有 app-server、sandbox-setup 等辅助可执行文件，devkit 只取主程序（zip-single-file 模板）。' +
+        'GitHub release 资产在国内直连不通，清单带了两个加速代理作为镜像；它们只是转发同一份字节，SHA-256 会兜底。',
+      'en-US':
+        'Official Windows x64 release asset (~157 MB archive, ~318 MB extracted), verified with SHA-256 — no Node.js needed. The archive also contains app-server / sandbox-setup helpers; devkit takes only the main binary (zip-single-file template). GitHub release assets are unreachable from mainland China, so the manifest lists two acceleration proxies as mirrors — they only forward the same bytes and SHA-256 is enforced.'
+    },
+    versions: [
+      {
+        want: 'latest',
+        channel: 'stable',
+        recommended: true,
+        url: (v) =>
+          `https://github.com/openai/codex/releases/download/rust-v${v}/codex-x86_64-pc-windows-msvc.exe.zip`,
+        mirrors: (v) => [
+          {
+            name: 'ghproxy',
+            url: `https://gh-proxy.com/https://github.com/openai/codex/releases/download/rust-v${v}/codex-x86_64-pc-windows-msvc.exe.zip`
+          },
+          {
+            name: 'ghfast',
+            url: `https://ghfast.top/https://github.com/openai/codex/releases/download/rust-v${v}/codex-x86_64-pc-windows-msvc.exe.zip`
+          }
+        ],
+        discover: async () => [
+          { version: (await githubLatestTag('openai/codex')).replace(/^rust-v/, '') }
+        ],
+        resolve: async (_v, candidates) => downloadAndHash(candidates)
+      }
+    ]
   }
 ]
 
@@ -1242,7 +1614,7 @@ async function buildTool(spec: ToolSpec): Promise<Record<string, unknown>> {
     name: spec.name,
     description: spec.description,
     homepage: spec.homepage,
-    license: spec.license,
+    ...(spec.license ? { license: spec.license } : {}),
     detect: spec.detect,
     versions
   }

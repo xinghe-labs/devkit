@@ -32,6 +32,7 @@
 | 离线包                                           | ✗              | ✗              | ✓      |
 | 镜像源一键配置（npm/pip/Go/Maven/Gradle/cargo/conda/NuGet/Docker） | ✗ | 部分 | ✓ |
 | VS Code 插件推荐与一键安装                       | ✗              | ✗              | ✓      |
+| AI 编码 agent 安装（Claude Code / Codex / …）    | ✗              | 部分           | ✓      |
 
 ---
 
@@ -109,6 +110,32 @@
 | SQLite            | 3.54.0     | ZIP 解压                | 用户级   |
 | 7-Zip             | 26.04      | MSI 静默安装            | **机器级（需管理员）** |
 | VS Code           | 1.141.0    | Inno Setup 静默安装     | 用户级   |
+
+### AI 编码 agent（6 个）
+
+| 工具 | 版本 | 发行方式 | 范围 |
+| --- | --- | --- | --- |
+| Claude Code | 2.1.296 | npm 包 → 装进版本目录 | 用户级 |
+| Codex CLI | 0.162.1 | 官方独立二进制（zip） | 用户级 |
+| OpenCode | 1.19.0 | 官方独立二进制（zip） | 用户级 |
+| Gemini CLI | 0.63.0 | npm 包 → 装进版本目录 | 用户级 |
+| GitHub Copilot CLI | 1.0.95 | npm 包 → 装进版本目录 | 用户级 |
+| Qwen Code | 0.25.1 | npm 包 → 装进版本目录 | 用户级 |
+
+**两种发行方式，供应链强度不同，必须说清楚：**
+
+- **独立二进制**（Codex、OpenCode）：走「官方直链 + SHA-256」，与其它工具完全一致。
+- **npm 包**（Claude Code、Gemini CLI、Copilot CLI、Qwen Code）：这些工具**只有 npm 发行物**。
+  devkit 用 `npm install --global --prefix <版本目录>` 装进版本目录（**不污染你的全局 npm**），
+  固定的是**顶层包 tarball 的版本与 SHA-256**；但 npm 在安装时仍会去 registry 解析该包的
+  依赖与平台二进制 —— **这一部分不在 devkit 的校验范围内**。
+
+  > 这不是猜测，是实测数字：`@anthropic-ai/claude-code` 顶层包只有 **29 KB**，
+  > 但装完版本目录是 **249 MB** —— 多出来的可执行文件在平台专用可选依赖里，
+  > 由 npm 在安装时下载。选之前请知悉这个差异。
+
+安装 npm 类工具需要机器上有 Node.js（npm 随它一起提供）；devkit 会优先用它自己装过的
+Node.js，其次才是 PATH 上的 npm。
 
 另有 3 项仅支持检测（`detect-only`）：**WSL2**、**Docker Desktop**、**PostgreSQL** ——
 它们的安装方式不适合"装进版本目录"（系统功能 / 需要重启 / 需要服务与密码），
@@ -226,6 +253,7 @@ DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 node_modules/electron/dist/electron.e
    | `exe-inno-silent`                   | Inno `/VERYSILENT`                |
    | `exe-python-silent`                 | python.org 官方安装器             |
    | `exe-rustup-init`                   | rustup-init + CARGO_HOME          |
+   | `npm-global-into-version-dir`       | npm 包装进版本目录（AI agent 用）  |
 
 3. **自检必须用 `{installDir}` 绝对路径**。
    否则装了 Node 24、自检却跑到 PATH 上原有的 Node 22，会得到假阳性。

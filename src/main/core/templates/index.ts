@@ -37,6 +37,11 @@ export interface CommandContext {
   logFile: string
   version: string
   toolId: string
+  /**
+   * npm 可执行文件路径（只有 npm 类模板用得上）。
+   * 由 provider 解析：优先 devkit 自己激活/装过的 Node.js，其次 PATH。
+   */
+  npmCmd: string
 }
 
 export interface InstallerCommand {
@@ -52,7 +57,7 @@ export interface InstallerCommand {
 
 export type ExtractPlan =
   | { mode: 'zip'; stripComponents: number }
-  | { mode: 'zip-single-file'; fileName: string; subDir: string | null }
+  | { mode: 'zip-single-file'; fileName: string; subDir: string | null; asName?: string }
   | { mode: '7zsfx' }
 
 export interface ResolvedTemplate {
@@ -109,6 +114,12 @@ export const INSTALL_TEMPLATES: Readonly<Record<string, InstallTemplate>> = {
       subDir: {
         pattern: SUB_DIR,
         description: '放到版本目录下的哪个子目录（如 bin）；不填表示直接放版本目录根'
+      },
+      asName: {
+        pattern: FILE_NAME,
+        description:
+          '落盘时改成的文件名。发行物里的名字常常带平台后缀（如 codex-x86_64-pc-windows-msvc.exe），' +
+          '改名的意义是让用户敲的命令就是 codex 而不是一长串'
       }
     }
   },
@@ -193,6 +204,25 @@ export const INSTALL_TEMPLATES: Readonly<Record<string, InstallTemplate>> = {
     }
   },
 
+  'npm-global-into-version-dir': {
+    id: 'npm-global-into-version-dir',
+    type: 'npm',
+    description:
+      '把 npm 包装进版本目录：npm install --global --prefix <版本目录> <已校验的 tgz>。' +
+      '不污染全局 npm（不用 -g 装到 %APPDATA%\\npm），卸载就是删目录。需要机器上有 Node.js（npm 随它一起提供）',
+    params: {
+      binName: {
+        pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,40}$/,
+        required: true,
+        description: '包提供的可执行文件名（不带扩展名），例如 claude'
+      },
+      extraArgs: {
+        pattern: EXTRA_ARGS,
+        description: '额外的 npm 开关'
+      }
+    }
+  },
+
   'exe-rustup-init': {
     id: 'exe-rustup-init',
     type: 'exe-custom',
@@ -257,7 +287,12 @@ function buildExtractPlan(templateId: string, params: Record<string, string>): E
     case 'zip-into-version-dir':
       return { mode: 'zip', stripComponents: Number.parseInt(params.stripComponents ?? '0', 10) || 0 }
     case 'zip-single-file-into-version-dir':
-      return { mode: 'zip-single-file', fileName: params.fileName, subDir: params.subDir ?? null }
+      return {
+        mode: 'zip-single-file',
+        fileName: params.fileName,
+        subDir: params.subDir ?? null,
+        asName: params.asName
+      }
     case 'exe-7zsfx-extract':
       return { mode: '7zsfx' }
     default:
@@ -351,6 +386,26 @@ function buildCommandFactory(
           requiresAdmin: false
         }
       }
+
+    case 'npm-global-into-version-dir':
+      return (context) => ({
+        // 用 provider 解析出来的 npm：优先 devkit 自己的 Node.js，其次 PATH
+        cmd: context.npmCmd,
+        args: [
+          'install',
+          '--global',
+          '--prefix',
+          context.installDir,
+          '--no-fund',
+          '--no-audit',
+          '--loglevel=error',
+          // 装的是已经校验过 SHA-256 的本地 tgz；但注意 npm 仍会去 registry
+          // 解析这个包的依赖与平台二进制（见清单 notes 里的说明）
+          context.archivePath,
+          ...splitArgs(params.extraArgs)
+        ],
+        requiresAdmin: false
+      })
 
     case 'exe-rustup-init':
       return (context) => ({

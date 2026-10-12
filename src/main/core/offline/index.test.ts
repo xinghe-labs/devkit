@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { archiveFileName, importOfflinePack, OFFLINE_ARCHIVE_DIR, OFFLINE_INDEX_FILE } from './index'
+import type { ToolManifest } from '@shared/types'
+import {
+  archiveFileName,
+  importOfflinePack,
+  partitionByRedistributable,
+  OFFLINE_ARCHIVE_DIR,
+  OFFLINE_INDEX_FILE
+} from './index'
 
 function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex')
@@ -98,5 +105,55 @@ describe('离线包导入', () => {
     const result = await importOfflinePack(packDir, downloadDir)
     expect(result.ok).toBe(false)
     expect(result.error).toContain('offline.json')
+  })
+})
+
+describe('离线包的许可证分级过滤（SPEC §8）', () => {
+  const tool = (id: string, tier: 'L1' | 'L2' | 'L3'): ToolManifest => ({
+    id,
+    category: 'tool',
+    tier,
+    status: 'ready',
+    name: { 'zh-CN': id, 'en-US': id },
+    description: { 'zh-CN': id, 'en-US': id },
+    detect: { commands: [{ cmd: id }] },
+    versions: []
+  })
+
+  it('只有 L1 进离线包', () => {
+    const { packable, skipped } = partitionByRedistributable([
+      tool('nodejs', 'L1'),
+      tool('vscode', 'L2'),
+      tool('some-paid-tool', 'L3'),
+      tool('go', 'L1')
+    ])
+
+    expect(packable.map((item) => item.id)).toEqual(['nodejs', 'go'])
+    expect(skipped.map((item) => item.id)).toEqual(['vscode', 'some-paid-tool'])
+    expect(skipped[0].tier).toBe('L2')
+    expect(skipped[0].reason).toContain('不得再分发')
+    expect(skipped[1].reason).toContain('仅引导官网')
+  })
+
+  it('全部是 L1 时不产生任何跳过项', () => {
+    const { packable, skipped } = partitionByRedistributable([tool('a', 'L1'), tool('b', 'L1')])
+    expect(packable).toHaveLength(2)
+    expect(skipped).toEqual([])
+  })
+
+  it('全部不可再分发时 packable 为空（而不是硬塞进去）', () => {
+    const { packable, skipped } = partitionByRedistributable([tool('vscode', 'L2')])
+    expect(packable).toEqual([])
+    expect(skipped).toHaveLength(1)
+  })
+
+  it('AI 类里 npm 装的工具都是 L2（第三方发行物，不进离线包）', () => {
+    // 这是清单层面的约定：npm 装的 AI agent 不能进离线包
+    const npmAgents = ['claude-code', 'gemini-cli', 'copilot-cli', 'qwen-code'].map((id) =>
+      tool(id, 'L2')
+    )
+    const { packable, skipped } = partitionByRedistributable(npmAgents)
+    expect(packable).toEqual([])
+    expect(skipped).toHaveLength(4)
   })
 })

@@ -91,6 +91,22 @@ const BUILTIN_PRESETS: Preset[] = [
     tools: [{ toolId: 'git' }, { toolId: 'cmake' }, { toolId: 'ninja' }, { toolId: 'vscode' }]
   },
   {
+    id: 'ai',
+    builtin: true,
+    name: { 'zh-CN': 'AI 编码', 'en-US': 'AI coding' },
+    description: {
+      'zh-CN': 'Claude Code（npm 发行）+ Codex CLI（独立二进制）+ Git + Node.js + VS Code',
+      'en-US': 'Claude Code (npm) + Codex CLI (standalone binary) + Git + Node.js + VS Code'
+    },
+    tools: [
+      { toolId: 'git' },
+      { toolId: 'nodejs' },
+      { toolId: 'vscode' },
+      { toolId: 'claude-code' },
+      { toolId: 'codex' }
+    ]
+  },
+  {
     id: 'fullstack',
     builtin: true,
     name: { 'zh-CN': '全栈 Web', 'en-US': 'Full-stack web' },

@@ -13,6 +13,7 @@ const CATEGORY_ORDER: ToolCategory[] = [
   'database',
   'container',
   'editor',
+  'ai',
   'tool'
 ]
 

@@ -7,7 +7,16 @@ import { useManageStore } from '../store/manage-store'
 
 const { Text } = Typography
 
-const CATEGORY_ORDER: VscodeCategory[] = ['general', 'frontend', 'java', 'python', 'go', 'rust', 'cpp']
+const CATEGORY_ORDER: VscodeCategory[] = [
+  'ai',
+  'general',
+  'frontend',
+  'java',
+  'python',
+  'go',
+  'rust',
+  'cpp'
+]
 
 /**
  * VS Code 插件面板（FR-7）。

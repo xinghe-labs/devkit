@@ -156,6 +156,8 @@ export interface ExtractSingleFileOptions {
   fileName: string
   /** 放到 destDir 下的哪个子目录；null 表示直接放 destDir 根 */
   subDir?: string | null
+  /** 落盘时改成的文件名；不填则沿用压缩包里的名字 */
+  asName?: string
   signal?: AbortSignal
 }
 
@@ -197,7 +199,7 @@ export async function extractZipSingleFile(
 
     const finalDir = options.subDir ? join(options.destDir, options.subDir) : options.destDir
     await mkdir(finalDir, { recursive: true })
-    const finalPath = join(finalDir, options.fileName)
+    const finalPath = join(finalDir, options.asName ?? options.fileName)
     await cp(source, finalPath)
 
     const bytes = (await stat(finalPath)).size
