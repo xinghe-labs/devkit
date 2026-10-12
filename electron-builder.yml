@@ -30,6 +30,10 @@ win:
       arch: [x64]
 
 nsis:
+  # 产物名刻意不含空格：带空格的 URL 会被各种工具链改写
+  # （实测 GitHub Release 上传后变成 `devkit.Setup.0.1.0.exe`，而 latest.json 里
+  #   写的是 `devkit Setup 0.1.0.exe` —— 更新检查会指向一个不存在的文件名）。
+  artifactName: ${productName}-${version}-setup.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

@@ -90,6 +90,6 @@ jobs:
           draft: true
           generate_release_notes: true
           files: |
-            release/devkit Setup *.exe
+            release/devkit-*-setup.exe
             release/devkit-*-portable.exe
             release/latest.json

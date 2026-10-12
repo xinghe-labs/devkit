@@ -22,11 +22,22 @@ function main(): void {
   const version = pkg.version
 
   const files = readdirSync(RELEASE_DIR)
-  const setup = files.find((name) => name === `devkit Setup ${version}.exe`)
+  // 产物名不含空格：带空格的 URL 会被上传工具/浏览器改写（见 electron-builder.yml 里的说明）
+  const setup = files.find((name) => name === `devkit-${version}-setup.exe`)
   const portable = files.find((name) => name === `devkit-${version}-portable.exe`)
 
-  if (!setup) throw new Error(`在 ${RELEASE_DIR} 里找不到 devkit Setup ${version}.exe，请先执行 pnpm dist`)
-  if (!portable) throw new Error(`在 ${RELEASE_DIR} 里找不到 devkit-${version}-portable.exe，请先执行 pnpm dist`)
+  if (!setup) {
+    throw new Error(
+      `在 ${RELEASE_DIR} 里找不到 devkit-${version}-setup.exe，请先执行 pnpm dist。` +
+        `当前目录里有：${files.filter((name) => name.endsWith('.exe')).join('、') || '（没有 exe）'}`
+    )
+  }
+  if (!portable) {
+    throw new Error(
+      `在 ${RELEASE_DIR} 里找不到 devkit-${version}-portable.exe，请先执行 pnpm dist。` +
+        `当前目录里有：${files.filter((name) => name.endsWith('.exe')).join('、') || '（没有 exe）'}`
+    )
+  }
 
   const index = {
     version,

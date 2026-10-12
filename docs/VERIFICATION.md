@@ -17,7 +17,7 @@
 | `pnpm lint` | ESLint 0 问题 |
 | `pnpm test` | 23 个测试文件 / **266 个测试全部通过** |
 | `pnpm build` | 三端产物生成成功（main / preload / renderer） |
-| `pnpm dist` | `release/devkit Setup 0.1.0.exe`（111.9 MB）+ `release/devkit-0.1.0-portable.exe`（111.7 MB） |
+| `pnpm dist` | `release/devkit-0.1.0-setup.exe`（111.9 MB）+ `release/devkit-0.1.0-portable.exe`（111.7 MB） |
 | `pnpm release:index` | 生成 `release/latest.json`（含两个产物的 SHA-256 与体积） |
 
 ---
@@ -285,7 +285,7 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 
 | 产物 | 体积 |
 | --- | --- |
-| `release/devkit Setup 0.1.0.exe`（NSIS 安装版） | 111.9 MB |
+| `release/devkit-0.1.0-setup.exe`（NSIS 安装版） | 111.9 MB |
 | `release/devkit-0.1.0-portable.exe`（便携版） | 111.7 MB |
 | `release/latest.json`（更新索引，含两个产物的 SHA-256 与体积） | 约 0.5 KB |
 

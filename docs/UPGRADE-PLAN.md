@@ -52,7 +52,7 @@ grep -n "sign\|SIGNPATH\|certificate" .github/workflows/*.yml   # → 0 命中
 
 **验收标准**
 ```bash
-signtool verify /pa /v "release/devkit Setup 0.1.0.exe"
+signtool verify /pa /v "release/devkit-0.1.0-setup.exe"
 signtool verify /pa /v "release/devkit-0.1.0-portable.exe"
 ```
 两条都通过；在**未安装过 devkit 的机器**上双击不再弹 SmartScreen。
