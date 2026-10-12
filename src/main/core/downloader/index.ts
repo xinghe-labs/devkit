@@ -245,7 +245,8 @@ async function downloadFromSource(
     headers,
     proxy: request.proxy,
     timeoutMs: request.timeoutMs,
-    signal: request.signal
+    signal: request.signal,
+    allowInsecure: request.allowInsecure
   })
 
   // 把"源上没有这个文件"与"网络错误"区分开：前者说明该镜像没同步这个版本，

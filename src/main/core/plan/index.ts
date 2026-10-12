@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 import type {
   InstallPlan,
   PendingPlanLoad,
@@ -145,6 +145,18 @@ export function buildPlan(params: BuildPlanParams): InstallPlan {
       continue
     }
 
+    // 纵深防御：即使清单/Schema/热更新三处都被绕过，这里也拦一次。
+    // 版本号里的 ".." 会让 join 归一化掉路径段，把安装目录指到 versions 根目录甚至更外面。
+    const installDir = join(versionsRoot, tool.id, version.version)
+    const relativePath = relative(versionsRoot, installDir)
+    if (relativePath === '' || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+      problems.push({
+        toolId: tool.id,
+        reason: `版本号 ${version.version} 会让安装目录落到版本根目录之外（${installDir}），已拒绝`
+      })
+      continue
+    }
+
     items.push({
       id: tool.id,
       version: version.version,
@@ -159,7 +171,7 @@ export function buildPlan(params: BuildPlanParams): InstallPlan {
       note: null,
       startedAt: null,
       finishedAt: null,
-      installDir: join(versionsRoot, tool.id, version.version),
+      installDir,
       archivePath: null,
       downloadAttempts: []
     })

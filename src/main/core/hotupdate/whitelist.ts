@@ -79,7 +79,9 @@ function pickWhitelisted(
   }
 
   const version = raw.version
-  if (typeof version !== 'string' || !/^[0-9A-Za-z.\-_+]{1,40}$/.test(version)) {
+  // 必须以字母或数字开头：'..' 会让 join(versionsRoot, id, version) 逃逸到 versions 根目录，
+  // 从而覆盖其它已装工具的二进制（安全审查 H1）
+  if (typeof version !== 'string' || !/^[0-9A-Za-z][0-9A-Za-z.\-_+]{0,39}$/.test(version)) {
     rejected.push(`${toolId}: 远程条目缺少合法版本号，已跳过`)
     return null
   }

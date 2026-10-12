@@ -1,8 +1,9 @@
 import { app, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { indexById } from '@shared/manifest'
 import { IPC } from '@shared/ipc'
+import { MIRROR_TARGETS, MIRROR_URL_PATTERN, type MirrorTarget } from '@shared/types'
 import type {
   ActivateRequest,
   ActivateResult,
@@ -61,6 +62,7 @@ import { listInstalledWithSize, uninstallVersion } from '../core/uninstall'
 import { getDownloadDir, getLogDir, getManifestDir, getOfflineDir } from '../utils/app-paths'
 import {
   asBoundedInt,
+  IpcValidationError,
   asBoolean,
   asNonEmptyString,
   asOptionalObject,
@@ -282,16 +284,26 @@ export function registerIpcHandlers(): void {
 
   handle(IPC.mirrorsApply, (_event, payload: unknown): MirrorApplyResult => {
     const list = Array.isArray(payload) ? payload : []
-    const settings: MirrorSetting[] = list
-      .filter(
-        (item): item is MirrorSetting =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof (item as MirrorSetting).target === 'string' &&
-          typeof (item as MirrorSetting).enabled === 'boolean' &&
-          typeof (item as MirrorSetting).url === 'string'
-      )
-      .map((item) => ({ target: item.target, enabled: item.enabled, url: item.url }))
+    const settings: MirrorSetting[] = list.map((item) => {
+      if (typeof item !== 'object' || item === null) {
+        throw new IpcValidationError('mirrors 的元素必须是对象')
+      }
+      const record = item as Partial<MirrorSetting>
+
+      if (!MIRROR_TARGETS.includes(record.target as MirrorTarget)) {
+        throw new IpcValidationError(`未知的镜像目标：${String(record.target)}`)
+      }
+      if (typeof record.enabled !== 'boolean') {
+        throw new IpcValidationError('mirrors 的 enabled 必须是布尔值')
+      }
+      const url = typeof record.url === 'string' ? record.url.trim() : ''
+      if (url !== '' && !MIRROR_URL_PATTERN.test(url)) {
+        // 这里必须挡住：地址会被拼进 gradle/cargo 的可执行配置文件（安全审查 H2）
+        throw new IpcValidationError(`镜像地址不合法：${JSON.stringify(url.slice(0, 80))}`)
+      }
+
+      return { target: record.target as MirrorTarget, enabled: record.enabled, url }
+    })
 
     const result = applyMirrors(settings)
     if (result.ok) saveConfigView({ mirrors: settings })
@@ -401,6 +413,10 @@ export function registerIpcHandlers(): void {
   handle(IPC.offlineImport, async (_event, payload: unknown) => {
     const request = asOptionalObject(payload, 'offline 导入请求')
     let packDir = typeof request.packDir === 'string' ? request.packDir : null
+    // 只接受绝对路径：相对路径会按主进程的 cwd 解析，渲染进程等于能指定任意位置
+    if (packDir && !isAbsolute(packDir)) {
+      throw new IpcValidationError(`离线包目录必须是绝对路径：${packDir}`)
+    }
     if (!packDir) {
       const picked = await dialog.showOpenDialog({
         title: '选择离线包目录',

@@ -26,9 +26,6 @@
         ],
         "expectRegex": "Gradle \\d+"
       }
-    ],
-    "files": [
-      "%USERPROFILE%\\.gradle\\wrapper\\dists"
     ]
   },
   "versions": [

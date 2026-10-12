@@ -302,6 +302,35 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 
 ---
 
+## 4.5 独立安全审查（对抗性，只读）
+
+用独立子代理对 `core/templates` / `core/zip` / `core/activate` / `core/ipc` / `core/elevation` /
+`core/downloader` / `core/hotupdate` 做了一轮对抗性审查，报告在 `D:\work\work\devkit-security-review.md`。
+
+**结论：设计站得住的部分**（审查原话）：模板白名单「清单只引用、不定义命令」；
+zip 自行计算并校验最终路径而不依赖库；junction 只删链接；PATH 改前备份 + 只动自有条目 + 注册表
+ExpandString；热更新不合并 detect/install/activate；提权脚本不混淆可审计、一次 UAC。
+
+**发现并已修复 6 个真实问题**，每条都补了回归测试（`src/main/core/security-regression.test.ts`，
+15 个用例）：
+
+| 级别 | 问题 | 修法 | 回归测试 |
+| --- | --- | --- | --- |
+| 高 | 版本号 `..` 让安装目录逃逸到 versions 根目录，可覆盖其它工具的二进制 | Schema + 白名单 + IPC 三处收紧版本号；`buildPlan` 再算 `relative(versionsRoot, installDir)` 兜底 | 「H1 版本号不得逃逸安装目录」3 条 |
+| 高 | `mirrorsApply` 未校验地址 → gradle/cargo 配置文件注入（持久化 RCE） | 共享白名单字符集 `MIRROR_URL_PATTERN`，IPC + 写入前双重校验 | 「H2 镜像地址字符集」3 条 |
+| 高 | 提权安装 TOCTOU：包在用户可写目录，可在 UAC 前被替换 | 期望 SHA-256 进 job，助手脚本执行前用 .NET 重算 | 「H3 提权执行前重新校验安装包哈希」2 条 |
+| 中 | https 重定向可降级到 http | `shouldFollowRedirect` 纯函数，生产模式拒绝降级 | 「M1」2 条 |
+| 中 | 用户自定义的 `DEVKIT_HOME` 被覆盖后又删除 | 写前先读，指向别处则改用绝对路径并告警 | 逻辑见 `activate/index.ts` |
+| 中 | 离线包 `fileName` 未校验，可读写下载目录之外 | 只接受单层文件名；离线包目录必须绝对路径 | 「M3」3 条 |
+| 低 | ZIP 条目名含 `:`（NTFS 数据流） | 一律拒绝 | 「L1」2 条 |
+
+**顺带抓到一个环境级问题**：本机 PowerShell 5.1 里 `Get-FileHash` **不存在**
+（`Microsoft.PowerShell.Utility` 不完整，实测 `Get-Command Get-FileHash` 报找不到）。
+提权助手的哈希校验一开始全部失败 —— 改成 `[System.Security.Cryptography.SHA256]` 直接算，
+不再依赖任何 cmdlet。这条如果没做真机验证是发现不了的。
+
+---
+
 ## 5. 尚未验证的部分（诚实清单）
 
 | # | 未验证项 | 为什么 | 怎么才能验证 |

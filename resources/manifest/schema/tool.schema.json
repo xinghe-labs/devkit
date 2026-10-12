@@ -187,7 +187,11 @@
       "required": ["version", "channel", "arch", "installScope"],
       "additionalProperties": false,
       "properties": {
-        "version": { "type": "string", "minLength": 1 },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z][0-9A-Za-z._+-]{0,39}$",
+          "description": "必须以字母或数字开头：'..' 这类值会让版本目录逃逸到 versions 根目录"
+        },
         "channel": { "enum": ["lts", "stable", "beta"] },
         "recommended": { "type": "boolean" },
         "arch": { "const": "x64" },

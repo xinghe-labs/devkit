@@ -3,6 +3,7 @@ import { normalizeLocale } from '@shared/localized'
 import {
   DEFAULT_LOCALE,
   MIRROR_TARGETS,
+  MIRROR_URL_PATTERN,
   type Locale,
   type MirrorPreference,
   type MirrorSetting,
@@ -85,7 +86,7 @@ function systemLocale(): Locale {
   }
 }
 
-const MIRROR_URL_PATTERN = /^https:\/\/[^\s"'`<>|]{3,200}$/
+// 镜像地址校验统一走 shared 里的白名单字符集（安全审查 H2）
 
 function sanitizeMirrors(raw: unknown): MirrorSetting[] {
   const input = Array.isArray(raw) ? raw : []

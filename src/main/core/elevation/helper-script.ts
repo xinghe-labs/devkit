@@ -22,6 +22,14 @@ export type ElevationStep =
       cmd: string
       args: string[]
       timeoutMs?: number
+      /**
+       * 执行前要求该文件（step.cmd）的 SHA-256 等于这个值。
+       *
+       * 为什么必须在提权进程里再算一次：安装包放在用户可写的 %APPDATA%\devkit\downloads，
+       * 下载时校验过一次之后，同机器上的低权限进程仍有机会把它换掉，再等用户为"devkit 安装"
+       * 点 UAC —— 那就是以管理员身份执行攻击者的二进制（安全审查 H3）。
+       */
+      verifySha256?: string
     }
   | {
       kind: 'restore-point'
@@ -89,6 +97,27 @@ try {
         $stepOk = $true
       }
       else {
+        if ($step.verifySha256) {
+          $expected = ([string]$step.verifySha256).ToLower()
+          # 用 .NET 直接算，不用 Get-FileHash：实测有机器上 PowerShell 5.1 里
+          # Get-FileHash 不存在（Microsoft.PowerShell.Utility 不完整），
+          # 而校验失败会导致所有机器级安装都装不上 —— 不能依赖这个 cmdlet。
+          $sha = [System.Security.Cryptography.SHA256]::Create()
+          $stream = [System.IO.File]::OpenRead([string]$step.cmd)
+          try {
+            $hashBytes = $sha.ComputeHash($stream)
+          }
+          finally {
+            $stream.Dispose()
+            $sha.Dispose()
+          }
+          $actual = (-join ($hashBytes | ForEach-Object { $_.ToString('x2') })).ToLower()
+
+          if ($actual -ne $expected) {
+            throw "安装包校验失败，已拒绝以管理员身份执行：期望 $expected，实际 $actual"
+          }
+        }
+
         $arguments = @()
         foreach ($a in $step.args) { $arguments += [string]$a }
         $timeoutSec = 1800

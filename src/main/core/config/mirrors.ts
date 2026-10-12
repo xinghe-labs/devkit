@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { MirrorApplyResult, MirrorSetting, MirrorTarget } from '@shared/types'
+import { MIRROR_URL_PATTERN, type MirrorApplyResult, type MirrorSetting, type MirrorTarget } from '@shared/types'
 import { ensureDir } from '../../utils/fs'
 import { logger } from '../report/logger'
 
@@ -29,6 +29,21 @@ import { logger } from '../report/logger'
  *  2. 只动自己的那一块（gradle/cargo 用 `devkit-begin` / `devkit-end` 标记，可幂等替换与移除）
  *  3. 保留文件里其它内容（用户可能还有 token、proxy、私服配置）
  */
+
+/**
+ * 写进任何配置文件之前都再校验一次地址。
+ *
+ * 纵深防御：IPC 层已经校验过，但 applyMirrors 也可能被别的调用方使用，
+ * 而这里的后果是把不可信字符串拼进 gradle/cargo 的可执行配置文件里。
+ */
+function assertSafeUrl(url: string): string {
+  if (!MIRROR_URL_PATTERN.test(url)) {
+    throw new Error(
+      `镜像地址不合法：${JSON.stringify(url.slice(0, 80))}。只允许 https 与 URL 安全字符集`
+    )
+  }
+  return url
+}
 
 const BEGIN_MARK = '# devkit-begin'
 const END_MARK = '# devkit-end'
@@ -474,8 +489,12 @@ export function applyMirrors(settings: MirrorSetting[]): MirrorApplyResult {
   const changed: string[] = []
   const backupFiles: string[] = []
 
-  const find = (target: MirrorTarget): MirrorSetting | undefined =>
-    settings.find((item) => item.target === target)
+  const find = (target: MirrorTarget): MirrorSetting | undefined => {
+    const found = settings.find((item) => item.target === target)
+    // 只在真的要写入时校验；enabled=false 是"移除"，不需要合法地址
+    if (found?.enabled && found.url) assertSafeUrl(found.url)
+    return found
+  }
 
   try {
     const npm = find('npm')

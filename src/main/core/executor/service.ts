@@ -132,9 +132,10 @@ export function startInstall(planId: string): StartInstallResult {
       signal: activeController.signal,
       dryRun: plan.options.dryRun,
       activate: config.activateAfterInstall ? activateHook : undefined,
-      runElevatedCommand: async (label, command) => {
-        const outcome = await runElevated([toExecStep(label, { ...command, requiresAdmin: true })], (message) =>
-          logger.info('elevation', message)
+      runElevatedCommand: async (label, command, verifySha256) => {
+        const outcome = await runElevated(
+          [toExecStep(label, { ...command, requiresAdmin: true }, verifySha256)],
+          (message) => logger.info('elevation', message)
         )
         if (!outcome.ok) {
           throw new Error(

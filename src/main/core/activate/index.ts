@@ -273,8 +273,25 @@ export async function activateVersion(params: ActivateParams): Promise<ActivateR
     return { ok: false, record: null, note: null, error: (error as Error).message }
   }
 
-  // PATH 条目收敛到 %DEVKIT_HOME%，避免每装一个工具就把 PATH 拉长一截
-  const pathEntries = entries.pathEntries.map(toDevkitHomeVar)
+  // PATH 条目收敛到 %DEVKIT_HOME%，避免每装一个工具就把 PATH 拉长一截。
+  // 但如果用户（或别的工具）已经定义了 DEVKIT_HOME 指向别处，就不能用变量形式 ——
+  // 否则 %DEVKIT_HOME%\current\<tool> 会解析到他那个目录，激活等于没生效（安全审查 M2）。
+  let pathEntries = entries.pathEntries.map(toDevkitHomeVar)
+  let userOwnedDevkitHome: string | null = null
+  try {
+    const existing = await readUserEnv('DEVKIT_HOME')
+    if (existing && existing.toLowerCase() !== getDevkitHome().toLowerCase()) {
+      userOwnedDevkitHome = existing
+      pathEntries = entries.pathEntries // 退回绝对路径
+      logger.warn(
+        'activate',
+        `检测到用户已自行定义 DEVKIT_HOME=${existing}，本次激活改用绝对路径，不覆盖该变量`
+      )
+    }
+  } catch (error) {
+    logger.warn('activate', `读取 DEVKIT_HOME 失败，按未定义处理：${(error as Error).message}`)
+  }
+
   const usesDevkitHome = pathEntries.some((entry) => entry.includes(DEVKIT_HOME_VAR))
 
   let state = readActivationState()
@@ -340,6 +357,12 @@ export async function activateVersion(params: ActivateParams): Promise<ActivateR
         ? `已从 ${previous.version} 切换到 ${version}`
         : '已写入用户 PATH'
     if (synced.warning) warnings.push(synced.warning)
+    if (userOwnedDevkitHome) {
+      warnings.push(
+        `你已自行定义 DEVKIT_HOME=${userOwnedDevkitHome}，devkit 没有覆盖它，` +
+          '本次激活写入的是绝对路径（不影响使用）'
+      )
+    }
 
     const note =
       `${head}；新开的终端里生效` +

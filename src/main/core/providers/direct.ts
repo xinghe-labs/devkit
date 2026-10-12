@@ -27,7 +27,7 @@ export interface InstallRequest {
    * 需要管理员的安装命令交给它执行（常驻提权助手，一次 UAC 干完所有事）。
    * 不传时直接执行 —— 已经是管理员的场景（或在 CI 里）能跑通，普通用户会看到权限错误。
    */
-  runElevatedCommand?: (command: InstallerCommand) => Promise<void>
+  runElevatedCommand?: (command: InstallerCommand, verifySha256?: string) => Promise<void>
   signal?: AbortSignal
   onProgress?: (files: number, currentFileBytes: number) => void
   onCommand?: (command: { cmd: string; args: string[] }) => void
@@ -225,7 +225,7 @@ export async function installVersion(request: InstallRequest): Promise<InstallOu
 
   if (command.requiresAdmin && request.runElevatedCommand) {
     // 机器级安装（MSI / 写 HKLM）：交给提权助手，整个作业只弹一次 UAC
-    await request.runElevatedCommand(command)
+    await request.runElevatedCommand(command, request.version.source?.sha256)
   } else {
     await runInstaller(command, request)
   }

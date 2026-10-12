@@ -28,6 +28,8 @@ export interface HttpRequestOptions {
   timeoutMs?: number
   signal?: AbortSignal
   maxRedirects?: number
+  /** 仅测试用：允许 http:// 地址与 http 重定向。生产环境一律 https */
+  allowInsecure?: boolean
 }
 
 export interface HttpResponse {
@@ -111,6 +113,18 @@ class TunnelAgent extends HttpsAgent {
   }
 }
 
+/**
+ * 是否允许跟随这个重定向。
+ *
+ * 抽成纯函数是为了能单测：https → http 的降级跟随会让"能改 http 响应的人"
+ * 替换掉下载内容与热更新索引（安全审查 M1）。生产环境一律不允许降级。
+ */
+export function shouldFollowRedirect(current: URL, next: URL, allowInsecure: boolean): boolean {
+  if (allowInsecure) return true
+  if (current.protocol === 'https:' && next.protocol !== 'https:') return false
+  return next.protocol === 'https:' || current.protocol === next.protocol
+}
+
 function resolveAgent(options: HttpRequestOptions, timeoutMs: number): HttpsAgent | false {
   if (!options.proxy) return false // 交给 Node 用默认行为创建并回收 socket
   const proxyUrl = new URL(options.proxy)
@@ -181,7 +195,13 @@ export async function requestStream(
     if (hop === maxRedirects) {
       throw new HttpError(`重定向次数超过上限（${maxRedirects}）`, response.status)
     }
-    current = new URL(String(location), current)
+
+    const next = new URL(String(location), current)
+    // 不允许从 https 降级到 http：否则能改 http 响应的人就能替换掉下载内容与热更新索引
+    if (!shouldFollowRedirect(current, next, options.allowInsecure === true)) {
+      throw new HttpError(`拒绝跟随降级到 ${next.protocol} 的重定向：${next.toString()}`)
+    }
+    current = next
   }
 
   throw new HttpError('重定向处理异常')

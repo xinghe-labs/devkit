@@ -486,6 +486,16 @@ export const MIRROR_TARGETS: readonly MirrorTarget[] = [
   'docker'
 ] as const
 
+/**
+ * 镜像地址允许的形状。
+ *
+ * 刻意用白名单字符集而不是「排除危险字符」：镜像地址会被写进 .npmrc / pip.ini /
+ * settings.xml / init.gradle / config.toml / .condarc / daemon.json 七种格式里，
+ * 黑名单漏一个字符就是一次配置注入（安全审查 H2）。
+ * 只保留 URL 里真正会用到的字符，连单引号、双引号、反斜杠、换行、$ 和花括号都不给。
+ */
+export const MIRROR_URL_PATTERN = /^https:\/\/[A-Za-z0-9._~:/@!*,=+-]{3,200}$/
+
 /** 单个镜像目标的取值；url 为空表示用官方源 */
 export interface MirrorSetting {
   target: MirrorTarget

@@ -37,6 +37,21 @@ export interface OfflineIndex {
 export const OFFLINE_ARCHIVE_DIR = 'archives'
 export const OFFLINE_INDEX_FILE = 'offline.json'
 
+/**
+ * 离线包里的文件名必须是"纯文件名"。
+ *
+ * path.join 会把 `..` 归一化掉，所以不校验就等于让一个手工构造的离线包
+ * 读写下载目录之外的文件（安全审查 M3）。这里只接受单层文件名。
+ */
+const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,120}$/
+
+export function assertSafeFileName(name: unknown, context: string): string {
+  if (typeof name !== 'string' || !SAFE_FILE_NAME.test(name) || name.includes('..')) {
+    throw new Error(`${context} 里的文件名不合法：${JSON.stringify(String(name).slice(0, 80))}`)
+  }
+  return name
+}
+
 /** 与 executor 保持一致的文件命名规则（改这里必须同步改 executor） */
 export function archiveFileName(toolId: string, version: string, url: string): string {
   return `${toolId}-${version}-${basename(new URL(url).pathname)}`
@@ -167,20 +182,21 @@ export async function importOfflinePack(packDir: string, downloadDir: string): P
     let imported = 0
 
     for (const entry of index.entries) {
-      const source = join(archivesDir, entry.fileName)
+      const fileName = assertSafeFileName(entry.fileName, '离线包索引')
+      const source = join(archivesDir, fileName)
       if (!existsSync(source)) {
         missing.push(entry.fileName)
         continue
       }
 
       const actual = await sha256File(source)
-      if (actual.toLowerCase() !== entry.sha256.toLowerCase()) {
-        logger.warn('offline', `离线包内 ${entry.fileName} 校验失败，已跳过`)
-        missing.push(entry.fileName)
+      if (actual.toLowerCase() !== String(entry.sha256).toLowerCase()) {
+        logger.warn('offline', `离线包内 ${fileName} 校验失败，已跳过`)
+        missing.push(fileName)
         continue
       }
 
-      copyFileSync(source, join(downloadDir, entry.fileName))
+      copyFileSync(source, join(downloadDir, fileName))
       imported += 1
     }
 

@@ -705,6 +705,27 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 
 ---
 
+### 13.5 安全审查结论（v0.5）
+
+独立安全审查（对抗性、只读）在 `core/templates`、`core/zip`、`core/activate`、`core/ipc`、
+`core/elevation`、`core/downloader`、`core/hotupdate` 上跑了一轮，结论是「模板白名单 / zip-slip 防护 /
+junction 只删链接 / PATH 只动自有条目 / 热更新不合并 install-activate-detect」这几条设计站得住，
+但发现并修复了 6 个真实问题（每条都补了回归测试，见 `src/main/core/security-regression.test.ts`）：
+
+| 级别 | 问题 | 修法 |
+|---|---|---|
+| 高 | 热更新下发的版本号可以是 `..`，`join(versionsRoot, id, '..')` 归一化后安装目录逃逸到 versions 根目录，能覆盖其它已装工具的二进制 | Schema / 白名单 / IPC 三处版本号收紧为 `^[0-9A-Za-z][0-9A-Za-z._+-]{0,39}$`；`buildPlan` 再算一次 `relative(versionsRoot, installDir)` 兜底 |
+| 高 | `mirrorsApply` 不校验地址，可把 `'` 换行等字符拼进 `init.gradle` / `config.toml` / XML / YAML，形成持久化的配置注入 | 新增共享白名单字符集 `MIRROR_URL_PATTERN`；IPC 层校验 target 与 url；`applyMirrors` 写入前再校验一次（纵深防御） |
+| 高 | 提权安装存在 TOCTOU：安装包在用户可写的下载目录里，下载时校验过一次之后仍可被替换，再等用户点 UAC | 把期望 SHA-256 写进提权 job，助手脚本在 `Start-Process` 之前用 .NET 重算一次，不一致就拒绝执行 |
+| 中 | `https` 源 302 到 `http` 会被静默跟随，能改 http 响应的人即可替换下载内容与热更新索引 | 抽成纯函数 `shouldFollowRedirect`，生产模式拒绝任何降级；只有测试用的 `allowInsecure` 才放行 |
+| 中 | 用户自己定义的 `DEVKIT_HOME` 会被 devkit 覆盖，取消激活时又被删掉 | 写前先读；指向别处时改用绝对路径并告警，不覆盖也不删除 |
+| 中 | 离线包的 `fileName` 未校验，`path.join` 归一化 `..` 后可读写下载目录之外的文件 | 只接受单层文件名（正则 + 显式拒绝 `..`）；离线包目录必须是绝对路径 |
+| 低 | ZIP 条目名含 `:`（NTFS 备用数据流），落在目标目录内但磁盘上不可见 | 条目名含冒号一律拒绝 |
+
+另外发现一个**环境级问题**：本机 PowerShell 5.1 里 `Get-FileHash` 不存在
+（`Microsoft.PowerShell.Utility` 不完整）。提权助手的哈希校验因此一度全部失败 ——
+改成用 `[System.Security.Cryptography.SHA256]` 直接算，不再依赖任何 cmdlet。
+
 ### 13.4 更新机制确认（v0.5）
 
 | # | 问题 | 结论 |

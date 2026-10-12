@@ -653,8 +653,9 @@ const SPECS: ToolSpec[] = [
     homepage: 'https://gradle.org',
     license: { spdx: 'Apache-2.0', redistributable: true },
     detect: {
-      commands: [{ cmd: 'gradle', args: ['-v'], expectRegex: 'Gradle \\d+' }],
-      files: ['%USERPROFILE%\\.gradle\\wrapper\\dists']
+      // 刻意不用 %USERPROFILE%\\.gradle\\wrapper\\dists 作为依据：
+      // 只要跑过一次 Gradle wrapper 就会生成那个目录，装没装 Gradle 都有 —— 拿它当"已安装"是假阳性。
+      commands: [{ cmd: 'gradle', args: ['-v'], expectRegex: 'Gradle \\d+' }]
     },
     installScope: 'user',
     install: { type: 'zip', template: 'zip-into-version-dir', params: { stripComponents: '1' } },

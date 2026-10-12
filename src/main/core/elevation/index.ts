@@ -27,9 +27,23 @@ export async function runElevated(
   return outcome
 }
 
-/** 把一条安装命令包成一个提权步骤 */
-export function toExecStep(label: string, command: InstallerCommand): ElevationStep {
-  return { kind: 'exec', label, cmd: command.cmd, args: command.args, timeoutMs: 30 * 60 * 1000 }
+/**
+ * 把一条安装命令包成一个提权步骤。
+ * 传 verifySha256 时，提权进程会在执行前重新校验安装包（防止用户级进程中途替换，安全审查 H3）。
+ */
+export function toExecStep(
+  label: string,
+  command: InstallerCommand,
+  verifySha256?: string
+): ElevationStep {
+  return {
+    kind: 'exec',
+    label,
+    cmd: command.cmd,
+    args: command.args,
+    timeoutMs: 30 * 60 * 1000,
+    ...(verifySha256 ? { verifySha256 } : {})
+  }
 }
 
 /** 安装前创建系统还原点（FR-10） */

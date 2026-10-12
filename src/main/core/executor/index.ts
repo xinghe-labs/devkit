@@ -47,7 +47,11 @@ export interface RunPlanOptions {
   /** 安装成功后激活该版本；不传表示不激活 */
   activate?: (item: PlanItem, version: ToolVersionSpec, tool: ToolManifest) => Promise<ActivateOutcome>
   /** 需要管理员的安装命令交给它执行（提权助手）；不传则直接执行 */
-  runElevatedCommand?: (label: string, command: { cmd: string; args: string[] }) => Promise<void>
+  runElevatedCommand?: (
+    label: string,
+    command: { cmd: string; args: string[] },
+    verifySha256?: string
+  ) => Promise<void>
 }
 
 type Emit = (currentItemId: string | null, detail?: InstallProgressEvent['detail']) => void
@@ -215,7 +219,12 @@ async function runItem(context: {
           .join(' ')}`
       ),
     runElevatedCommand: context.runElevatedCommand
-      ? (command) => context.runElevatedCommand!(`安装 ${item.id}@${item.version}`, command)
+      ? (command) =>
+          context.runElevatedCommand!(
+            `安装 ${item.id}@${item.version}`,
+            command,
+            version.source?.sha256
+          )
       : undefined
   })
   logger.info(

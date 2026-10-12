@@ -77,7 +77,8 @@ export function asBoolean(value: unknown, label: string, fallback: boolean): boo
 }
 
 const TOOL_ID = /^[a-z0-9][a-z0-9-]{0,39}$/
-const VERSION_TEXT = /^[0-9A-Za-z.\-_+]{1,40}$/
+// 必须以字母或数字开头：否则 '..' 之类的值能让安装目录逃逸出 versions 根目录
+const VERSION_TEXT = /^[0-9A-Za-z][0-9A-Za-z.\-_+]{0,39}$/
 
 /** 校验用户勾选结果。工具 id 与版本号都按清单约定限制字符集，避免奇怪的值流进下游 */
 export function asPlanSelections(value: unknown, label: string, maxLength = 200): PlanSelection[] {

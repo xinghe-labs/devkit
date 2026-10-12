@@ -64,6 +64,11 @@ export function resolveEntryPath(
   if (parts.length > 0 && /^[a-zA-Z]:/.test(parts[0])) {
     throw new ZipSlipError(`条目包含盘符：${entryName}`)
   }
+  // NTFS 备用数据流：`a.exe:hidden` 会写到目标目录内的一个数据流上。
+  // 虽然逃不出目标目录，但它在磁盘上"看不见"，没有任何正当用途，一律拒绝（安全审查 L1）。
+  if (normalized.includes(':')) {
+    throw new ZipSlipError(`条目名包含冒号（可能是 NTFS 数据流）：${entryName}`)
+  }
 
   const stripped = parts.slice(stripComponents)
   if (stripped.length === 0) return null
