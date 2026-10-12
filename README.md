@@ -50,6 +50,8 @@
 | 镜像源一键配置（npm/pip/Go/Maven/Gradle/cargo/conda/NuGet/Docker） | ✗ | 部分 | ✓ |
 | VS Code 插件推荐与一键安装                       | ✗              | ✗              | ✓      |
 | AI 编码 agent 安装（Claude Code / Codex / …）    | ✗              | 部分           | ✓      |
+| 环境体检（PATH 脏数据诊断 + 一键修复）           | ✗              | ✗              | ✓      |
+| 环境档案 / 换机迁移                              | ✗              | ✗              | ✓      |
 
 ---
 
@@ -162,6 +164,36 @@ Node.js，其次才是 PATH 上的 npm。
 > 有官方 API 的直接取（Go、Adoptium、Gradle、VS Code、rustup），
 > 有官方校验和文件的直接读（CMake、SQLite、Deno），
 > 都没有的下载后本地计算（Python、Maven、Git、pnpm、Ninja、7-Zip）。
+
+### 环境体检
+
+换机、装完东西跑不起来时，第一反应是"环境坏了"—— 而现在唯一的办法是人肉 `echo %PATH%` 一条条看。
+
+体检会逐条判定 PATH（正常 / 目录不存在 / 变量不存在 / 结构畸形 / 重复），
+并给出**人话解释 + 具体证据**。实测在一台真实开发机上抓到：
+
+```
+机器级 PATH 33 条 → 23 条正常、3 条目录不存在、1 条变量不存在、4 条结构畸形、2 条重复
+  C:\P                    ← C:\Program Files\... 被截断写入的残留
+  ogram Files\Git\cmd    ← 同上
+  %NOODE_PATH%            ← 变量名拼错，且该变量不存在
+  v16.13.1 / node_global  ← 裸版本号 / 相对路径
+
+python → D:\Python\python.exe（实际生效）
+python → C:\Program Files\LibreOffice\program\python.exe   ← 另一个也在 PATH 上
+```
+
+**诊断永远只读**；只有你点「修复」才会改动，而且改前备份、改完复验。
+用户级修复直接做，机器级修复单独确认（一次 UAC）。
+
+### 环境档案 / 换机迁移
+
+重装系统最痛的不是装软件，是"恢复成原来那样"。导出一份 JSON 就能把
+工具清单、自定义 PATH 条目、关键环境变量、镜像源、VS Code 插件带走。
+
+- **不含任何密钥**：环境变量只收 `JAVA_HOME` 这类路径变量，不读 `.npmrc` 的 token、不碰 SSH 私钥
+- 导入后**先看差异表再决定**：恢复 PATH / 环境变量 / 镜像 / git 四项默认全不勾
+- 装软件复用现有安装流程（预检 → 下载 → 校验 → 安装 → 自检 → 激活）
 
 ### 许可证分级
 
@@ -406,6 +438,17 @@ Download from [Releases](https://github.com/xinghe-labs/devkit/releases):
 - **Mirror configuration writes only its own block**, so your private registries, tokens and
   proxy settings survive.
 - **Zero telemetry.**
+
+### Environment health check & migration
+
+- **Health check** — read-only diagnosis of PATH (missing dirs, unset variables, truncated
+  fragments, duplicates), command resolution (which copy actually runs), env vars, and devkit's
+  own state. Every finding names the exact entry and value. Fixing is explicit, backed up first,
+  and verified after writing; machine-level fixes need one UAC prompt.
+- **Environment profile** — export a portable JSON with the tool list, custom PATH entries, key
+  env vars, mirrors and VS Code extensions; import it on a new machine to see a diff and restore.
+  **Contains no secrets**: env vars are limited to a path-variable allowlist, and the restore
+  options are all unchecked by default.
 
 ### Status
 

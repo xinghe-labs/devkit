@@ -71,6 +71,11 @@ export const IPC = {
   updateDownload: 'update:download',
   updateInstall: 'update:install',
 
+  /** 环境档案 / 换机迁移（FR-22） */
+  profileExport: 'profile:export',
+  profileImport: 'profile:import',
+  profileApply: 'profile:apply',
+
   /** 环境体检（FR-21） */
   doctorRun: 'doctor:run',
   doctorFix: 'doctor:fix',

@@ -5,8 +5,13 @@ import type {
   InstalledTool,
   OfflinePackResult,
   Preset,
+  ApplyProfileOptions,
   DoctorFixId,
   DoctorReport,
+  EnvProfile,
+  ExportProfileRequest,
+  ExportProfileResult,
+  ImportProfileResult,
   SystemConfigItem,
   SystemConfigRequest,
   UpdateInfo,
@@ -43,6 +48,9 @@ interface ManageState {
   doctorReport: DoctorReport | null
   doctorRunning: boolean
   doctorFixing: boolean
+  profileOpen: boolean
+  exportedProfile: ExportProfileResult | null
+  importedProfile: ImportProfileResult | null
   updateInfo: UpdateInfo | null
   /** 已下载好的更新包路径；null = 还没下载 */
   updateFilePath: string | null
@@ -81,6 +89,11 @@ interface ManageState {
   runHotUpdate: (url: string) => Promise<void>
   clearManifestOverride: () => Promise<void>
 
+  openProfile: (open: boolean) => void
+  exportProfile: (request: ExportProfileRequest) => Promise<void>
+  importProfile: () => Promise<void>
+  applyProfile: (profile: EnvProfile, options: ApplyProfileOptions) => Promise<void>
+
   openDoctor: (open: boolean) => void
   runDoctor: () => Promise<void>
   applyDoctorFix: (fixId: DoctorFixId) => Promise<void>
@@ -115,6 +128,9 @@ export const useManageStore = create<ManageState>()((set, get) => ({
   doctorReport: null,
   doctorRunning: false,
   doctorFixing: false,
+  profileOpen: false,
+  exportedProfile: null,
+  importedProfile: null,
   updateInfo: null,
   updateFilePath: null,
   updateDownloading: false,
@@ -365,6 +381,64 @@ export const useManageStore = create<ManageState>()((set, get) => ({
         hotUpdateResult: null,
         notice: { kind: 'success', text: `已清除 ${removed} 个热更新覆盖，重启后回到内置清单` }
       })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  openProfile: (open) => set({ profileOpen: open }),
+
+  exportProfile: async (request) => {
+    set({ busy: true, exportedProfile: null })
+    try {
+      const result = await window.devkit.exportProfile(request)
+      set({
+        exportedProfile: result,
+        notice: result.ok
+          ? { kind: 'success', text: `环境档案已导出：${result.filePath}` }
+          : result.error === '已取消'
+            ? null
+            : { kind: 'error', text: result.error ?? '导出失败' }
+      })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  importProfile: async () => {
+    set({ busy: true, importedProfile: null })
+    try {
+      const result = await window.devkit.importProfile()
+      if (!result.ok && result.error === '已取消') return
+      set({ importedProfile: result })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  applyProfile: async (profile, options) => {
+    set({ busy: true })
+    try {
+      const result = await window.devkit.applyProfile(profile, options)
+      if (!result.ok) throw new Error(result.error ?? '恢复失败')
+      set({
+        notice: {
+          kind: result.changed.length > 0 ? 'success' : 'info',
+          text:
+            result.changed.length > 0
+              ? `已恢复 ${result.changed.length} 项：${result.changed.slice(0, 3).join('；')}${result.changed.length > 3 ? ' …' : ''}`
+              : '没有需要恢复的内容'
+        }
+      })
+      await get().loadInstalled()
+      await get().loadSettings()
+      await get().runDoctor()
     } catch (error) {
       set({ notice: { kind: 'error', text: describeError(error) } })
     } finally {

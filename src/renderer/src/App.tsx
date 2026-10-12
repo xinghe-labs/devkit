@@ -27,6 +27,7 @@ import { InstalledDrawer } from './components/InstalledDrawer'
 import { LogPanel } from './components/LogPanel'
 import { ImportPresetButton, PresetBar } from './components/PresetBar'
 import { DoctorDrawer } from './components/DoctorDrawer'
+import { ProfileDrawer } from './components/ProfileDrawer'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { VscodeDrawer } from './components/VscodeDrawer'
 import { ToolRow } from './components/ToolRow'
@@ -90,6 +91,7 @@ export default function App() {
 
   const openSettings = useManageStore((state) => state.openSettings)
   const openDoctor = useManageStore((state) => state.openDoctor)
+  const openProfile = useManageStore((state) => state.openProfile)
   const openVscode = useManageStore((state) => state.openVscode)
   const openInstalled = useManageStore((state) => state.openInstalled)
   const notice = useManageStore((state) => state.notice)
@@ -257,6 +259,9 @@ export default function App() {
           />
           <Button size="small" onClick={() => openDoctor(true)}>
             {t('action.doctor')}
+          </Button>
+          <Button size="small" onClick={() => openProfile(true)}>
+            {t('action.profile')}
           </Button>
           <Button size="small" onClick={() => openVscode(true)}>
             {t('action.vscode')}
@@ -472,6 +477,7 @@ export default function App() {
         <InstallFlow />
         <SettingsDrawer />
         <DoctorDrawer />
+        <ProfileDrawer />
         <InstalledDrawer />
         <VscodeDrawer />
       </Layout>

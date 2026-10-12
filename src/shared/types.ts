@@ -514,6 +514,94 @@ export interface MirrorSetting {
 
 /** 镜像写入结果 */
 /* ------------------------------------------------------------------ */
+/* 环境档案 / 换机迁移（FR-22）                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 环境档案：把"这台机器上的开发环境长什么样"收成一份可带走的 JSON。
+ *
+ * **不含任何密钥**：环境变量走白名单（只收 JAVA_HOME 这类路径变量），
+ * 不读 .npmrc 的 auth token、不碰 SSH 私钥、不碰 git credential。
+ * git 身份默认不带（那算个人信息），要带得显式勾选。
+ */
+export interface EnvProfile {
+  schemaVersion: 1
+  createdAt: string
+  devkitVersion: string
+  /** 来源机器信息（不含用户名） */
+  machine: { platform: string; arch: string; osRelease: string }
+  detected: { toolId: string; status: DetectionStatus; version: string | null }[]
+  installed: { toolId: string; version: string; activated: boolean }[]
+  /** 用户 PATH 里的自定义条目（已排除系统自带与 devkit 管理的） */
+  userPathExtra: string[]
+  env: Record<string, string>
+  mirrors: { target: string; url: string | null }[]
+  git: { userName: string | null; userEmail: string | null }
+  vscodeExtensions: string[]
+  /** 目标机器上要装什么；可以直接喂给现有的安装流程 */
+  selections: PlanSelection[]
+}
+
+export type ProfileToolState = 'missing' | 'version-differs' | 'already-present' | 'installed-by-devkit'
+
+export interface ProfileDiffEntry {
+  toolId: string
+  name: LocalizedText | null
+  wantedVersion: string | null
+  currentVersion: string | null
+  state: ProfileToolState
+}
+
+export interface ProfileDiff {
+  tools: ProfileDiffEntry[]
+  missingPathEntries: string[]
+  envToRestore: Record<string, string>
+  vscodeExtensions: string[]
+  summary: {
+    toInstall: number
+    alreadyPresent: number
+    pathEntries: number
+    envVars: number
+  }
+}
+
+export interface ApplyProfileOptions {
+  restoreUserPath: boolean
+  restoreEnv: boolean
+  restoreMirrors: boolean
+  restoreGit: boolean
+}
+
+export interface ApplyProfileResult {
+  ok: boolean
+  changed: string[]
+  /** 需要安装的工具（交给现有安装流程，不在这里装） */
+  selections: PlanSelection[]
+  error: string | null
+}
+
+export interface ExportProfileRequest {
+  includeGitIdentity: boolean
+}
+
+export interface ExportProfileResult {
+  ok: boolean
+  filePath: string | null
+  profile: EnvProfile | null
+  error: string | null
+}
+
+export interface ImportProfileResult {
+  ok: boolean
+  filePath: string | null
+  profile: EnvProfile | null
+  /** 档案里有什么（给用户先看清再决定） */
+  description: string[]
+  diff: ProfileDiff | null
+  error: string | null
+}
+
+/* ------------------------------------------------------------------ */
 /* 环境体检（FR-21）                                                    */
 /* ------------------------------------------------------------------ */
 

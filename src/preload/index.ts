@@ -9,7 +9,10 @@ import type {
   LogEntry,
   MirrorSetting,
   OfflinePackRequest,
+  ApplyProfileOptions,
   DoctorFixId,
+  EnvProfile,
+  ExportProfileRequest,
   PlanSelection,
   SystemConfigRequest,
   UninstallRequest
@@ -100,6 +103,13 @@ const api: DevkitApi = {
   checkForUpdate: () => ipcRenderer.invoke(IPC.updateCheck),
   downloadUpdate: () => ipcRenderer.invoke(IPC.updateDownload),
   installUpdate: (filePath: string) => ipcRenderer.invoke(IPC.updateInstall, filePath),
+
+  /* ---------------- 环境档案 / 换机迁移 ---------------- */
+  exportProfile: (request: ExportProfileRequest) =>
+    ipcRenderer.invoke(IPC.profileExport, request),
+  importProfile: () => ipcRenderer.invoke(IPC.profileImport),
+  applyProfile: (profile: EnvProfile, options: ApplyProfileOptions) =>
+    ipcRenderer.invoke(IPC.profileApply, { profile, options }),
 
   /* ---------------- 环境体检 ---------------- */
   runDoctor: () => ipcRenderer.invoke(IPC.doctorRun),

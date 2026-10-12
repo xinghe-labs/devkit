@@ -74,7 +74,8 @@
     "installed": "Installed",
     "settings": "Settings",
     "vscode": "VS Code extensions",
-    "doctor": "Health check"
+    "doctor": "Health check",
+    "profile": "Environment profile"
   },
   "log": {
     "title": "Runtime log",
@@ -279,5 +280,33 @@
     "fixConfirmMachine": "Removes the same kinds of entries from the machine PATH; requires admin (one UAC prompt).",
     "fixBackupNote": "The original is backed up to %APPDATA%\\devkit\\backup\\ so you can always compare or restore.",
     "fixRun": "Apply"
+  },
+  "profile": {
+    "title": "Environment profile / migration",
+    "whatItIs": "Bundle this machine’s dev environment into a portable JSON file",
+    "whatItIsHint": "Contains: which tools and versions, custom PATH entries, key environment variables, mirrors, VS Code extensions. **No secrets** — env vars are limited to path variables like JAVA_HOME; .npmrc tokens and SSH keys are never read.",
+    "export": "Export profile",
+    "exportHint": "Export on the old machine, import on the new one, and get a comparable environment back.",
+    "includeGit": "Include git identity (user.name / user.email)",
+    "exportRun": "Export…",
+    "exported": "Exported to {{path}}",
+    "import": "Import profile",
+    "importHint": "After importing you first see what is in the file and how it differs; nothing happens until you confirm.",
+    "importRun": "Choose a profile file…",
+    "importedFrom": "Loaded: {{path}}",
+    "diffTitle": "Differences from this machine",
+    "diffSummary": "{{install}} to install, {{present}} already present",
+    "tool": "Tool",
+    "state": "State",
+    "wantedVersion": "Version in profile",
+    "currentVersion": "Version here",
+    "restore": "Restore environment settings",
+    "restoreHint": "All four are unchecked by default — they modify your PATH / env vars and that is your call. A backup is taken first.",
+    "restorePath": "Add the missing custom PATH entries ({{count}})",
+    "restoreEnv": "Restore environment variables ({{count}})",
+    "restoreMirrors": "Restore mirror configuration ({{count}})",
+    "restoreGit": "Restore git identity",
+    "installAll": "Install everything from the profile ({{count}})",
+    "applyRestore": "Apply restore"
   }
 }

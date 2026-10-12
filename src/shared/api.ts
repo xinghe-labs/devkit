@@ -7,8 +7,14 @@ import type {
   DetectionResult,
   DoctorFixId,
   DoctorFixResult,
+  ApplyProfileOptions,
+  ApplyProfileResult,
   DoctorReport,
   DownloadUpdateResult,
+  EnvProfile,
+  ExportProfileRequest,
+  ExportProfileResult,
+  ImportProfileResult,
   InstallProgressEvent,
   InstalledTool,
   Locale,
@@ -113,6 +119,14 @@ export interface DevkitApi {
   downloadUpdate(): Promise<DownloadUpdateResult>
   /** 拉起已下载的安装包（只允许 devkit 自己下载目录下的 exe） */
   installUpdate(filePath: string): Promise<boolean>
+
+  /* ---------------- 环境档案 / 换机迁移（FR-22） ---------------- */
+  /** 导出本机环境档案（会弹保存对话框） */
+  exportProfile(request: ExportProfileRequest): Promise<ExportProfileResult>
+  /** 导入档案（会弹打开对话框），并算出与本机的差异 */
+  importProfile(): Promise<ImportProfileResult>
+  /** 按档案恢复环境配置；返回要安装的工具列表（交给现有安装流程） */
+  applyProfile(profile: EnvProfile, options: ApplyProfileOptions): Promise<ApplyProfileResult>
 
   /* ---------------- 环境体检（FR-21） ---------------- */
   /** 跑一次体检（只读，不改任何东西） */

@@ -1,6 +1,6 @@
 import { app, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { isAbsolute, join, resolve } from 'node:path'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { indexById } from '@shared/manifest'
 import { IPC } from '@shared/ipc'
 import { MIRROR_TARGETS, MIRROR_URL_PATTERN, type MirrorTarget } from '@shared/types'
@@ -12,8 +12,11 @@ import type {
   DetectionResult,
   DoctorFixId,
   DoctorFixResult,
+  ApplyProfileResult,
   DoctorReport,
   DownloadUpdateResult,
+  ExportProfileResult,
+  ImportProfileResult,
   HotUpdateResultView,
   InstalledTool,
   Locale,
@@ -53,6 +56,8 @@ import {
 import { loadManifests } from '../core/manifest'
 import { importOfflinePack, packOffline } from '../core/offline'
 import { clearUserManifests, runHotUpdate } from '../core/hotupdate'
+import { collectProfile, defaultProfileFileName, describeProfile, diffProfile, sanitizeProfile } from '../core/profile'
+import { applyProfile } from '../core/profile'
 import { runDoctor } from '../core/doctor'
 import { applyDoctorFix } from '../core/doctor/fix'
 import { applySystemConfig, getSystemConfigStatus } from '../core/systemconfig'
@@ -411,6 +416,106 @@ export function registerIpcHandlers(): void {
       feedUrl: config.updateFeedUrl,
       currentVersion: app.getVersion(),
       proxy: config.proxy
+    })
+  })
+
+  /* ---------------- 环境档案 / 换机迁移（FR-22） ---------------- */
+
+  handle(IPC.profileExport, async (_event, payload: unknown): Promise<ExportProfileResult> => {
+    const request = asOptionalObject(payload, 'profile 导出请求')
+    const includeGitIdentity = asBoolean(request.includeGitIdentity, 'includeGitIdentity', false)
+
+    const manifests = loadManifests()
+    const detections = await detectAll(manifests.tools)
+    const installed = await listInstalledWithSize(manifests.tools)
+
+    const profile = await collectProfile(
+      {
+        tools: manifests.tools,
+        detections,
+        installed,
+        mirrors: loadConfig().mirrors
+      },
+      { includeGitIdentity }
+    )
+
+    // 传了 filePath 就直接写（脚本化迁移用），否则弹保存对话框
+    let target =
+      typeof request.filePath === 'string' && request.filePath.trim() !== ''
+        ? request.filePath.trim()
+        : null
+
+    if (target) {
+      if (!isAbsolute(target)) throw new IpcValidationError('档案输出路径必须是绝对路径')
+    } else {
+      const picked = await dialog.showSaveDialog({
+        title: '导出环境档案',
+        defaultPath: defaultProfileFileName(),
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (picked.canceled || !picked.filePath) {
+        return { ok: false, filePath: null, profile: null, error: '已取消' }
+      }
+      target = picked.filePath
+    }
+
+    await writeFile(target, `${JSON.stringify(profile, null, 2)}\n`, 'utf8')
+    logger.info('profile', `环境档案已导出：${target}`)
+    return { ok: true, filePath: target, profile, error: null }
+  })
+
+  handle(IPC.profileImport, async (): Promise<ImportProfileResult> => {
+    const picked = await dialog.showOpenDialog({
+      title: '导入环境档案',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { ok: false, filePath: null, profile: null, description: [], diff: null, error: '已取消' }
+    }
+
+    const filePath = picked.filePaths[0]
+    try {
+      const raw = JSON.parse(await readFile(filePath, 'utf8')) as unknown
+      // 别人给的档案不能直接信：走一遍白名单清洗
+      const profile = sanitizeProfile(raw)
+
+      const manifests = loadManifests()
+      const detections = await detectAll(manifests.tools)
+      const installed = await listInstalledWithSize(manifests.tools)
+
+      const diff = await diffProfile(profile, {
+        tools: manifests.tools,
+        detections,
+        installed
+      })
+
+      logger.info('profile', `环境档案已导入：${filePath}`)
+      return {
+        ok: true,
+        filePath,
+        profile,
+        description: describeProfile(profile),
+        diff,
+        error: null
+      }
+    } catch (error) {
+      const message = (error as Error).message
+      logger.warn('profile', `导入档案失败：${message}`)
+      return { ok: false, filePath, profile: null, description: [], diff: null, error: message }
+    }
+  })
+
+  handle(IPC.profileApply, async (_event, payload: unknown): Promise<ApplyProfileResult> => {
+    const request = asOptionalObject(payload, 'profile 恢复请求')
+    const profile = sanitizeProfile(request.profile)
+    const options = asOptionalObject(request.options, 'options')
+
+    return applyProfile(profile, {
+      restoreUserPath: asBoolean(options.restoreUserPath, 'restoreUserPath', false),
+      restoreEnv: asBoolean(options.restoreEnv, 'restoreEnv', false),
+      restoreMirrors: asBoolean(options.restoreMirrors, 'restoreMirrors', false),
+      restoreGit: asBoolean(options.restoreGit, 'restoreGit', false)
     })
   })
 

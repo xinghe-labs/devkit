@@ -74,7 +74,8 @@
     "installed": "已安装",
     "settings": "设置",
     "vscode": "VS Code 插件",
-    "doctor": "环境体检"
+    "doctor": "环境体检",
+    "profile": "环境档案"
   },
   "log": {
     "title": "运行日志",
@@ -279,5 +280,33 @@
     "fixConfirmMachine": "会清理机器级 PATH 里的同类条目，需要管理员权限（弹一次 UAC）。",
     "fixBackupNote": "改动前会把原文备份到 %APPDATA%\\devkit\\backup\\，随时可以对照还原。",
     "fixRun": "执行"
+  },
+  "profile": {
+    "title": "环境档案 / 换机迁移",
+    "whatItIs": "把本机的开发环境收成一份可带走的 JSON",
+    "whatItIsHint": "包含：装了哪些工具与版本、PATH 里的自定义条目、关键环境变量、镜像源、VS Code 插件。**不含任何密钥** —— 环境变量只收 JAVA_HOME 这类路径变量，不读 .npmrc 的 token、不碰 SSH 私钥。",
+    "export": "导出档案",
+    "exportHint": "在旧机器上导出，拿到新机器上导入，就能把环境恢复成差不多的样子。",
+    "includeGit": "包含 git 身份（user.name / user.email）",
+    "exportRun": "导出…",
+    "exported": "已导出到 {{path}}",
+    "import": "导入档案",
+    "importHint": "导入后先给你看档案里有什么、与本机差在哪，你确认了才会动手。",
+    "importRun": "选择档案文件…",
+    "importedFrom": "已读取：{{path}}",
+    "diffTitle": "与本机的差异",
+    "diffSummary": "需安装 {{install}} 项，本机已有 {{present}} 项",
+    "tool": "工具",
+    "state": "状态",
+    "wantedVersion": "档案里的版本",
+    "currentVersion": "本机版本",
+    "restore": "恢复环境配置",
+    "restoreHint": "这四项默认都不勾 —— 它们会改你的 PATH / 环境变量，必须你自己决定。改动前一律先备份。",
+    "restorePath": "补齐 PATH 里的自定义条目（{{count}} 条）",
+    "restoreEnv": "恢复环境变量（{{count}} 个）",
+    "restoreMirrors": "恢复镜像源配置（{{count}} 项）",
+    "restoreGit": "恢复 git 身份",
+    "installAll": "按档案装齐（{{count}} 项）",
+    "applyRestore": "执行恢复"
   }
 }

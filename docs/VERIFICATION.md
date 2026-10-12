@@ -470,6 +470,65 @@ D:/AgentWork/work/devkit-root-test/versions/ninja/1.13.2
 
 ---
 
+## 3.14 环境体检与环境档案（真机验证）
+
+### 体检：在一台真实开发机上跑出来的结果
+
+```
+[doctor] 体检完成：1 个问题、2 个注意、3 项正常
+
+machinePath: 33 条 → ok 23 / missing 3 / unexpanded-var 1 / malformed 4 / duplicate 2
+userPath:     4 条 → ok 4
+findings: machine-path-problems(error, 10 条证据, 可修复)
+          command-ambiguous(warn, 10 条证据)
+          system-items(warn, 3 条证据)
+```
+
+判定结果与手工逐条分析**完全一致**。机器级 PATH 里的
+`C:\P` / `ogram Files\Git\cmd` 是 PATH 被截断写入（setx 的 1024 字符问题）的铁证。
+
+`command-ambiguous` 抓到的是真正会让人困惑的东西：
+
+```
+python → D:\Python\python.exe（实际生效）
+python → C:\Program Files\LibreOffice\program\python.exe
+npm    → C:\Users\张三\AppData\Roaming\npm\npm（实际生效）
+npm    → D:\node\npm  /  D:\npm\npm-global\npm
+git    → ...\Git\mingw64\bin\git.exe（实际生效） / ...\Git\cmd\git.exe
+```
+
+**判定规则的一次自我修正**：第一版把「看起来像被截断」当独立判据，
+结果 `D:\go` 这种合法的两字符目录被误报成坏条目。改成只有「目录不存在」时才提示「像被截断」。
+误报会让用户不敢点修复，所以这条修正很重要 —— 测试里刻意留了一条断言把这件事钉住。
+
+### 档案：真机导出的实际内容
+
+```
+$ exportProfile({ includeGitIdentity: true })
+[profile] 已收集环境档案：25 个检测结果、0 个 devkit 安装、3 条自定义 PATH、2 个环境变量、0 个插件
+
+文件 4041 字节，密钥扫描 0 命中
+env     : {JAVA_HOME: D:\jdk\jdk 17, GOPATH: %USERPROFILE%\go}
+path    : [D:\Python, D:\Python\Scripts, D:\npm\npm-global]
+git     : {userName: ..., userEmail: ...}   ← 默认不带，这次是显式勾选的
+selections: 15 项（bun / go / jdk-temurin / nodejs / python / maven / wsl2 / claude-code / ...）
+```
+
+**密钥扫描 0 命中**（`token|password|secret|apikey|credential|gho_|ghp_|sk-|PRIVATE KEY`）。
+环境变量只收了白名单里的路径变量；`.npmrc` 的 token、SSH 私钥、git credential 都没碰。
+
+8 个单测覆盖「外部档案当不可信输入」的场景：环境变量只收白名单名
+（`NODE_OPTIONS` / `npm_config_registry` 这类会被丢弃）、PATH 条目必须是绝对路径、
+工具 id 与版本号走清单字符集（`../evil`、`..` 被拒）、插件列表有上限。
+
+### 顺带修掉的一个真 bug
+
+提权助手里的注册表路径写在 TS 模板字符串里，`\S` 被当成转义吃掉，
+PowerShell 收到的是 `HKLM:SYSTEM...` —— 脚本会直接失败，而且报错完全指不到原因。
+加了 `helper-script.test.ts` 把生成的脚本内容钉死。
+
+---
+
 ## 4. 安全相关的专项测试
 
 | 项 | 测试文件 | 覆盖内容 |
