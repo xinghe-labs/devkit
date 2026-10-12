@@ -160,7 +160,10 @@ describe.skipIf(!onWindows)('激活后的「新终端」验证', () => {
       `C:${SEP}Users${SEP}nobody${SEP}.devkit`
     )
     expect(result.ok).toBe(false)
-    // cmd 与 where 的报错文案不同，两种都算可读
-    expect(result.detail).toMatch(/找不到|不是内部或外部命令/)
+    // 只断言**我们自己拼的**那部分文案：系统报错是本地化的
+    // （中文系统是"不是内部或外部命令"，英文 runner 是 "is not recognized as ..."），
+    // 拿系统文案做断言会在 CI 上直接红掉。
+    expect(result.detail).toContain('devkit-no-such-command.exe')
+    expect(result.detail).toMatch(/退出码|找不到/)
   }, 60_000)
 })
