@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { indexById } from '@shared/manifest'
 import type { InstallPlan, ToolManifest, ToolVersionSpec } from '@shared/types'
@@ -180,4 +183,67 @@ describe('runPreflight', () => {
       true
     )
   })
+
+  describe('幂等：所有项都已安装时不做网络探测', () => {
+    it('安装目录都存在时，网络不可达不会阻断（NFR-2）', async () => {
+      // 造一个真实存在的"版本目录"，并让下载源指向必定不可达的地址。
+      // 实测场景：GitHub 临时不可达时重跑一个已经装好的工具，
+      // 预检不该因为"一个用不到的条件"把用户拦住。
+      const installDir = mkdtempSync(join(tmpdir(), 'devkit-pf-'))
+      const installed: ToolManifest = {
+        ...tool,
+        versions: [
+          { ...version, source: { url: 'https://127.0.0.1:1/a.zip', sha256: 'a'.repeat(64) } }
+        ]
+      }
+
+      const planWithDir: InstallPlan = {
+        ...plan,
+        items: plan.items.map((item) => ({ ...item, installDir }))
+      }
+
+      try {
+        const result = await runPreflight({
+          plan: planWithDir,
+          tools: indexById([installed]),
+          targetPath: 'C:\\',
+          maxProbes: 3
+        })
+
+        expect(result.ok).toBe(true)
+        expect(result.checks.some((check) => check.id === 'network' && check.level === 'error')).toBe(
+          false
+        )
+        expect(
+          result.checks.some((check) => check.id === 'network' && check.message.includes('无需下载'))
+        ).toBe(true)
+      } finally {
+        rmSync(installDir, { recursive: true, force: true })
+      }
+    })
+
+    it('有项需要下载时仍然会探测并阻断', async () => {
+      const notInstalled: ToolManifest = {
+        ...tool,
+        versions: [
+          { ...version, source: { url: 'https://127.0.0.1:1/a.zip', sha256: 'a'.repeat(64) } }
+        ]
+      }
+
+      const result = await runPreflight({
+        plan: {
+          ...plan,
+          items: plan.items.map((item) => ({
+            ...item,
+            installDir: `C:\\definitely\\not\\there`
+          }))
+        },
+        tools: indexById([notInstalled]),
+        targetPath: 'C:\\',
+        maxProbes: 3
+      })
+
+      expect(result.ok).toBe(false)
+    })
+})
 })

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { statfs } from 'node:fs/promises'
 import { arch as osArch, release as osRelease } from 'node:os'
 import { parse as parsePath } from 'node:path'
@@ -207,19 +208,35 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightResu
   const targets: { toolId: string; sources: DownloadSourceRef[] }[] = []
   const seenTools = new Set<string>()
 
-  for (const item of plan.items) {
-    if (targets.length >= probeLimit) break
-    if (seenTools.has(item.id)) continue
-    const tool = tools.get(item.id)
-    const version = tool?.versions.find((entry) => entry.version === item.version)
-    if (!version) continue
-    const sources = orderDownloadSources(version, plan.options.mirrorPreference).slice(0, perToolSources)
-    if (sources.length === 0) continue
-    seenTools.add(item.id)
-    targets.push({ toolId: item.id, sources })
-  }
+  // 所有项都已经落在版本目录里时，本次运行根本不需要下载（执行器会自检后直接跳过）。
+  // 这时候还去探网络、并且因为探测失败就整体阻断，是在拿一个"用不到的条件"拦住用户 ——
+  // 实测过：GitHub 临时不可达时，重跑一个已经装好的工具会被预检卡住（NFR-2 幂等性体验）。
+  const needsDownload = plan.items.some(
+    (item) => !item.installDir || !existsSync(item.installDir)
+  )
 
-  if (targets.length === 0) {
+  if (!needsDownload) {
+    checks.push({
+      id: 'network',
+      level: 'ok',
+      message: '所有项都已经在版本目录里，本次无需下载（会逐项自检后跳过）'
+    })
+  } else
+    for (const item of plan.items) {
+      if (targets.length >= probeLimit) break
+      if (seenTools.has(item.id)) continue
+      const tool = tools.get(item.id)
+      const version = tool?.versions.find((entry) => entry.version === item.version)
+      if (!version) continue
+      const sources = orderDownloadSources(version, plan.options.mirrorPreference).slice(0, perToolSources)
+      if (sources.length === 0) continue
+      seenTools.add(item.id)
+      targets.push({ toolId: item.id, sources })
+    }
+
+  if (!needsDownload) {
+    // 上面已经给出 ok 级结论，不再探测
+  } else if (targets.length === 0) {
     checks.push({ id: 'network', level: 'warn', message: '没有可探测的下载源' })
   } else {
     const probed = await Promise.all(

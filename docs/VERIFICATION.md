@@ -283,7 +283,8 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 
 | 问题 | 现象 | 修复 |
 | --- | --- | --- |
-| 离线包输出目录用手拼分隔符 | 用户选到带尾随分隔符或相对路径的目录时，`mkdir` 会失败（实测报 `ENOENT ... AgentWork\tmpoffline-test`） | 改用 `path.join(outputDir, name)` |
+| 离线包输出目录用手拼分隔符 || 预检拿"用不到的条件"拦人 | 所有项都已安装（本次根本不需要下载）时，网络探测失败仍会让预检阻断，重跑一个已装好的工具被卡住 | 预检先判断是否真有需要下载的项；全部已安装时跳过网络探测并给出 ok 级结论 |
+ 用户选到带尾随分隔符或相对路径的目录时，`mkdir` 会失败（实测报 `ENOENT ... AgentWork\tmpoffline-test`） | 改用 `path.join(outputDir, name)` |
 
 ---
 
