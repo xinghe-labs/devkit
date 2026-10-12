@@ -1,0 +1,274 @@
+import { create } from 'zustand'
+import type {
+  ActivationSnapshot,
+  InstalledTool,
+  OfflinePackResult,
+  Preset,
+  UserConfigView
+} from '@shared/types'
+
+/**
+ * 「管理」类状态的单一入口：设置、预设、已安装、激活、离线包。
+ *
+ * 单独开一个 store 而不是塞进 app-store，是因为这些操作都会**改机器状态**
+ * （写 PATH、删目录、改镜像配置），跟"读清单 + 跑检测"这种只读流程混在一起
+ * 很容易出现"刷新检测时顺手把设置也重置了"这类 bug。
+ */
+
+export type NoticeKind = 'success' | 'error' | 'info' | 'warning'
+
+export interface Notice {
+  kind: NoticeKind
+  text: string
+}
+
+interface ManageState {
+  settings: UserConfigView | null
+  presets: Preset[]
+  installed: InstalledTool[]
+  activation: ActivationSnapshot | null
+  offlineResult: OfflinePackResult | null
+
+  settingsOpen: boolean
+  installedOpen: boolean
+  busy: boolean
+  notice: Notice | null
+
+  setNotice: (notice: Notice | null) => void
+  openSettings: (open: boolean) => void
+  openInstalled: (open: boolean) => void
+
+  loadSettings: () => Promise<void>
+  saveSettings: (patch: Partial<UserConfigView>) => Promise<void>
+  applyMirrors: () => Promise<void>
+
+  loadPresets: () => Promise<void>
+  savePreset: (name: string, selections: { toolId: string; version?: string }[]) => Promise<void>
+  deletePreset: (id: string) => Promise<void>
+  importPreset: (raw: unknown) => Promise<void>
+
+  loadInstalled: () => Promise<void>
+  uninstall: (toolId: string, version: string) => Promise<void>
+  activate: (toolId: string, version: string) => Promise<void>
+  deactivate: (toolId: string) => Promise<void>
+
+  packOffline: (toolIds: string[]) => Promise<void>
+  importOfflinePack: () => Promise<void>
+}
+
+function describeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  // Electron 的 IPC 错误前缀在界面上没有意义，去掉它只留下真正的原因
+  return message.replace(/^Error invoking remote method '[^']+':\s*/, '')
+}
+
+export const useManageStore = create<ManageState>()((set, get) => ({
+  settings: null,
+  presets: [],
+  installed: [],
+  activation: null,
+  offlineResult: null,
+  settingsOpen: false,
+  installedOpen: false,
+  busy: false,
+  notice: null,
+
+  setNotice: (notice) => set({ notice }),
+  openSettings: (open) => set({ settingsOpen: open }),
+  openInstalled: (open) => {
+    set({ installedOpen: open })
+    if (open) void get().loadInstalled()
+  },
+
+  loadSettings: async () => {
+    try {
+      const settings = await window.devkit.getSettings()
+      set({ settings })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  saveSettings: async (patch) => {
+    set({ busy: true })
+    try {
+      const settings = await window.devkit.saveSettings(patch)
+      set({ settings, notice: { kind: 'success', text: '设置已保存' } })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  applyMirrors: async () => {
+    const settings = get().settings
+    if (!settings) return
+
+    set({ busy: true })
+    try {
+      const result = await window.devkit.applyMirrors(settings.mirrors)
+      if (!result.ok) throw new Error(result.error ?? '应用镜像配置失败')
+      set({
+        notice: {
+          kind: result.changed.length > 0 ? 'success' : 'info',
+          text:
+            result.changed.length > 0
+              ? result.changed.join('；')
+              : '没有需要改动的镜像配置'
+        }
+      })
+      await get().loadSettings()
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  loadPresets: async () => {
+    try {
+      set({ presets: await window.devkit.listPresets() })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  savePreset: async (name, selections) => {
+    if (selections.length === 0) {
+      set({ notice: { kind: 'warning', text: '请先勾选要保存的软件' } })
+      return
+    }
+    try {
+      const preset = await window.devkit.savePreset({
+        id: `my-${Date.now().toString(36)}`,
+        name: { 'zh-CN': name, 'en-US': name },
+        description: {
+          'zh-CN': `我保存的预设（${selections.length} 项）`,
+          'en-US': `My preset (${selections.length} items)`
+        },
+        tools: selections
+      })
+      await get().loadPresets()
+      set({ notice: { kind: 'success', text: `已保存预设「${preset.name['zh-CN'] ?? preset.id}」` } })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  deletePreset: async (id) => {
+    try {
+      await window.devkit.deletePreset(id)
+      await get().loadPresets()
+      set({ notice: { kind: 'success', text: '预设已删除' } })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  importPreset: async (raw) => {
+    try {
+      const preset = await window.devkit.importPreset(raw)
+      await get().loadPresets()
+      set({ notice: { kind: 'success', text: `已导入预设「${preset.id}」` } })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  loadInstalled: async () => {
+    try {
+      const [installed, activation] = await Promise.all([
+        window.devkit.listInstalled(),
+        window.devkit.getActivationSnapshot()
+      ])
+      set({ installed, activation })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    }
+  },
+
+  uninstall: async (toolId, version) => {
+    set({ busy: true })
+    try {
+      const result = await window.devkit.uninstallTool({ toolId, version })
+      if (!result.ok) throw new Error(result.error ?? '卸载失败')
+      set({ notice: { kind: 'success', text: `已卸载 ${toolId}@${version}` } })
+      await get().loadInstalled()
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  activate: async (toolId, version) => {
+    set({ busy: true })
+    try {
+      const result = await window.devkit.activateVersion({ toolId, version })
+      if (!result.ok) throw new Error(result.error ?? '激活失败')
+      set({ notice: { kind: 'success', text: result.note ?? '已激活' } })
+      await get().loadInstalled()
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  deactivate: async (toolId) => {
+    set({ busy: true })
+    try {
+      const result = await window.devkit.deactivateTool(toolId)
+      if (result.error) throw new Error(result.error)
+      set({
+        notice: {
+          kind: 'success',
+          text: result.removed.length > 0 ? `已取消激活：${result.removed.join('；')}` : '该工具本来就没激活'
+        }
+      })
+      await get().loadInstalled()
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  packOffline: async (toolIds) => {
+    set({ busy: true, offlineResult: null })
+    try {
+      const result = await window.devkit.packOffline({ toolIds })
+      set({
+        offlineResult: result,
+        notice: result.ok
+          ? { kind: 'success', text: `离线包已生成：${result.packDir}（${result.fileCount} 个文件）` }
+          : { kind: 'error', text: result.error ?? '生成离线包失败' }
+      })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  importOfflinePack: async () => {
+    set({ busy: true })
+    try {
+      const result = await window.devkit.importOfflinePack()
+      if (!result.ok) throw new Error(result.error ?? '导入失败')
+      set({
+        notice: {
+          kind: result.missing.length > 0 ? 'warning' : 'success',
+          text:
+            `已导入 ${result.imported} 个文件到下载缓存` +
+            (result.missing.length > 0 ? `；${result.missing.length} 个文件缺失或校验失败` : '')
+        }
+      })
+    } catch (error) {
+      set({ notice: { kind: 'error', text: describeError(error) } })
+    } finally {
+      set({ busy: false })
+    }
+  }
+}))

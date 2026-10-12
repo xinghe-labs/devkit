@@ -58,7 +58,10 @@
     "dependsOn": "依赖",
     "tierL1": "可离线分发",
     "tierL2": "不可再分发",
-    "tierL3": "仅引导官网"
+    "tierL3": "仅引导官网",
+    "devkitInstalled": "devkit 已装 {{versions}}",
+    "activated": "已激活 {{version}}",
+    "activateLatest": "激活 {{version}}"
   },
   "action": {
     "install": "开始安装",
@@ -66,7 +69,9 @@
     "redetect": "重新检测",
     "openLogDir": "打开日志目录",
     "clearSelection": "清空选择",
-    "selectAll": "全选本类"
+    "selectAll": "全选本类",
+    "installed": "已安装",
+    "settings": "设置"
   },
   "log": {
     "title": "运行日志",
@@ -127,5 +132,62 @@
       "discard": "放弃",
       "invalid": "上次的安装计划已失效：{{reason}}。请重新选择。"
     }
+  },
+  "preset": {
+    "label": "预设：",
+    "save": "保存当前选择",
+    "saveTitle": "给这个预设起个名字",
+    "namePlaceholder": "例如：团队前端",
+    "import": "导入预设",
+    "importTitle": "导入预设 JSON",
+    "importHint": "把别人分享的预设 JSON 粘进来即可。预设只是一组勾选结果，不含任何命令。",
+    "missingTools": "有 {{count}} 项在当前清单里已不存在，会被跳过"
+  },
+  "settings": {
+    "title": "设置",
+    "download": "下载",
+    "mirrorPreference": "镜像偏好",
+    "mirrorPreferenceHint": "只影响尝试顺序，失败仍会依次回退到其它源",
+    "proxy": "代理",
+    "proxyHint": "http://host:port，留空表示跟随系统",
+    "concurrency": "并发数",
+    "concurrencyHint": "1~3；机器级安装（MSI）始终串行",
+    "afterInstall": "安装完成后",
+    "activate": "自动激活",
+    "activateHint": "把版本接到用户 PATH 与环境变量，新开终端即可用",
+    "configureMirrors": "自动写入 npm / pip 镜像",
+    "configureMirrorsHint": "写 %USERPROFILE%\\.npmrc 与 %APPDATA%\\pip\\pip.ini，其它行保留",
+    "restorePoint": "安装前创建系统还原点",
+    "restorePointHint": "需要管理员；仅在勾选了机器级安装时才有意义",
+    "mirrors": "镜像源",
+    "mirrorsHint": "关掉某一项表示回到官方源（会删掉对应的自定义配置行）",
+    "applyMirrors": "立即应用镜像配置",
+    "offline": "离线包",
+    "offlineHint": "把当前勾选的软件连同校验和打成一个文件夹，可在断网机器上导入安装",
+    "packOffline": "打包当前勾选的 {{count}} 项",
+    "importOffline": "从离线包导入",
+    "activation": "激活状态",
+    "pathBackup": "用户 PATH 原文已备份到 {{path}}",
+    "pathBackupNone": "还没有改过用户 PATH，因此没有备份文件",
+    "deactivate": "取消激活",
+    "noActivation": "当前没有激活任何工具",
+    "about": "关于",
+    "manifestDir": "清单目录",
+    "logDir": "日志目录",
+    "privacy": "零遥测：devkit 不会上传任何数据。"
+  },
+  "installed": {
+    "title": "已安装（devkit 管理的版本目录）",
+    "hint": "卸载只删 devkit 自己装的版本目录，不动系统里原有的安装",
+    "empty": "还没有通过 devkit 安装过任何软件",
+    "active": "当前激活 {{version}}",
+    "inactive": "未激活",
+    "activate": "激活",
+    "activateHint": "切到这一版：改切换链接 + 写用户 PATH，不改安装文件",
+    "notActivatable": "该版本未声明激活方式",
+    "uninstall": "卸载",
+    "uninstallTitle": "卸载 {{tool}}@{{version}}？",
+    "uninstallDesc": "会删除版本目录；如果是当前激活的版本，会先取消激活",
+    "scopeNote": "安装位置：%USERPROFILE%\\.devkit\\versions\\<tool>\\<version>\\。卸载不会回滚其它系统改动。"
   }
 }

@@ -4,10 +4,12 @@ import type {
   DetectionResult,
   Locale,
   ManifestLoadError,
+  PlanSelection,
   ToolCategory,
   ToolManifest
 } from '@shared/types'
 import { DEFAULT_LOCALE } from '@shared/types'
+import { pickRecommendedVersion } from '@shared/manifest'
 import { changeLanguage } from '../i18n'
 
 export type CategoryFilter = ToolCategory | 'all'
@@ -22,6 +24,8 @@ interface AppState {
   detecting: boolean
   selected: Record<string, boolean>
   selectedVersions: Record<string, string>
+  /** 由 selected + selectedVersions 推导出的勾选结果，供预设保存与安装使用 */
+  selections: PlanSelection[]
   activeCategory: CategoryFilter
   query: string
   fatalError: string | null
@@ -31,6 +35,8 @@ interface AppState {
   changeLocale: (locale: Locale) => Promise<void>
   toggleTool: (toolId: string, checked: boolean) => void
   setSelectedVersion: (toolId: string, version: string) => void
+  /** 套用预设：把勾选与版本一次性设成预设的内容（已有勾选会被替换） */
+  applyPreset: (preset: PlanSelection[]) => void
   selectCategory: (category: CategoryFilter) => void
   setQuery: (query: string) => void
   clearSelection: () => void
@@ -60,6 +66,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   detecting: false,
   selected: {},
   selectedVersions: {},
+  selections: [],
   activeCategory: 'all',
   query: '',
   fatalError: null,
@@ -126,14 +133,60 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   toggleTool: (toolId, checked) =>
-    set((state) => ({ selected: { ...state.selected, [toolId]: checked } })),
+    set((state) => {
+      const selected = { ...state.selected, [toolId]: checked }
+      return { selected, selections: computeSelections(state.tools, selected, state.selectedVersions) }
+    }),
 
   setSelectedVersion: (toolId, version) =>
-    set((state) => ({ selectedVersions: { ...state.selectedVersions, [toolId]: version } })),
+    set((state) => {
+      const selectedVersions = { ...state.selectedVersions, [toolId]: version }
+      return {
+        selectedVersions,
+        selections: computeSelections(state.tools, state.selected, selectedVersions)
+      }
+    }),
+
+  applyPreset: (preset) =>
+    set((state) => {
+      const selected: Record<string, boolean> = {}
+      const selectedVersions: Record<string, string> = {}
+      const known = new Map(state.tools.map((tool) => [tool.id, tool]))
+
+      for (const item of preset) {
+        const tool = known.get(item.toolId)
+        if (!tool) continue
+        selected[item.toolId] = true
+
+        // 预设指定的版本如果已不存在，就回退到推荐版本，而不是让这一项装不了
+        const version =
+          item.version && tool.versions.some((entry) => entry.version === item.version)
+            ? item.version
+            : (pickRecommendedVersion(tool)?.version ?? '')
+        if (version) selectedVersions[item.toolId] = version
+      }
+
+      return { selected, selectedVersions, selections: computeSelections(state.tools, selected, selectedVersions) }
+    }),
 
   selectCategory: (category) => set({ activeCategory: category }),
 
   setQuery: (query) => set({ query }),
 
-  clearSelection: () => set({ selected: {} })
+  clearSelection: () => set({ selected: {}, selectedVersions: {}, selections: [] })
 }))
+
+/** 把"勾选表 + 版本表"整理成安装计划需要的选择数组 */
+function computeSelections(
+  tools: ToolManifest[],
+  selected: Record<string, boolean>,
+  selectedVersions: Record<string, string>
+): PlanSelection[] {
+  const result: PlanSelection[] = []
+  for (const tool of tools) {
+    if (selected[tool.id] !== true) continue
+    const version = selectedVersions[tool.id]
+    result.push(version ? { toolId: tool.id, version } : { toolId: tool.id })
+  }
+  return result
+}

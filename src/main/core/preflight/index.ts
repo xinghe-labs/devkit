@@ -196,59 +196,92 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightResu
     })
   }
 
-  // 4. 下载源可达性：每个工具只探首选源，去重后最多探 maxProbes 个。
+  // 4. 下载源可达性：每个工具按镜像偏好顺序探测前几个源。
   //    maxProbes 为 0 表示跳过网络探测（离线环境与单测用）
-  const probes: { toolId: string; source: DownloadSourceRef }[] = []
+  //
+  //    关键修正：**不能只看首选源**。实测 GitHub release 资产在国内经常完全连不上，
+  //    但清单里的国内镜像好得很；如果只看首选源就报"所有源不可达"，用户会被硬生生拦住。
+  //    因此这里对每个工具并行探多个源，只要有一个可用就算通过（并在日志里说明用了哪个）。
   const probeLimit = input.maxProbes ?? 3
-  const seenUrls = new Set<string>()
+  const perToolSources = 3
+  const targets: { toolId: string; sources: DownloadSourceRef[] }[] = []
+  const seenTools = new Set<string>()
+
   for (const item of plan.items) {
-    if (probes.length >= probeLimit) break
+    if (targets.length >= probeLimit) break
+    if (seenTools.has(item.id)) continue
     const tool = tools.get(item.id)
     const version = tool?.versions.find((entry) => entry.version === item.version)
     if (!version) continue
-    const first = orderDownloadSources(version, plan.options.mirrorPreference)[0]
-    if (!first || seenUrls.has(first.url)) continue
-    seenUrls.add(first.url)
-    probes.push({ toolId: item.id, source: first })
+    const sources = orderDownloadSources(version, plan.options.mirrorPreference).slice(0, perToolSources)
+    if (sources.length === 0) continue
+    seenTools.add(item.id)
+    targets.push({ toolId: item.id, sources })
   }
 
-  if (probes.length === 0) {
+  if (targets.length === 0) {
     checks.push({ id: 'network', level: 'warn', message: '没有可探测的下载源' })
   } else {
-    const results = await Promise.all(
-      probes.map(async (probe) => ({
-        toolId: probe.toolId,
-        result: await probeSource(probe.source, plan.options.proxy)
+    const probed = await Promise.all(
+      targets.map(async (target) => ({
+        toolId: target.toolId,
+        results: await Promise.all(
+          target.sources.map((source) => probeSource(source, plan.options.proxy))
+        )
       }))
     )
 
-    for (const { toolId, result } of results) {
-      if (result.reachable && !result.missing) {
-        checks.push({
-          id: `network:${toolId}`,
-          level: 'ok',
-          message: `${toolId} 的首选源 ${result.source} 可用（${result.detail}）`
-        })
-      } else if (result.missing) {
-        checks.push({
-          id: `network:${toolId}`,
-          level: 'warn',
-          message: `${toolId} 的首选源 ${result.source} 没有这个版本（${result.detail}），安装时会自动换下一个源`
-        })
-      } else {
-        checks.push({
-          id: `network:${toolId}`,
-          level: 'warn',
-          message: `${toolId} 的首选源 ${result.source} 不可达（${result.detail}），安装时会自动换下一个源`
-        })
+    let toolsWithUsableSource = 0
+
+    for (const { toolId, results } of probed) {
+      const usableIndex = results.findIndex((result) => result.reachable && !result.missing)
+      const missingIndex = results.findIndex((result) => result.missing)
+
+      if (usableIndex >= 0) {
+        toolsWithUsableSource += 1
+        const usable = results[usableIndex]
+        if (usableIndex === 0) {
+          checks.push({
+            id: `network:${toolId}`,
+            level: 'ok',
+            message: `${toolId} 的首选源 ${usable.source} 可用（${usable.detail}）`
+          })
+        } else {
+          checks.push({
+            id: `network:${toolId}`,
+            level: 'warn',
+            message:
+              `${toolId} 的首选源不可用，已自动改用 ${usable.source}（${usable.detail}）。` +
+              `已试：${results.slice(0, usableIndex).map((item) => item.source).join('、')}`
+          })
+        }
+        continue
       }
+
+      if (missingIndex >= 0) {
+        checks.push({
+          id: `network:${toolId}`,
+          level: 'warn',
+          message: `${toolId} 的镜像没有这个版本（${results[missingIndex].detail}），安装时会继续尝试其它源`
+        })
+        continue
+      }
+
+      checks.push({
+        id: `network:${toolId}`,
+        level: 'warn',
+        message:
+          `${toolId} 的下载源都不可达（${results.map((item) => `${item.source}: ${item.detail}`).join('；')}）。` +
+          '安装会失败，请检查网络或代理设置'
+      })
     }
 
-    if (results.every((entry) => !entry.result.reachable)) {
+    // 只有"一个工具的可用源都没有"才升级为阻断级问题
+    if (toolsWithUsableSource === 0) {
       checks.push({
         id: 'network',
         level: 'error',
-        message: '所有探测的下载源都不可达，请检查网络或代理设置'
+        message: '所有被探测的下载源都不可达，请检查网络或代理设置'
       })
     }
   }

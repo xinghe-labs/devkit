@@ -58,7 +58,10 @@
     "dependsOn": "Requires",
     "tierL1": "Redistributable",
     "tierL2": "No redistribution",
-    "tierL3": "Official site only"
+    "tierL3": "Official site only",
+    "devkitInstalled": "devkit installed {{versions}}",
+    "activated": "Activated {{version}}",
+    "activateLatest": "Activate {{version}}"
   },
   "action": {
     "install": "Install selected",
@@ -66,7 +69,9 @@
     "redetect": "Re-scan",
     "openLogDir": "Open log folder",
     "clearSelection": "Clear selection",
-    "selectAll": "Select all in category"
+    "selectAll": "Select all in category",
+    "installed": "Installed",
+    "settings": "Settings"
   },
   "log": {
     "title": "Runtime log",
@@ -127,5 +132,62 @@
       "discard": "Discard",
       "invalid": "The previous install plan is no longer valid: {{reason}}. Please select again."
     }
+  },
+  "preset": {
+    "label": "Presets:",
+    "save": "Save current selection",
+    "saveTitle": "Name this preset",
+    "namePlaceholder": "e.g. team-frontend",
+    "import": "Import preset",
+    "importTitle": "Import preset JSON",
+    "importHint": "Paste a shared preset JSON. A preset is just a selection — it contains no commands.",
+    "missingTools": "{{count}} entries no longer exist in the manifest and will be skipped"
+  },
+  "settings": {
+    "title": "Settings",
+    "download": "Download",
+    "mirrorPreference": "Mirror preference",
+    "mirrorPreferenceHint": "Affects try order only; failures still fall back to other sources",
+    "proxy": "Proxy",
+    "proxyHint": "http://host:port; empty means follow the system",
+    "concurrency": "Concurrency",
+    "concurrencyHint": "1–3; machine-scope (MSI) installs are always serialised",
+    "afterInstall": "After install",
+    "activate": "Activate automatically",
+    "activateHint": "Wire the version into user PATH and env vars so a new terminal just works",
+    "configureMirrors": "Write npm / pip mirrors",
+    "configureMirrorsHint": "Writes %USERPROFILE%\\.npmrc and %APPDATA%\\pip\\pip.ini, keeping other lines",
+    "restorePoint": "Create a restore point first",
+    "restorePointHint": "Requires admin; only meaningful when machine-scope items are selected",
+    "mirrors": "Mirror URLs",
+    "mirrorsHint": "Turning one off reverts to the official source (removes the custom line)",
+    "applyMirrors": "Apply mirrors now",
+    "offline": "Offline pack",
+    "offlineHint": "Bundle the selected tools plus checksums into a folder for offline machines",
+    "packOffline": "Pack {{count}} selected items",
+    "importOffline": "Import from offline pack",
+    "activation": "Activation",
+    "pathBackup": "Original user PATH backed up to {{path}}",
+    "pathBackupNone": "User PATH has not been modified yet, so there is no backup",
+    "deactivate": "Deactivate",
+    "noActivation": "Nothing is activated right now",
+    "about": "About",
+    "manifestDir": "Manifest dir",
+    "logDir": "Log dir",
+    "privacy": "Zero telemetry: devkit uploads nothing."
+  },
+  "installed": {
+    "title": "Installed (devkit-managed version dirs)",
+    "hint": "Uninstall only removes devkit version dirs; existing system installs are untouched",
+    "empty": "Nothing has been installed through devkit yet",
+    "active": "Active: {{version}}",
+    "inactive": "Not active",
+    "activate": "Activate",
+    "activateHint": "Switch to this version: repoints the junction and user PATH, files stay put",
+    "notActivatable": "No activation declared for this version",
+    "uninstall": "Uninstall",
+    "uninstallTitle": "Uninstall {{tool}}@{{version}}?",
+    "uninstallDesc": "Removes the version directory; if it is the active one it is deactivated first",
+    "scopeNote": "Location: %USERPROFILE%\\.devkit\\versions\\<tool>\\<version>\\. Uninstall does not roll back other system changes."
   }
 }

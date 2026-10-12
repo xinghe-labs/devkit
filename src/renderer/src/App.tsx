@@ -21,13 +21,17 @@ import zhCN from 'antd/locale/zh_CN'
 import { useTranslation } from 'react-i18next'
 import { localizedText, normalizeLocale } from '@shared/localized'
 import { pickRecommendedVersion } from '@shared/manifest'
-import { TOOL_CATEGORIES, type Locale, type PlanSelection, type ToolCategory } from '@shared/types'
+import { TOOL_CATEGORIES, type Locale, type ToolCategory } from '@shared/types'
 import { InstallFlow } from './components/InstallFlow'
+import { InstalledDrawer } from './components/InstalledDrawer'
 import { LogPanel } from './components/LogPanel'
+import { ImportPresetButton, PresetBar } from './components/PresetBar'
+import { SettingsDrawer } from './components/SettingsDrawer'
 import { ToolRow } from './components/ToolRow'
 import { useAppStore, type CategoryFilter } from './store/app-store'
 import { useInstallStore } from './store/install-store'
 import { useLogStore } from './store/log-store'
+import { useManageStore } from './store/manage-store'
 import { formatBytes } from './utils/format'
 
 const { Header, Content, Footer } = Layout
@@ -60,6 +64,7 @@ export default function App() {
   const detecting = useAppStore((state) => state.detecting)
   const selected = useAppStore((state) => state.selected)
   const selectedVersions = useAppStore((state) => state.selectedVersions)
+  const selections = useAppStore((state) => state.selections)
   const activeCategory = useAppStore((state) => state.activeCategory)
   const query = useAppStore((state) => state.query)
   const fatalError = useAppStore((state) => state.fatalError)
@@ -81,6 +86,20 @@ export default function App() {
   const checkPending = useInstallStore((state) => state.checkPending)
   const preparing = useInstallStore((state) => state.busy)
 
+  const openSettings = useManageStore((state) => state.openSettings)
+  const openInstalled = useManageStore((state) => state.openInstalled)
+  const notice = useManageStore((state) => state.notice)
+  const setNotice = useManageStore((state) => state.setNotice)
+  const loadSettings = useManageStore((state) => state.loadSettings)
+  const loadPresets = useManageStore((state) => state.loadPresets)
+  const loadInstalled = useManageStore((state) => state.loadInstalled)
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), notice.kind === 'error' ? 8000 : 4000)
+    return () => clearTimeout(timer)
+  }, [notice, setNotice])
+
   useEffect(() => {
     let disposed = false
 
@@ -96,13 +115,25 @@ export default function App() {
 
     void bootstrap()
     void checkPending()
+    void loadSettings()
+    void loadPresets()
+    void loadInstalled()
 
     return () => {
       disposed = true
       unsubscribeLog()
       unsubscribeProgress()
     }
-  }, [appendLog, applyProgress, bootstrap, checkPending, setAllLogs])
+  }, [
+    appendLog,
+    applyProgress,
+    bootstrap,
+    checkPending,
+    loadInstalled,
+    loadPresets,
+    loadSettings,
+    setAllLogs
+  ])
 
   const counts = useMemo(() => {
     let installed = 0
@@ -157,16 +188,6 @@ export default function App() {
     return total
   }, [tools, selected, selectedVersions])
 
-  const selections = useMemo(() => {
-    const result: PlanSelection[] = []
-    for (const tool of tools) {
-      if (selected[tool.id] !== true) continue
-      const version = selectedVersions[tool.id]
-      result.push(version ? { toolId: tool.id, version } : { toolId: tool.id })
-    }
-    return result
-  }, [tools, selected, selectedVersions])
-
   const menuItems = useMemo(
     () => [
       { key: 'all', label: `${t('common.all')} (${tools.length})` },
@@ -214,6 +235,12 @@ export default function App() {
               { label: 'English', value: 'en-US' }
             ]}
           />
+          <Button size="small" onClick={() => openInstalled(true)}>
+            {t('action.installed')}
+          </Button>
+          <Button size="small" onClick={() => openSettings(true)}>
+            {t('action.settings')}
+          </Button>
           <Button size="small" onClick={() => void window.devkit.openLogDir()}>
             {t('action.openLogDir')}
           </Button>
@@ -251,6 +278,26 @@ export default function App() {
               }
             />
           ) : null}
+
+          {notice ? (
+            <Alert
+              type={notice.kind === 'warning' ? 'warning' : notice.kind === 'info' ? 'info' : notice.kind}
+              showIcon
+              closable
+              message={notice.text}
+              onClose={() => setNotice(null)}
+            />
+          ) : null}
+
+          {/* 预设条：新人不知道要装什么时，点一个预设就够了 */}
+          <Card size="small" styles={{ body: { padding: '6px 16px' } }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <PresetBar />
+              </div>
+              <ImportPresetButton />
+            </div>
+          </Card>
 
           {/* 一条工具栏吃掉原来的「四个统计卡 + 搜索框 + 操作按钮」，把纵向空间全部让给软件列表 */}
           <Card size="small" styles={{ body: { padding: '8px 16px' } }}>
@@ -378,6 +425,8 @@ export default function App() {
         </Footer>
 
         <InstallFlow />
+        <SettingsDrawer />
+        <InstalledDrawer />
       </Layout>
     </ConfigProvider>
   )

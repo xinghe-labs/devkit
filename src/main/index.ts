@@ -4,6 +4,7 @@ import { IPC } from '@shared/ipc'
 import { loadManifests } from './core/manifest'
 import { setInstallProgressListener } from './core/executor/service'
 import { logger } from './core/report/logger'
+import { recordRendererError } from './core/report/renderer-errors'
 import { registerIpcHandlers } from './ipc'
 import { getLogDir } from './utils/app-paths'
 
@@ -33,6 +34,38 @@ function createWindow(): BrowserWindow {
   window.on('ready-to-show', () => {
     window.show()
     logger.info('app', '主窗口已显示')
+  })
+
+  // 渲染进程里的报错默认只出现在开发者工具里，打包后用户根本看不到。
+  // 这里全部收进日志，并在冒烟模式下作为失败依据 —— 否则"界面白屏"会被当成"一切正常"。
+  window.webContents.on(
+    'console-message',
+    (...args: unknown[]) => {
+      // Electron 44 起第一个参数是事件对象，之前是 (event, level, message, line, sourceId)
+      const first = args[0] as { level?: number; message?: string } | number
+      const level = typeof first === 'object' ? (first.level ?? 0) : Number(args[1] ?? 0)
+      const message = typeof first === 'object' ? (first.message ?? '') : String(args[2] ?? '')
+      const source = typeof first === 'object' ? '' : String(args[4] ?? '')
+
+      if (level >= 3 || /error/i.test(String(level))) {
+        recordRendererError(message)
+        logger.error('renderer', `${message}${source ? ` (${source})` : ''}`)
+      } else if (level === 2) {
+        logger.warn('renderer', message)
+      } else {
+        logger.debug('renderer', message)
+      }
+    }
+  )
+
+  window.webContents.on('render-process-gone', (_event, details) => {
+    recordRendererError(`渲染进程退出：${details.reason}`)
+    logger.error('renderer', `渲染进程退出：${details.reason}（exitCode ${details.exitCode}）`)
+  })
+
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    recordRendererError(`页面加载失败：${errorDescription}`)
+    logger.error('renderer', `页面加载失败：${errorCode} ${errorDescription}`)
   })
 
   // 外部链接交给系统浏览器，不在应用内开新窗口

@@ -41,6 +41,7 @@ import { importOfflinePack, packOffline } from '../core/offline'
 import { deleteUserPreset, importPreset, listPresets, saveUserPreset } from '../core/presets'
 import { renderPlanReport } from '../core/report/markdown'
 import { logger } from '../core/report/logger'
+import { getRendererErrors } from '../core/report/renderer-errors'
 import { getConfigView, getLocale, loadConfig, saveConfigView, setLocale } from '../core/settings'
 import { listInstalledWithSize, uninstallVersion } from '../core/uninstall'
 import { getDownloadDir, getLogDir, getManifestDir, getOfflineDir } from '../utils/app-paths'
@@ -126,11 +127,24 @@ export function registerIpcHandlers(): void {
   handle(IPC.rendererReady, (): boolean => {
     logger.info('app', '渲染进程已挂载，IPC 链路（渲染 → 预加载 → 主进程）已打通')
 
-    // CI / 无人值守冒烟：启动到渲染就绪后自动退出，用日志判定成败
+    // CI / 无人值守冒烟：启动到渲染就绪后自动退出，用日志与退出码判定成败
     if (process.env.DEVKIT_SMOKE === '1') {
       const delay = Number(process.env.DEVKIT_SMOKE_DELAY_MS ?? 12000)
       logger.info('app', `DEVKIT_SMOKE 已启用，${delay}ms 后自动退出`)
-      setTimeout(() => app.quit(), Number.isFinite(delay) ? delay : 12000)
+      setTimeout(
+        () => {
+          const rendererErrors = getRendererErrors()
+          if (rendererErrors.length > 0) {
+            logger.error('app', `冒烟失败：渲染进程报了 ${rendererErrors.length} 个错误`)
+            for (const message of rendererErrors.slice(0, 10)) logger.error('app', `  · ${message}`)
+            app.exit(1)
+            return
+          }
+          logger.info('app', '冒烟通过：界面已渲染且渲染进程无报错')
+          app.exit(0)
+        },
+        Number.isFinite(delay) ? delay : 12000
+      )
     }
     return true
   })
