@@ -472,7 +472,14 @@ export default function App() {
                   void prepare(
                     selections,
                     Object.values(detections)
-                      .filter((item) => item.status !== 'not-installed')
+                      // 只认「确实能用」的两种。error 是"我没查出来"、path-missing 是
+                      // "装了但没生效"，把这两种当"已有"会放行一个实际会失败的安装，
+                      // 而且与主进程自己探测时的白名单策略不一致 —— 同一台机器两次点
+                      // 可能得到不同结论。
+                      .filter(
+                        (item) =>
+                          item.status === 'installed' || item.status === 'version-mismatch'
+                      )
                       .map((item) => item.toolId)
                   )
                 }

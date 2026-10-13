@@ -191,18 +191,28 @@ async function checkToolPrerequisites(input: PreflightInput): Promise<PreflightC
    * 「本机早有 JDK、这次只想装 Maven」就会被误拦 —— 而这正是我们最不想看到的假阳性。
    *
    * 不传 programs 就是跳过注册表扫描，只跑命令与文件判断，几百毫秒。
-   * 判定用白名单（installed / version-mismatch / path-missing）：
-   * `error` 表示"我没查出来"，不能当成"你有"。
+   *
+   * 判定用白名单（installed / version-mismatch），**不含 path-missing**：
+   * 对 jdk-temurin 来说 path-missing 只能来自注册表（该清单没有 detect.files），
+   * 含义正是「装了但 java 不在 PATH 上」—— 也就是 `mvn -v` 报
+   * 「JAVA_HOME ... not defined correctly」的那个状态。把它当成"有"就是漏拦。
+   * `error` 同理不算：那是"我没查出来"，不能当成"你有"。
    */
+  /** 装了但没生效的依赖 → 哪些工具在等它 */
+  const notEffective = new Map<string, string[]>()
+
   const dependencyIds = [...new Set(plan.items.flatMap((item) => item.dependsOn))]
   for (const id of dependencyIds) {
-    if (available.has(id)) continue
+    // 计划里已经要装了，就不必再探测 —— 探测也改变不了结论，白等几百毫秒
+    if (inPlan.has(id) || available.has(id)) continue
     const tool = tools.get(id)
     if (!tool) continue
     try {
       const result = await detectTool(tool)
-      if (result.status === 'installed' || result.status === 'version-mismatch' || result.status === 'path-missing') {
+      if (result.status === 'installed' || result.status === 'version-mismatch') {
         available.add(id)
+      } else if (result.status === 'path-missing') {
+        notEffective.set(id, [])
       }
     } catch (error) {
       logger.warn('preflight', `探测前置依赖 ${id} 失败，按"没有"处理：${(error as Error).message}`)
@@ -216,6 +226,9 @@ async function checkToolPrerequisites(input: PreflightInput): Promise<PreflightC
     for (const dependency of item.dependsOn) {
       if (inPlan.has(dependency) || available.has(dependency)) continue
       missing.set(dependency, [...(missing.get(dependency) ?? []), item.id])
+      if (notEffective.has(dependency)) {
+        notEffective.set(dependency, [...(notEffective.get(dependency) ?? []), item.id])
+      }
     }
   }
 
@@ -233,19 +246,53 @@ async function checkToolPrerequisites(input: PreflightInput): Promise<PreflightC
     ]
   }
 
-  return [...missing.entries()].map(([dependency, dependents]) => {
-    const name = tools.get(dependency)?.name['zh-CN'] ?? dependency
-    const who = dependents
-      .map((id) => tools.get(id)?.name['zh-CN'] ?? id)
-      .join('、')
-    return {
+  const checks: PreflightCheck[] = []
+
+  for (const [dependency, dependents] of missing) {
+    const tool = tools.get(dependency)
+    const name = tool?.name['zh-CN'] ?? dependency
+    const who = dependents.map((id) => tools.get(id)?.name['zh-CN'] ?? id).join('、')
+
+    /**
+     * 依赖**不是 devkit 能装的**（不在清单里 / detect-only / 没有任何版本）时，
+     * 绝不能给 error —— 那样 UI 会禁用开始按钮，而"回到选择界面勾选它"这条指引
+     * 用户根本执行不了（勾了只会让 buildPlan 抛「清单里没有可安装的版本」），
+     * 变成一个没有出路的死胡同。降级成 warn，如实说明需要自己准备。
+     */
+    const installable = Boolean(tool && tool.status === 'ready' && tool.versions.length > 0)
+    if (!installable) {
+      checks.push({
+        id: `tool-prerequisites:${dependency}`,
+        level: 'warn',
+        message:
+          `${who} 需要「${name}」，但 devkit 装不了它（清单里没有可安装的版本）。` +
+          `请自行准备，否则 ${who} 装完可能跑不起来。`
+      })
+      continue
+    }
+
+    // 装了但没生效：这是可修的（激活一下，或一起勾选让 devkit 装一份并接管 PATH）
+    if (notEffective.has(dependency)) {
+      checks.push({
+        id: `tool-prerequisites:${dependency}`,
+        level: 'error',
+        message:
+          `检测到「${name}」已经装在这台机器上，但它没有生效（不在 PATH 上），` +
+          `${who} 会跑不起来。请到「已安装」里激活它，或把「${name}」一起勾选。`
+      })
+      continue
+    }
+
+    checks.push({
       id: `tool-prerequisites:${dependency}`,
-      level: 'error' as const,
+      level: 'error',
       message:
         `${who} 需要先有「${name}」才能装好并用起来，但计划里没有它、这台机器上也没检测到。` +
         `请回到选择界面把「${name}」一起勾选。`
-    }
-  })
+    })
+  }
+
+  return checks
 }
 
 export async function runPreflight(input: PreflightInput): Promise<PreflightResult> {

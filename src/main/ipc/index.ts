@@ -203,7 +203,11 @@ export function registerIpcHandlers(): void {
     const dryRun = asBoolean(request.dryRun, 'dryRun', false)
     // 机器上已可用的工具：用来判定前置依赖是否已被满足，
     // 避免「本机早有 JDK、这次只想装 Maven」被误判成缺依赖
-    const availableToolIds = asOptionalStringArray(request.availableToolIds, 'availableToolIds')
+    // 和别的 toolId 入参保持同一强度：这些字符串会参与集合判断，
+    // 虽然当前没有注入面，但没必要留一个比其他入口更松的口子
+    const availableToolIds = asOptionalStringArray(request.availableToolIds, 'availableToolIds').map(
+      (id) => asToolId(id, 'availableToolIds')
+    )
     return prepareInstall(selections, dryRun, availableToolIds)
   })
 

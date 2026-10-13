@@ -738,13 +738,39 @@ Rust                          → warn（不阻断），消息点名 MSVC 与 li
 所以「装了 Node 但还没激活」+「自定义了根目录」这个组合会找不到 npm，
 然后悄悄退回 PATH 上那份 —— 装的依赖跑到了别的 Node 下面。改成 `getVersionsRoot()`。
 
-### 新增测试（17 个）
+### 新增测试（24 个）
 
 - `preflight/prerequisites.test.ts`（10 个）：阻断 / 放行 / **已有依赖不误拦** / 多工具合并一条 /
-  缺两个依赖给两条 / 依赖指向不存在的 id 不崩 / Rust 提示是 warn 且不阻断
-- `manifest/prerequisites.test.ts`（7 个）：**npm 模板必须声明 nodejs**、
+  缺两个依赖给两条 / **依赖不可安装时只 warn（不给死胡同）** / detect-only 当依赖也只 warn /
+  Rust 提示是 warn 且不阻断
+- `preflight/prerequisite-probe.test.ts`（6 个）：预检**自己探测**前置依赖，不依赖渲染进程的检测时机。
+  含「空列表但机器上有 → 放行」「依赖已在计划里 → **不探测**（断言调用次数）」
+  「**path-missing 不算"有"** —— 那正是 mvn 会失败的状态」
+- `manifest/prerequisites.test.ts`（8 个）：**npm 模板必须声明 nodejs**、
   **mvn/gradle 必须声明 jdk-temurin**、依赖指向真实工具、不能自依赖、不能重复、
   同工具各版本声明一致、覆盖全部已审计的隐藏前置
+
+### 独立对抗性复核（子代理，只读）
+
+提交后用独立子代理对本次改动做了对抗性审查，结论 **OK with notes**，并逐条给了文件:行号。
+它提出的问题**已全部修掉**：
+
+| 级别 | 问题 | 修法 |
+| --- | --- | --- |
+| **P1** | 依赖**不可安装**时（detect-only / 无版本 / 不在清单里）仍产出 `error`，而 UI 对 error 是硬禁用 + 「回到选择界面勾选」的指引 —— 用户执行不了，形成死胡同。`SPEC.md` 自己举的「docker-desktop 依赖 wsl2」就是这种（`wsl2.json` 是 detect-only、`versions: []`） | 降级为 `warn`，措辞改成「devkit 装不了它，请自行准备」。并补了一条 detect-only 的测试 |
+| P2 | 依赖**已经在计划里**仍会去探测，白等几百毫秒 | `inPlan.has(id) \|\| available.has(id)` 一起跳过；测试加断言调用次数 |
+| P2 | `path-missing` 被当成「已有」。对 jdk-temurin 来说它只能来自注册表，含义正是「装了但 java 不在 PATH 上」—— 也就是 `mvn -v` 失败的那个状态 | 从白名单里去掉；单独给一条「装了但没生效，请激活或一起勾选」的 error |
+| P2 | 渲染进程把 `error` 状态也算「已有」，与主进程自己探测时的白名单**策略相反** —— 同一台机器两次点可能结论不同 | `App.tsx` 只认 `installed` / `version-mismatch` |
+| P2 | `availableToolIds` 未过 `asToolId`，比其他 toolId 入参松 | 补上校验（无实际危害，仅加固） |
+| P2 | `manifest/prerequisites.test.ts` 的 npm 规则先按 recommended 版本筛工具，会让「推荐版本不是 npm 模板」的工具整条漏掉 | 改成直接双层遍历 `versions` |
+| P2 | 本节的测试计数（原写 17 个 / 只列 2 个文件）与实际不符，且漏记了覆盖关键时序的那个文件 | 已改正为 24 个 / 3 个文件 |
+
+复核还指出两处**不属于本次改动**的历史问题（已记录，未在本轮处理）：
+
+1. `activate/index.ts` 的 `getDevkitHome()` 仍硬编码 `homedir()/.devkit`，自定义
+   `DEVKIT_DATA_ROOT` 时 `toDevkitHomeVar` 不匹配 → PATH 条目退化为绝对路径（不致命，
+   但和本次修的 `resolveNpmCmd` 是同一类问题）。
+2. `direct.ts` 的 `fromDevkit` 只赋值、全仓无读取，属无害死字段。
 
 ### 一处如实标注
 

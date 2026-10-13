@@ -53,18 +53,21 @@ describe('清单前置依赖：声明必须完整', () => {
   it('**npm 类模板必须声明依赖 nodejs**', () => {
     // npm-global-into-version-dir 要跑 `npm install`，npm 是随 Node.js 一起提供的。
     // 不声明 → 干净机器上选它必然失败，而预检当时是全绿的。
-    const npmTools = tools.filter((tool) => recommended(tool)?.install?.template === 'npm-global-into-version-dir')
-    expect(npmTools.length).toBeGreaterThan(0)
-
-    for (const tool of npmTools) {
+    //
+    // 直接双层遍历 versions，不先按 recommended 版本筛工具：
+    // 那样会让「推荐版本不是 npm 模板、但某些版本是」的工具整条漏掉。
+    let seen = 0
+    for (const tool of tools) {
       for (const version of tool.versions) {
         if (version.install?.template !== 'npm-global-into-version-dir') continue
+        seen += 1
         expect(
           version.dependsOn ?? [],
           `${tool.id}@${version.version} 用 npm 模板，必须声明 dependsOn: ['nodejs']`
         ).toContain('nodejs')
       }
     }
+    expect(seen).toBeGreaterThan(0)
   })
 
   it('**自检要起 JVM 的工具（mvn / gradle）必须声明依赖 jdk-temurin**', () => {

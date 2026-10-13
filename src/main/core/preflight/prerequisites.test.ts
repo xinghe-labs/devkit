@@ -90,7 +90,10 @@ describe('预检：工具间的前置依赖', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('依赖指向一个清单里没有的 id 时也不崩，用 id 兜底显示', async () => {
+  it('**依赖不是 devkit 能装的 → 只 warn，不给死胡同**', async () => {
+    // 给 error 的话 UI 会禁用开始按钮（InstallFlow 的 disabled={!preflight.ok}），
+    // 而"回到选择界面勾选它"这条指引用户根本执行不了 ——
+    // 勾了只会让 buildPlan 抛「清单里没有可安装的版本」。所以只能降级成 warn。
     const weird = makeTool('x', 'X', ['nonexistent'])
     const result = await runPreflight({
       plan: makePlan([makeItem('x', ['nonexistent'])]),
@@ -99,8 +102,28 @@ describe('预检：工具间的前置依赖', () => {
       maxProbes: 0
     })
 
-    expect(result.ok).toBe(false)
-    expect(result.checks.find((item) => item.level === 'error')?.message).toContain('nonexistent')
+    expect(result.ok).toBe(true)
+    const check = result.checks.find((item) => item.id === 'tool-prerequisites:nonexistent')
+    expect(check?.level).toBe('warn')
+    expect(check?.message).toContain('nonexistent')
+    expect(check?.message).toContain('装不了')
+  })
+
+  it('detect-only 的工具（没有可安装版本）当依赖时也只 warn', async () => {
+    // 真实场景：SPEC 自己举过「docker-desktop 依赖 wsl2」，
+    // 而 wsl2.json 是 status=detect-only、versions=[]。这条路径必须是 warn。
+    const docker = makeTool('docker-desktop', 'Docker Desktop', ['wsl2'])
+    const wsl2 = { ...makeTool('wsl2', 'WSL2'), status: 'detect-only' as const, versions: [] }
+
+    const result = await runPreflight({
+      plan: makePlan([makeItem('docker-desktop', ['wsl2'])]),
+      tools: indexById([docker, wsl2]),
+      targetPath: 'C:\\',
+      maxProbes: 0
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.checks.find((item) => item.id === 'tool-prerequisites:wsl2')?.level).toBe('warn')
   })
 })
 
