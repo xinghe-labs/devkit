@@ -688,6 +688,72 @@ Maven 本地下载后计算），但「装 → 自检 → 激活 → 卸载」�
 
 ---
 
+## 3.18 前置依赖声明与预检拦截（v0.9）
+
+### 发现的真问题：机制建好了，但一个清单都没声明
+
+`dependsOn` 在 schema 里有定义、`topologicalSort` 有实现、执行器有依赖跳过逻辑 ——
+**但 `grep -rl dependsOn resources/manifest/tools/` 是空的**。机制等于没接线。
+
+后果只在干净机器上暴露。Maven 的实测复现（清空 `JAVA_HOME` 并把 `java` 从 PATH 剔除）：
+
+```
+$ mvn -v
+The JAVA_HOME environment variable is not defined correctly,
+this environment variable is needed to run this program.
+```
+
+下载成功、解压成功、自检失败 —— 而用户看到的报错和"该一起装 JDK"毫无关系。
+
+### 逐项审计 22 个可装工具的结果
+
+| 工具 | 模板 / 自检 | 隐藏前置 |
+| --- | --- | --- |
+| claude-code / copilot-cli / gemini-cli / qwen-code | `npm-global-into-version-dir` | **Node.js** |
+| maven / gradle | 自检 `mvn.cmd -v` / `gradle.bat -v`（要起 JVM） | **JDK** |
+| rust | `exe-rustup-init`（msvc 目标） | MSVC 生成工具（devkit 装不了） |
+| 其余 15 项 | 解压即用 | — |
+
+### 真机验证（`prepareInstall` 只构建计划 + 预检，不下载不安装）
+
+```
+只选 Maven、无 JDK            → ok=false
+  「Apache Maven 需要先有「Eclipse Temurin JDK」才能装好并用起来，
+    但计划里没有它、这台机器上也没检测到。请回到选择界面把「Eclipse Temurin JDK」一起勾选。」
+只选 Maven、机器上已有 JDK    → ok=true，无 error（关键：不能假阳性）
+只选 Claude Code、无 Node     → ok=false，消息点名 Node.js
+Maven + JDK 一起选            → ok=true，计划顺序 [jdk-temurin, maven]
+反序勾选 [claude-code, nodejs] → 拓扑排序纠正为 [nodejs, claude-code]
+反序勾选 [gradle, maven, jdk]  → 纠正为 [jdk-temurin, gradle, maven]
+无依赖的工具（ninja）          → 「所选工具没有额外的前置依赖」
+Rust                          → warn（不阻断），消息点名 MSVC 与 link.exe
+没选 Rust                     → 不出现该提示
+「AI 编码」预设（自带 Node）    → ok=true，顺序 [git, nodejs, vscode, claude-code, codex]
+```
+
+### 顺带修掉的一个真 bug
+
+`resolveNpmCmd()` 的兜底分支硬编码 `join(homedir(), '.devkit', 'versions', 'nodejs')`，
+**绕过了 `getDataRoot()`**。批量产物根目录是可配置的（`DEVKIT_DATA_ROOT`），
+所以「装了 Node 但还没激活」+「自定义了根目录」这个组合会找不到 npm，
+然后悄悄退回 PATH 上那份 —— 装的依赖跑到了别的 Node 下面。改成 `getVersionsRoot()`。
+
+### 新增测试（17 个）
+
+- `preflight/prerequisites.test.ts`（10 个）：阻断 / 放行 / **已有依赖不误拦** / 多工具合并一条 /
+  缺两个依赖给两条 / 依赖指向不存在的 id 不崩 / Rust 提示是 warn 且不阻断
+- `manifest/prerequisites.test.ts`（7 个）：**npm 模板必须声明 nodejs**、
+  **mvn/gradle 必须声明 jdk-temurin**、依赖指向真实工具、不能自依赖、不能重复、
+  同工具各版本声明一致、覆盖全部已审计的隐藏前置
+
+### 一处如实标注
+
+本轮刷新清单时 `copilot-cli` 从 `1.0.95` 升到了 `1.0.96`（上游发了新版）。
+这是刷新器的预期行为（它跟踪最新版），但意味着 §2 里那条 1.0.95 的验收记录
+对应的已经不是当前清单里的版本了。哈希审计确认：**无"哈希变了"条目**。
+
+---
+
 ## 4. 安全相关的专项测试
 
 | 项 | 测试文件 | 覆盖内容 |

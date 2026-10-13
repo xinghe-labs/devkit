@@ -1,11 +1,10 @@
 import { basename, dirname, join } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 import { cp, mkdir, rm, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { compareVersions } from '@shared/version'
 import type { ToolManifest, ToolVersionSpec } from '@shared/types'
 import { runCommand } from '../../utils/exec'
-import { getCurrentRoot } from '../../utils/app-paths'
+import { getCurrentRoot, getVersionsRoot } from '../../utils/app-paths'
 import { logger } from '../report/logger'
 import { resolveInstallTemplate, type CommandContext, type InstallerCommand } from '../templates'
 import { extractZip, extractZipSingleFile } from '../installer/zip'
@@ -83,8 +82,13 @@ function resolveNpmCmd(): { cmd: string; fromDevkit: boolean } {
   }
 
   // 2) 版本目录里最新的一个 Node.js
+  //
+  // 注意用 getVersionsRoot() 而不是 join(homedir(), '.devkit', ...)：
+  // 批量产物根目录是可配置的（DEVKIT_DATA_ROOT），硬编码用户主目录会让
+  // 「装了 Node 但还没激活」+「自定义了根目录」这个组合找不到 npm，
+  // 然后悄悄退回 PATH 上那份 —— 于是装的依赖跑到了别的 Node 下面。
   try {
-    const root = join(homedir(), '.devkit', 'versions', 'nodejs')
+    const root = join(getVersionsRoot(), 'nodejs')
     if (existsSync(root)) {
       const versions = readdirSync(root)
         .filter((name) => /^\d/.test(name))

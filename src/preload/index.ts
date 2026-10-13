@@ -50,8 +50,8 @@ const api: DevkitApi = {
     }
   },
 
-  prepareInstall: (selections: PlanSelection[], dryRun = false) =>
-    ipcRenderer.invoke(IPC.installPrepare, { selections, dryRun }),
+  prepareInstall: (selections: PlanSelection[], dryRun = false, availableToolIds?: string[]) =>
+    ipcRenderer.invoke(IPC.installPrepare, { selections, dryRun, availableToolIds }),
 
   startInstall: (planId: string) => ipcRenderer.invoke(IPC.installStart, planId),
 

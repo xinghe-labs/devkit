@@ -36,6 +36,9 @@
       "arch": "x64",
       "sizeBytes": 33804183,
       "installScope": "user",
+      "dependsOn": [
+        "nodejs"
+      ],
       "source": {
         "url": "https://registry.npmjs.org/@qwen-code/qwen-code/-/qwen-code-0.25.1.tgz",
         "sha256": "674b31eada2d2ffce10c5085eafef15a0a5ac556e597729d28c56d02b5c6302f"

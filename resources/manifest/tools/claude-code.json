@@ -32,6 +32,9 @@
       "arch": "x64",
       "sizeBytes": 29001,
       "installScope": "user",
+      "dependsOn": [
+        "nodejs"
+      ],
       "source": {
         "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.296.tgz",
         "sha256": "f6c375d51d4c22a7a850e185a0d7ddda85173f89dbbeb3262aa7971e3bd670b5"

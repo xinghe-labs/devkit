@@ -36,6 +36,9 @@
       "arch": "x64",
       "sizeBytes": 20810043,
       "installScope": "user",
+      "dependsOn": [
+        "nodejs"
+      ],
       "source": {
         "url": "https://registry.npmjs.org/@google/gemini-cli/-/gemini-cli-0.63.0.tgz",
         "sha256": "97a6edfc10645463b517f0518d46a8c72efbdc12558a9a948607f726284a0420"

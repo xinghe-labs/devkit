@@ -73,7 +73,9 @@ const activateHook = async (
 
 export async function prepareInstall(
   selections: PlanSelection[],
-  dryRun = false
+  dryRun = false,
+  /** 机器上已经可用的工具 id（来自渲染进程的检测结果），用于判定前置依赖是否已满足 */
+  availableToolIds: string[] = []
 ): Promise<PlanPreparation> {
   const manifests = loadManifests()
   const tools = manifests.tools
@@ -91,7 +93,8 @@ export async function prepareInstall(
   const preflight = await runPreflight({
     plan,
     tools: indexById(tools),
-    targetPath: versionsRoot
+    targetPath: versionsRoot,
+    availableToolIds: new Set(availableToolIds)
   })
 
   currentPlan = plan

@@ -466,7 +466,16 @@ export default function App() {
                 type="primary"
                 disabled={selectedCount === 0}
                 loading={preparing}
-                onClick={() => void prepare(selections)}
+                onClick={() =>
+                  // 把「机器上已可用」的工具一并带过去：预检据此判断前置依赖是否已被满足，
+                  // 否则「本机早有 JDK、这次只想装 Maven」会被误判成缺依赖
+                  void prepare(
+                    selections,
+                    Object.values(detections)
+                      .filter((item) => item.status !== 'not-installed')
+                      .map((item) => item.toolId)
+                  )
+                }
               >
                 {t('action.install')}
               </Button>

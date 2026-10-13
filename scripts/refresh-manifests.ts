@@ -368,6 +368,20 @@ interface ToolSpec {
   license?: { spdx: string; redistributable: boolean }
   detect: unknown
   installScope: 'user' | 'machine'
+  /**
+   * 这个工具装完之后**能不能用**，取决于哪些别的工具。
+   *
+   * 声明的是「隐藏前置」—— 不是下载/解压需要，而是**运行与自检**需要：
+   *  · npm 类模板要跑 `npm install`，所以需要 Node.js
+   *  · Maven / Gradle 的自检是 `mvn -v` / `gradle -v`，那是要起 JVM 的，所以需要 JDK
+   *
+   * 不声明就会在干净机器上炸在自检那一步：下载解压都成功，然后报一句
+   * 「JAVA_HOME environment variable is not defined correctly」——
+   * 用户根本猜不到是"该一起装 JDK"。
+   *
+   * 计划构建会用它做拓扑排序（先装依赖），预检会用它做「选了 X 却没选 Y」的拦截。
+   */
+  dependsOn?: string[]
   install: { type: string; template: string; params?: Record<string, string> }
   activate?: unknown
   verify?: unknown
@@ -724,6 +738,8 @@ const SPECS: ToolSpec[] = [
   {
     id: 'maven',
     category: 'build',
+    // 隐藏前置：见 ToolSpec.dependsOn 的说明
+    dependsOn: ['jdk-temurin'],
     tier: 'L1',
     name: { 'zh-CN': 'Apache Maven', 'en-US': 'Apache Maven' },
     description: {
@@ -777,6 +793,8 @@ const SPECS: ToolSpec[] = [
   {
     id: 'gradle',
     category: 'build',
+    // 隐藏前置：见 ToolSpec.dependsOn 的说明
+    dependsOn: ['jdk-temurin'],
     tier: 'L1',
     name: { 'zh-CN': 'Gradle', 'en-US': 'Gradle' },
     description: {
@@ -1295,6 +1313,8 @@ const SPECS: ToolSpec[] = [
   {
     id: 'claude-code',
     category: 'ai',
+    // 隐藏前置：见 ToolSpec.dependsOn 的说明
+    dependsOn: ['nodejs'],
     // L2：可以自动下载安装，但它是第三方 npm 包，不打包进离线包
     tier: 'L2',
     name: { 'zh-CN': 'Claude Code', 'en-US': 'Claude Code' },
@@ -1340,6 +1360,8 @@ const SPECS: ToolSpec[] = [
   {
     id: 'gemini-cli',
     category: 'ai',
+    // 隐藏前置：见 ToolSpec.dependsOn 的说明
+    dependsOn: ['nodejs'],
     tier: 'L2',
     name: { 'zh-CN': 'Gemini CLI', 'en-US': 'Gemini CLI' },
     description: {
@@ -1384,6 +1406,8 @@ const SPECS: ToolSpec[] = [
   {
     id: 'copilot-cli',
     category: 'ai',
+    // 隐藏前置：见 ToolSpec.dependsOn 的说明
+    dependsOn: ['nodejs'],
     tier: 'L2',
     name: { 'zh-CN': 'GitHub Copilot CLI', 'en-US': 'GitHub Copilot CLI' },
     description: {
@@ -1425,6 +1449,8 @@ const SPECS: ToolSpec[] = [
   {
     id: 'qwen-code',
     category: 'ai',
+    // 隐藏前置：见 ToolSpec.dependsOn 的说明
+    dependsOn: ['nodejs'],
     tier: 'L2',
     name: { 'zh-CN': 'Qwen Code', 'en-US': 'Qwen Code' },
     description: {
@@ -1673,6 +1699,7 @@ async function buildTool(spec: ToolSpec): Promise<Record<string, unknown>> {
           arch: 'x64',
           ...(hashed.sizeBytes ? { sizeBytes: hashed.sizeBytes } : {}),
           installScope: spec.installScope,
+          ...(spec.dependsOn ? { dependsOn: spec.dependsOn } : {}),
           source: { url, sha256: hashed.sha256 },
           ...(mirrorList.length > 0 ? { mirrors: source.mirrors?.(version, url) } : {}),
           install: spec.install,
@@ -1692,6 +1719,7 @@ async function buildTool(spec: ToolSpec): Promise<Record<string, unknown>> {
       ...(resolved.releaseDate ? { releaseDate: resolved.releaseDate } : {}),
       ...(resolved.sizeBytes ? { sizeBytes: resolved.sizeBytes } : {}),
       installScope: spec.installScope,
+      ...(spec.dependsOn ? { dependsOn: spec.dependsOn } : {}),
       source: { url: resolved.url, sha256: resolved.sha256 },
       ...(resolved.mirrors && resolved.mirrors.length > 0 ? { mirrors: resolved.mirrors } : {}),
       install: spec.install,

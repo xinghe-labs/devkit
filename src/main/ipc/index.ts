@@ -201,7 +201,10 @@ export function registerIpcHandlers(): void {
     const request = asOptionalObject(payload, 'install 请求')
     const selections = asPlanSelections(request.selections, 'selections')
     const dryRun = asBoolean(request.dryRun, 'dryRun', false)
-    return prepareInstall(selections, dryRun)
+    // 机器上已可用的工具：用来判定前置依赖是否已被满足，
+    // 避免「本机早有 JDK、这次只想装 Maven」被误判成缺依赖
+    const availableToolIds = asOptionalStringArray(request.availableToolIds, 'availableToolIds')
+    return prepareInstall(selections, dryRun, availableToolIds)
   })
 
   handle(IPC.installStart, (_event, planId: unknown): StartInstallResult =>

@@ -5,6 +5,7 @@ import { parse as parsePath } from 'node:path'
 import type { InstallPlan, PreflightCheck, PreflightResult, ToolManifest } from '@shared/types'
 import { orderDownloadSources, type DownloadSourceRef } from '@shared/manifest'
 import { requestStream } from '../downloader/http'
+import { detectTool } from '../detect'
 import { logger } from '../report/logger'
 
 /**
@@ -39,6 +40,38 @@ export function findConflicts(toolIds: string[]): string[] {
   return CONFLICTS.filter(([a, b]) => selected.has(a) && selected.has(b)).map(
     ([a, b]) => `${a} 与 ${b} 功能重叠，同一台机器上建议只安装其中一个`
   )
+}
+
+/**
+ * 装完之后**仍然需要用户自己准备**的东西。
+ *
+ * 和 `dependsOn` 的区别：`dependsOn` 指的是「另一个 devkit 能装的工具」，
+ * 可以靠拓扑排序 + 预检拦截解决；这里指的是 **devkit 装不了**的东西 ——
+ * 只能如实提示，让用户自己去装。
+ *
+ * 为什么必须提示：不提示就是**假成功**，比干净地失败更糟。
+ * Rust 的例子里，装完 `rustc --version` 完全正常、devkit 自检也会通过，
+ * 但用户第一次 `cargo build` 会撞上 ``linker `link.exe` not found``，
+ * 而那时他早就把"devkit 说装好了"当成事实了。
+ *
+ * 位置说明：这份表和上面的 `CONFLICTS` 一样是引擎侧的跨工具知识。
+ * 条目再涨就该挪进清单（`versions[].requiresExternal`），现在两条以内不值得加 schema。
+ */
+export const EXTERNAL_REQUIREMENTS: { toolId: string; message: string }[] = [
+  {
+    toolId: 'rust',
+    message:
+      'Rust 在 Windows 上默认用 msvc 目标，编译链接需要 MSVC 生成工具' +
+      '（Visual Studio Build Tools 里的「使用 C++ 的桌面开发」）。' +
+      'devkit 不装它（几个 GB 的独立安装器，有自己的 UI），' +
+      '没装的话 rustc 能用、但 cargo build 会报 linker `link.exe` not found。'
+  }
+]
+
+/** 选中的工具里，哪些还有 devkit 装不了的前置需要用户自己准备 */
+export function findExternalRequirements(toolIds: string[]): { toolId: string; message: string }[] {
+  const selected = new Set(toolIds)
+  return EXTERNAL_REQUIREMENTS.filter((item) => selected.has(item.toolId))
 }
 
 export function computeRequiredBytes(totalDownloadBytes: number): number {
@@ -121,6 +154,98 @@ export interface PreflightInput {
   targetPath: string
   /** 探测时最多检查几个源（避免预检本身变成一堆网络请求）；0 表示跳过网络探测 */
   maxProbes?: number
+  /**
+   * 这台机器上**已经可用**的工具 id（来自检测）。
+   *
+   * 前置依赖的判定是「计划里有 **或** 机器上已有」。
+   * 只看计划会把「本机早就装了 JDK，这次只想装 Maven」误判成缺依赖，
+   * 那是最烦人的假阳性 —— 用户会直接不信任这个检查。
+   */
+  availableToolIds?: Set<string>
+}
+
+/**
+ * 工具间的前置依赖（`versions[].dependsOn`）。
+ *
+ * 声明的是**隐藏前置**：不是下载/解压需要，而是运行与自检需要。
+ *  · npm 类模板要跑 `npm install` → 需要 Node.js
+ *  · Maven / Gradle 的自检是 `mvn -v` / `gradle -v`，要起 JVM → 需要 JDK
+ *
+ * 不拦的话，干净机器上的表现是：下载成功、解压成功，然后自检报一句
+ * 「JAVA_HOME environment variable is not defined correctly」——
+ * 用户根本猜不到是"该一起装 JDK"。
+ *
+ * 这个检查在**预检**里而不是构建计划时，是因为 UI 拿预检的 error 直接禁用开始按钮
+ * （`disabled={!preflight.ok}`），用户能当场看到原因、补勾选、重新预检。
+ */
+async function checkToolPrerequisites(input: PreflightInput): Promise<PreflightCheck[]> {
+  const { plan, tools, availableToolIds } = input
+  const inPlan = new Set(plan.items.map((item) => item.id))
+  const available = new Set(availableToolIds ?? [])
+
+  /**
+   * 渲染进程还没把检测结果送过来时，自己补一遍「命令 + 文件」快速探测。
+   *
+   * 为什么必须补：这台机器上完整检测（含注册表扫描）要 7 秒多，
+   * 用户完全可能在那之前就点了安装。那时 availableToolIds 是空的，
+   * 「本机早有 JDK、这次只想装 Maven」就会被误拦 —— 而这正是我们最不想看到的假阳性。
+   *
+   * 不传 programs 就是跳过注册表扫描，只跑命令与文件判断，几百毫秒。
+   * 判定用白名单（installed / version-mismatch / path-missing）：
+   * `error` 表示"我没查出来"，不能当成"你有"。
+   */
+  const dependencyIds = [...new Set(plan.items.flatMap((item) => item.dependsOn))]
+  for (const id of dependencyIds) {
+    if (available.has(id)) continue
+    const tool = tools.get(id)
+    if (!tool) continue
+    try {
+      const result = await detectTool(tool)
+      if (result.status === 'installed' || result.status === 'version-mismatch' || result.status === 'path-missing') {
+        available.add(id)
+      }
+    } catch (error) {
+      logger.warn('preflight', `探测前置依赖 ${id} 失败，按"没有"处理：${(error as Error).message}`)
+    }
+  }
+
+  /** 缺的依赖 → 哪些工具在等它 */
+  const missing = new Map<string, string[]>()
+
+  for (const item of plan.items) {
+    for (const dependency of item.dependsOn) {
+      if (inPlan.has(dependency) || available.has(dependency)) continue
+      missing.set(dependency, [...(missing.get(dependency) ?? []), item.id])
+    }
+  }
+
+  if (missing.size === 0) {
+    const declared = plan.items.filter((item) => item.dependsOn.length > 0)
+    return [
+      {
+        id: 'tool-prerequisites',
+        level: 'ok',
+        message:
+          declared.length === 0
+            ? '所选工具没有额外的前置依赖'
+            : `前置依赖已满足（${declared.map((item) => item.id).join('、')}）`
+      }
+    ]
+  }
+
+  return [...missing.entries()].map(([dependency, dependents]) => {
+    const name = tools.get(dependency)?.name['zh-CN'] ?? dependency
+    const who = dependents
+      .map((id) => tools.get(id)?.name['zh-CN'] ?? id)
+      .join('、')
+    return {
+      id: `tool-prerequisites:${dependency}`,
+      level: 'error' as const,
+      message:
+        `${who} 需要先有「${name}」才能装好并用起来，但计划里没有它、这台机器上也没检测到。` +
+        `请回到选择界面把「${name}」一起勾选。`
+    }
+  })
 }
 
 export async function runPreflight(input: PreflightInput): Promise<PreflightResult> {
@@ -134,6 +259,9 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightResu
   }, 0)
 
   const requiresAdmin = plan.items.some((item) => item.requiresAdmin)
+
+  // 0. 工具间的前置依赖 —— 放在最前面，因为它是最容易当场修掉的一项
+  checks.push(...(await checkToolPrerequisites(input)))
 
   // 1. 系统版本
   const build = parseWindowsBuild(osRelease())
@@ -325,6 +453,16 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightResu
     for (const conflict of conflicts) {
       checks.push({ id: `conflict:${conflict}`, level: 'warn', message: conflict })
     }
+  }
+
+  // 7. devkit 装不了、需要用户自己准备的前置（只提示，不阻断）
+  const external = findExternalRequirements(plan.items.map((item) => item.id))
+  for (const item of external) {
+    checks.push({
+      id: `external-requirement:${item.toolId}`,
+      level: 'warn',
+      message: item.message
+    })
   }
 
   const ok = checks.every((check) => check.level !== 'error')

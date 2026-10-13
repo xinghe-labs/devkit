@@ -26,20 +26,23 @@
   },
   "versions": [
     {
-      "version": "1.0.95",
+      "version": "1.0.96",
       "channel": "stable",
       "recommended": true,
       "arch": "x64",
-      "sizeBytes": 5452,
+      "sizeBytes": 5454,
       "installScope": "user",
+      "dependsOn": [
+        "nodejs"
+      ],
       "source": {
-        "url": "https://registry.npmjs.org/@github/copilot/-/copilot-1.0.95.tgz",
-        "sha256": "838be5537db8bd0f7c7c2e555063770ab559249cf2c3ff3c23b2efc81c854779"
+        "url": "https://registry.npmjs.org/@github/copilot/-/copilot-1.0.96.tgz",
+        "sha256": "42562534cf5d1cfabacfc32f5f962e2ee27c87f191da6ac3876bdd66fa9dcae2"
       },
       "mirrors": [
         {
           "name": "npmmirror",
-          "url": "https://registry.npmmirror.com/@github/copilot/-/copilot-1.0.95.tgz"
+          "url": "https://registry.npmmirror.com/@github/copilot/-/copilot-1.0.96.tgz"
         }
       ],
       "install": {

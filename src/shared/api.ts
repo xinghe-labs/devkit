@@ -72,7 +72,12 @@ export interface DevkitApi {
   onLogLine(listener: (entry: LogEntry) => void): () => void
 
   /** 构建安装计划并跑预检（不执行任何安装）；dryRun=true 时只演练命令行 */
-  prepareInstall(selections: PlanSelection[], dryRun?: boolean): Promise<PlanPreparation>
+  prepareInstall(
+    selections: PlanSelection[],
+    dryRun?: boolean,
+    /** 机器上已可用的工具 id，用于判定前置依赖是否已满足 */
+    availableToolIds?: string[]
+  ): Promise<PlanPreparation>
   /** 开始执行安装；进度通过 onInstallProgress 推送 */
   startInstall(planId: string): Promise<StartInstallResult>
   cancelInstall(): Promise<boolean>

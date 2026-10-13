@@ -170,6 +170,30 @@
 - VS Code 插件面板新增 `ai` 分类（Cline / Roo Code / Kilo Code / Continue / Copilot 系列）
 - 内置「AI 编码」预设
 
+### FR-24 前置依赖声明（v0.9 新增）
+
+**问题**：`dependsOn` 机制（schema 字段、`topologicalSort`、执行器的依赖跳过）**全部建好了，
+但一个清单都没声明过** —— 机制等于没接线。于是下面这类问题只在干净机器上暴露：
+
+| 工具 | 隐藏前置 | 干净机器上的实际表现 |
+| --- | --- | --- |
+| Maven / Gradle | JDK | 下载解压都成功，自检 `mvn -v` 报 **「The JAVA_HOME environment variable is not defined correctly」**（已实测复现） |
+| Claude Code / Gemini CLI / Copilot CLI / Qwen Code | Node.js（npm 随它提供） | `npm install` 根本跑不起来 |
+| Rust | MSVC 生成工具 | **装完自检通过、devkit 报成功**，但第一次 `cargo build` 报 ``linker `link.exe` not found`` |
+
+前两类是"该一起装某个工具"，第三类是"devkit 装不了、只能提示"。
+
+**做法**：
+
+- 清单里声明 `versions[].dependsOn`（6 个工具：4 个 npm 类 → `nodejs`；Maven/Gradle → `jdk-temurin`）
+- **预检**新增 `tool-prerequisites` 检查，`level: 'error'` → UI 的 `disabled={!preflight.ok}`
+  会直接禁用开始按钮，用户当场看到"该补哪一个"
+- **判定是「计划里有 **或** 机器上已有」**。只看计划会把「本机早有 JDK、这次只想装 Maven」
+  误判成缺依赖 —— 那是最烦人的假阳性，用户会立刻不再信任这个检查
+- **`availableToolIds` 由渲染进程传入**（已有的检测结果），不额外跑一遍注册表扫描
+- 执行器的 `topologicalSort` 保证依赖先装（已实现，这次终于有数据可排）
+- devkit 装不了的前置走 `EXTERNAL_REQUIREMENTS`，作为 `warn` 提示，**不阻断**
+
 ### FR-11 补充：清单里的版本覆盖（v0.9）
 
 原来清单里 22 个可装工具中有 20 个**只有 1 个版本**可选 —— UI 的版本下拉是做了的，
@@ -828,6 +852,16 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 ```
 
 这条规则对**任何**安装器都成立，不依赖对某个安装器参数的逆向。
+
+### 13.13 前置依赖的判定规则（v0.9）
+
+| # | 问题 | 结论 |
+|---|---|---|
+| 48 | 判定依赖满足的条件 | **「计划里有 或 机器上已有」**。只看计划会把「本机早装了 JDK、这次只想装 Maven」误判成缺依赖。假阳性比漏报更伤 —— 用户一旦被误拦就不再信任这个检查 |
+| 49 | 检查放在预检还是构建计划时 | **预检**。UI 拿预检的 error 直接禁用开始按钮（`disabled={!preflight.ok}`），用户能当场看到原因、补勾选、重新预检；构建计划时抛异常只会弹一个没法操作的错误 |
+| 50 | 依赖的工具 id 用哪种检测 | 用工具自己的 `detect`（`java -version` / `node -v` 这类**通用命令**），不是发行版专有标记。装 Oracle JDK 或官方 Node 也算满足，不该因为"不是 Temurin"而误判 |
+| 51 | devkit 装不了的前置怎么办 | **提示但不阻断**（`warn`）。Rust 缺 MSVC 时 `rustc` 本身能用，装还是要让用户装；但不提示就是**假成功** —— 用户会把"devkit 说装好了"当成事实，直到第一次 `cargo build` |
+| 52 | 跨工具知识的存放位置 | devkit 能装的用清单 `dependsOn`；devkit 装不了的暂时放引擎侧的 `EXTERNAL_REQUIREMENTS`（与既有的 `CONFLICTS` 同款）。条目涨到 3 条以上就该挪进清单加 schema |
 
 ### 13.12 版本覆盖的边界（v0.9）
 

@@ -195,6 +195,22 @@ python → C:\Program Files\LibreOffice\program\python.exe   ← 另一个也在
 - 导入后**先看差异表再决定**：恢复 PATH / 环境变量 / 镜像 / git 四项默认全不勾
 - 装软件复用现有安装流程（预检 → 下载 → 校验 → 安装 → 自检 → 激活）
 
+### 前置依赖检查
+
+有些工具装完之后能不能用，取决于别的工具 —— 预检会在开始前拦住：
+
+| 工具 | 需要先有 |
+| --- | --- |
+| Maven · Gradle | **JDK**（自检 `mvn -v` 要起 JVM） |
+| Claude Code · Gemini CLI · Copilot CLI · Qwen Code | **Node.js**（npm 随它提供） |
+| Rust | MSVC 生成工具（**devkit 装不了**，会提示但不拦） |
+
+没声明的话，干净机器上的表现是：下载成功、解压成功，然后自检报一句
+`The JAVA_HOME environment variable is not defined correctly` —— 你根本猜不到是"该一起装 JDK"。
+
+判定是「**计划里有 或 机器上已有**」：本机早就装了 JDK、这次只想装个 Maven 不会被误拦。
+依赖一起勾选时，计划会自动把 JDK 排到 Maven 前面。
+
 ### 版本选择
 
 多版本共存是设计目标（独立目录 + junction 切换），清单里现在给了常用版本：

@@ -44,7 +44,7 @@ interface InstallState {
   checkPending: () => Promise<void>
   discardPending: () => Promise<void>
   resume: () => Promise<void>
-  prepare: (selections: PlanSelection[]) => Promise<void>
+  prepare: (selections: PlanSelection[], availableToolIds?: string[]) => Promise<void>
   start: () => Promise<void>
   cancel: () => Promise<void>
   exportReport: () => Promise<string | null>
@@ -99,10 +99,10 @@ export const useInstallStore = create<InstallState>()((set, get) => ({
     }
   },
 
-  prepare: async (selections) => {
+  prepare: async (selections, availableToolIds) => {
     set({ busy: true, error: null })
     try {
-      const preparation = await window.devkit.prepareInstall(selections)
+      const preparation = await window.devkit.prepareInstall(selections, false, availableToolIds)
       set({ preparation, plan: preparation.plan, phase: 'preflight' })
     } catch (error) {
       set({ error: (error as Error).message })
