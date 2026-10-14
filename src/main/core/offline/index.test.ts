@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
+import { downloadFileName } from '@shared/download-name'
 import type { ToolManifest } from '@shared/types'
 import {
   archiveFileName,
@@ -17,14 +18,38 @@ function sha256(content: string): string {
 }
 
 describe('离线包文件命名', () => {
-  it('与 executor 的下载缓存命名规则一致', () => {
-    expect(
-      archiveFileName('nodejs', '24.21.0', 'https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip')
-    ).toBe('nodejs-24.21.0-node-v24.21.0-win-x64.zip')
+  // 命名规则本身由 @shared/download-name 的单测覆盖（含 VS Code 的 /stable 形态）。
+  // 这里只钉住一件事：**离线包用的就是执行器找的那个名字**。
+  it('与执行器的下载缓存命名完全一致（含补 .exe 的形态）', () => {
+    const cases: { url: string; installType: string; expect: string }[] = [
+      {
+        url: 'https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip',
+        installType: 'zip',
+        expect: 'nodejs-24.21.0-node-v24.21.0-win-x64.zip'
+      },
+      {
+        // 曾经就是这一条不一致：离线包叫 ...stable，执行器找 ...stable.exe
+        url: 'https://update.code.visualstudio.com/latest/win32-x64-user/stable',
+        installType: 'exe-inno',
+        expect: 'vscode-1.141.0-stable.exe'
+      }
+    ]
+
+    for (const c of cases) {
+      const toolId = c.expect.split('-')[0] as string
+      const version = c.expect.includes('vscode') ? '1.141.0' : '24.21.0'
+      expect(archiveFileName(toolId, version, c.url, c.installType)).toBe(c.expect)
+      // 同一个函数 —— 不是"看起来一致"，是同一个实现
+      expect(archiveFileName(toolId, version, c.url, c.installType)).toBe(
+        downloadFileName({ toolId, version, url: c.url, installType: c.installType })
+      )
+    }
   })
 
   it('URL 带查询串时只取路径部分', () => {
-    expect(archiveFileName('x', '1.0', 'https://example.com/a/b/c.zip?token=1')).toBe('x-1.0-c.zip')
+    expect(archiveFileName('x', '1.0', 'https://example.com/a/b/c.zip?token=1', 'zip')).toBe(
+      'x-1.0-c.zip'
+    )
   })
 })
 

@@ -38,6 +38,15 @@ export function ToolRow({
   const recommended = pickRecommendedVersion(tool)
   const activeVersion = selectedVersion ?? recommended?.version
 
+  /**
+   * 能不能装。
+   *
+   * detect-only 的工具（清单里 `status: 'detect-only'`、`versions: []`）以前是**可以勾选**的，
+   * 但勾了之后 `buildPlan` 会抛 `PlanBuildFailure`，而那个错误只在安装流程的预检弹窗里渲染 ——
+   * 用户点「安装」看到的是**什么都没发生**。所以在源头就禁掉。
+   */
+  const installable = tool.status === 'ready' && tool.versions.length > 0
+
   // devkit 自己装过哪些版本（与"机器上原本有没有"是两件事）
   const installed = useManageStore((state) => state.installed)
   const activate = useManageStore((state) => state.activate)
@@ -90,9 +99,11 @@ export function ToolRow({
       <div style={{ display: 'flex', gap: 16, width: '100%', alignItems: 'flex-start' }}>
         <Checkbox
           checked={selected}
+          disabled={!installable}
           onChange={(event) => onToggle(event.target.checked)}
           aria-label={localizedText(tool.name, locale, tool.id)}
           style={{ marginTop: 3 }}
+          title={installable ? undefined : t('tool.notInstallable')}
         />
 
         <div style={{ flex: 1, minWidth: 0 }}>

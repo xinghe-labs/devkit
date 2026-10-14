@@ -12,7 +12,8 @@
     "yes": "是",
     "no": "否",
     "unknown": "未知",
-    "none": "无"
+    "none": "无",
+    "cancel": "取消"
   },
   "header": {
     "language": "语言",
@@ -62,7 +63,8 @@
     "tierL3": "仅引导官网",
     "devkitInstalled": "devkit 已装 {{versions}}",
     "activated": "已激活 {{version}}",
-    "activateLatest": "激活 {{version}}"
+    "activateLatest": "激活 {{version}}",
+    "notInstallable": "这个工具目前只支持检测，还不能由 devkit 安装"
   },
   "action": {
     "install": "开始安装",
@@ -213,7 +215,12 @@
     "revertConfirm": "确定还原这一项？",
     "revertConfirmHint": "会写回 devkit 改动之前的原值（备份时间 {{at}}）。没有备份记录时不会执行。",
     "machinePathSync": "同步到机器级 PATH",
-    "machinePathRemove": "从机器级 PATH 移除"
+    "machinePathRemove": "从机器级 PATH 移除",
+    "hotUpdateTrust": "清单源是你自己填的地址，请只填你信任的来源",
+    "hotUpdateTrustHint": "清单里的下载地址决定了 devkit 会下载并执行哪个二进制。字段白名单挡住了\"往清单里塞命令\"，但挡不住\"把某个版本指向攻击者的服务器\"。当前来源：{{host}}",
+    "hotUpdateNoUrl": "（未填写）",
+    "hotUpdateConfirm": "确定从这个来源拉取清单？",
+    "hotUpdateConfirmHint": "来源：{{host}}。拉取后，清单里指向的版本会被下载并用本地模板执行。"
   },
   "installed": {
     "title": "已安装（devkit 管理的版本目录）",
@@ -241,7 +248,8 @@
     "source": "下载来源",
     "mirrors": "镜像",
     "noHash": "这个版本没有声明校验和（不会出现在可安装清单里）",
-    "verify": "安装后自检"
+    "verify": "安装后自检",
+    "notes": "这个工具的取舍与注意事项（来自清单，非自动生成）："
   },
   "vscode": {
     "title": "VS Code 插件推荐",
@@ -314,5 +322,11 @@
     "restoreGit": "恢复 git 身份",
     "installAll": "按档案装齐（{{count}} 项）",
     "applyRestore": "执行恢复"
+  },
+  "update": {
+    "available": "发现新版本 {{version}}",
+    "hint": "更新包会先做 SHA-256 校验，校验通过才落盘并拉起安装程序。安装包未签名，SmartScreen 仍会提示。",
+    "downloadAndInstall": "下载并安装",
+    "downloading": "下载中…"
   }
 }

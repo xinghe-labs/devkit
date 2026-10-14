@@ -171,6 +171,22 @@ export function ToolDetail({ tool }: { tool: ToolManifest }) {
           {(recommended.verify.args ?? []).join(' ')}
         </Paragraph>
       ) : null}
+
+      {/*
+        清单里的 notes 是**安全与取舍的说明**（例如 npm 类工具"只校验顶层 tarball，
+        依赖与平台二进制不在 devkit 校验范围内"）。它原来只存在于 JSON 里，
+        界面上从不渲染 —— 等于把风险写在了用户看不到的地方。
+      */}
+      {tool.notes ? (
+        <div style={{ marginTop: 8 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t('detail.notes')}
+          </Text>
+          <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0, marginTop: 2 }}>
+            {localizedText(tool.notes, locale, '')}
+          </Paragraph>
+        </div>
+      ) : null}
     </div>
   )
 

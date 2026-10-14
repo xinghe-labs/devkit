@@ -49,6 +49,8 @@ interface InstallState {
   cancel: () => Promise<void>
   exportReport: () => Promise<string | null>
   close: () => void
+  /** 只清错误、不动计划（App 顶部的错误条用它关闭） */
+  clearError: () => void
   applyProgress: (event: InstallProgressEvent) => void
 }
 
@@ -145,6 +147,8 @@ export const useInstallStore = create<InstallState>()((set, get) => ({
       return null
     }
   },
+
+  clearError: () => set({ error: null }),
 
   close: () =>
     set({

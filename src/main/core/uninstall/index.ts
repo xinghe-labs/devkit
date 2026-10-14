@@ -2,6 +2,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { InstalledTool, ToolManifest, UninstallResult } from '@shared/types'
 import { getVersionsRoot } from '../../utils/app-paths'
+import { uninstallByRegistry } from './registry'
 import { logger } from '../report/logger'
 import { deactivateTool, getActivatedVersion, getLinkPath, removeJunction } from '../activate'
 import { directorySize, removeInstallDir } from '../providers/direct'
@@ -83,7 +84,13 @@ export async function listInstalledWithSize(tools: ToolManifest[]): Promise<Inst
 export async function uninstallVersion(
   toolId: string,
   version: string,
-  versionsRoot: string = getVersionsRoot()
+  versionsRoot: string = getVersionsRoot(),
+  /**
+   * 对应的清单。传了就检查 `versions[].uninstall.type`：
+   * `registry` 表示这东西会在注册表留卸载记录（机器级 MSI 都是），
+   * 必须先走它自己的卸载程序，否则「应用和功能」里会留一条幽灵条目。
+   */
+  tool?: ToolManifest
 ): Promise<UninstallResult> {
   const removed: string[] = []
 
@@ -100,6 +107,24 @@ export async function uninstallVersion(
   }
 
   try {
+    // 先看清单有没有声明要走注册表卸载（机器级 MSI）。
+    // 必须在删目录**之前**做 —— 卸载程序可能依赖目录里还在的东西。
+    const spec = tool?.versions.find((item) => item.version === version)
+    if (spec?.uninstall?.type === 'registry' && tool) {
+      const byRegistry = await uninstallByRegistry(tool)
+      if (byRegistry.detail) removed.push(byRegistry.detail)
+      if (!byRegistry.ok) {
+        // 注册表卸载失败就**停在这里**：删掉目录只会让情况更糟
+        // （卸载程序找不到文件，用户既装不上也卸不掉）
+        logger.warn('uninstall', `注册表卸载失败，已中止：${byRegistry.error}`)
+        return {
+          ok: false,
+          removed,
+          error: byRegistry.error ?? '注册表卸载失败'
+        }
+      }
+    }
+
     // 如果卸载的正是当前激活的版本，先取消激活（否则 PATH 会指向不存在的目录）
     if (getActivatedVersion(toolId) === version) {
       const deactivated = await deactivateTool(toolId)

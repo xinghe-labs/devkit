@@ -227,24 +227,35 @@ export async function downloadUpdate(params: {
       response.stream.pipe(out)
     })
 
-    // 校验通过才改名 —— 与下载器同一条规矩：未校验的文件不出现在最终位置
-    let verified: boolean | null = null
-    if (sha256) {
-      const actual = await sha256File(partFile)
-      if (actual !== sha256.toLowerCase()) {
-        await rm(partFile, { force: true })
-        return {
-          ok: false,
-          filePath: null,
-          bytes: 0,
-          verified: false,
-          error: `更新包校验失败：期望 ${shortHash(sha256)}，实际 ${shortHash(actual)}。已丢弃，未启动安装`
-        }
+    // 校验通过才改名 —— 与下载器同一条规矩：未校验的文件不出现在最终位置。
+    //
+    // 索引里没有 SHA-256 时**直接拒绝**，而不是"警告一下照样装"。
+    // 以前是后者：日志里一行 warn，然后文件照样落到最终位置、返回 ok:true，
+    // 用户看到的是一个"可以安装"的更新包。而更新包是会被拉起来执行的，
+    // 没有完整性校验等于把"更新"变成了一条未认证的代码执行通道。
+    if (!sha256) {
+      await rm(partFile, { force: true })
+      return {
+        ok: false,
+        filePath: null,
+        bytes: 0,
+        verified: null,
+        error: '更新索引里没有 SHA-256 校验和，已拒绝下载（无法确认更新包是否被篡改）'
       }
-      verified = true
-    } else {
-      logger.warn('updater', '更新索引里没有 SHA-256，本次下载未做完整性校验')
     }
+
+    const actual = await sha256File(partFile)
+    if (actual !== sha256.toLowerCase()) {
+      await rm(partFile, { force: true })
+      return {
+        ok: false,
+        filePath: null,
+        bytes: 0,
+        verified: false,
+        error: `更新包校验失败：期望 ${shortHash(sha256)}，实际 ${shortHash(actual)}。已丢弃，未启动安装`
+      }
+    }
+    const verified: boolean | null = true
 
     await rm(finalFile, { force: true })
     await rename(partFile, finalFile)

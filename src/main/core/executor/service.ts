@@ -17,6 +17,7 @@ import { getDownloadDir, getLogDir, getVersionsRoot } from '../../utils/app-path
 import { loadManifests } from '../manifest'
 import { buildPlan, clearPendingPlan, loadPendingPlan } from '../plan'
 import { runPreflight } from '../preflight'
+import { applyMirrors } from '../config/mirrors'
 import { loadConfig } from '../settings'
 import { logger } from '../report/logger'
 import { runPlan, type ActivateOutcome } from './index'
@@ -151,11 +152,33 @@ export function startInstall(planId: string): StartInstallResult {
       onUpdate: (event) => listener?.(event)
     })
   })()
-    .then((finished) => {
+    .then(async (finished) => {
       logger.info(
         'install',
         `计划 ${finished.planId} 执行完毕：成功 ${finished.summary.success}，失败 ${finished.summary.failed}`
       )
+
+      // 「自动写入 npm / pip 镜像」这个开关以前**没有任何消费者** ——
+      // 界面上能拨，拨了什么都不发生。这里把它接上：只在装成功之后做，
+      // 而且只做 npm 与 pip（与开关的文案一致，其余 7 个镜像目标要用户显式去镜像页应用）。
+      if (config.configureMirrors && finished.summary.success > 0) {
+        try {
+          const targets = config.mirrors.filter(
+            (item) => item.enabled && (item.target === 'npm' || item.target === 'pip')
+          )
+          if (targets.length > 0) {
+            const applied = applyMirrors(targets)
+            logger.info(
+              'install',
+              `已自动写入镜像源：${applied.changed.length} 项` +
+                (applied.error ? `（有失败：${applied.error}）` : '')
+            )
+          }
+        } catch (error) {
+          // 写镜像失败不该让整个安装算失败 —— 它是锦上添花
+          logger.warn('install', `自动写入镜像源失败（不影响安装结果）：${(error as Error).message}`)
+        }
+      }
     })
     .catch((error: unknown) => {
       logger.error('install', `安装流程异常终止：${(error as Error).message}`)

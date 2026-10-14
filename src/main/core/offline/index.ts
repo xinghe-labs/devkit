@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, readdirSync, statSync } from 'node:fs'
-import { basename, join } from 'node:path'
-import { URL } from 'node:url'
+import { join } from 'node:path'
 import type { LicenseTier, OfflinePackResult, ToolManifest } from '@shared/types'
+import { downloadFileName } from '@shared/download-name'
 import { orderDownloadSources } from '@shared/manifest'
 import { ensureDir, readJsonFile, writeJsonFile } from '../../utils/fs'
 import { logger } from '../report/logger'
@@ -85,8 +85,23 @@ export function partitionByRedistributable(tools: ToolManifest[]): {
 }
 
 /** 与 executor 保持一致的文件命名规则（改这里必须同步改 executor） */
-export function archiveFileName(toolId: string, version: string, url: string): string {
-  return `${toolId}-${version}-${basename(new URL(url).pathname)}`
+/**
+ * 离线包里的归档文件名。
+ *
+ * **必须与执行器找的那个名字一致**，所以这里不自己拼，直接调
+ * `@shared/download-name` 的唯一实现。
+ *
+ * 这里曾经自己拼过一遍（`basename(new URL(url).pathname)`，不补扩展名），
+ * 而执行器会补 `.exe` —— 于是离线安装 VS Code 必然失败：
+ * 包里叫 `vscode-1.141.0-stable`，执行器找 `vscode-1.141.0-stable.exe`。
+ */
+export function archiveFileName(
+  toolId: string,
+  version: string,
+  url: string,
+  installType?: string | null
+): string {
+  return downloadFileName({ toolId, version, url, installType })
 }
 
 export interface PackOfflineOptions {
@@ -130,7 +145,12 @@ export async function packOffline(options: PackOfflineOptions): Promise<OfflineP
         continue
       }
 
-      const fileName = archiveFileName(tool.id, version.version, version.source.url)
+      const fileName = archiveFileName(
+        tool.id,
+        version.version,
+        version.source.url,
+        version.install?.type
+      )
       const target = join(downloadDir, fileName)
 
       const download = await downloadFile({

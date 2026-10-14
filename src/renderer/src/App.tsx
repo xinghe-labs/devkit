@@ -88,6 +88,11 @@ export default function App() {
   const applyProgress = useInstallStore((state) => state.applyProgress)
   const checkPending = useInstallStore((state) => state.checkPending)
   const preparing = useInstallStore((state) => state.busy)
+  // 计划构建失败（例如勾了不可装的工具）只写进 install store 的 error，
+  // 而那个字段原先只在安装流程的预检弹窗里渲染 —— 用户点「安装」看到的是"什么都没发生"。
+  const installError = useInstallStore((state) => state.error)
+  const installPhase = useInstallStore((state) => state.phase)
+  const clearInstallError = useInstallStore((state) => state.clearError)
 
   const openSettings = useManageStore((state) => state.openSettings)
   const openDoctor = useManageStore((state) => state.openDoctor)
@@ -326,6 +331,16 @@ export default function App() {
                   {updateDownloading ? t('update.downloading') : t('update.downloadAndInstall')}
                 </Button>
               }
+            />
+          ) : null}
+
+          {installError && installPhase === 'idle' ? (
+            <Alert
+              type="error"
+              showIcon
+              closable
+              message={installError}
+              onClose={() => clearInstallError()}
             />
           ) : null}
 

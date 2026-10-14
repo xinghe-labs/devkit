@@ -12,7 +12,8 @@
     "yes": "Yes",
     "no": "No",
     "unknown": "Unknown",
-    "none": "None"
+    "none": "None",
+    "cancel": "Cancel"
   },
   "header": {
     "language": "Language",
@@ -62,7 +63,8 @@
     "tierL3": "Official site only",
     "devkitInstalled": "devkit installed {{versions}}",
     "activated": "Activated {{version}}",
-    "activateLatest": "Activate {{version}}"
+    "activateLatest": "Activate {{version}}",
+    "notInstallable": "This tool is detection-only for now — devkit cannot install it yet"
   },
   "action": {
     "install": "Install selected",
@@ -213,7 +215,12 @@
     "revertConfirm": "Revert this item?",
     "revertConfirmHint": "Writes back the value from before devkit changed it (backed up {{at}}). Refused if no backup exists.",
     "machinePathSync": "Sync to machine PATH",
-    "machinePathRemove": "Remove from machine PATH"
+    "machinePathRemove": "Remove from machine PATH",
+    "hotUpdateTrust": "The manifest source is a URL you supply — only use one you trust",
+    "hotUpdateTrustHint": "Download URLs inside the manifest decide which binary devkit fetches and runs. The field allowlist blocks injected commands, but it cannot stop a version from being pointed at an attacker-controlled server. Current source: {{host}}",
+    "hotUpdateNoUrl": "(not set)",
+    "hotUpdateConfirm": "Fetch the manifest from this source?",
+    "hotUpdateConfirmHint": "Source: {{host}}. Versions referenced by the manifest will be downloaded and executed with local templates."
   },
   "installed": {
     "title": "Installed (devkit-managed version dirs)",
@@ -241,7 +248,8 @@
     "source": "Source",
     "mirrors": "Mirrors",
     "noHash": "No checksum declared for this version (it will not appear as installable)",
-    "verify": "Post-install check"
+    "verify": "Post-install check",
+    "notes": "Trade-offs and caveats for this tool (from the manifest):"
   },
   "vscode": {
     "title": "Recommended VS Code extensions",
@@ -314,5 +322,11 @@
     "restoreGit": "Restore git identity",
     "installAll": "Install everything from the profile ({{count}})",
     "applyRestore": "Apply restore"
+  },
+  "update": {
+    "available": "New version {{version}} available",
+    "hint": "The update is SHA-256 verified before it is kept and launched. The installer is unsigned, so SmartScreen will still warn.",
+    "downloadAndInstall": "Download and install",
+    "downloading": "Downloading…"
   }
 }

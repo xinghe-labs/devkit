@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs'
-import { basename, join } from 'node:path'
-import { URL } from 'node:url'
+import { join } from 'node:path'
 import type {
   InstallPlan,
   InstallProgressEvent,
@@ -8,6 +7,7 @@ import type {
   ToolManifest,
   ToolVersionSpec
 } from '@shared/types'
+import { downloadFileName } from '@shared/download-name'
 import { orderDownloadSources } from '@shared/manifest'
 import { extractVersion } from '@shared/version'
 import { runCommand } from '../../utils/exec'
@@ -171,14 +171,17 @@ async function runItem(context: {
   const sources = orderDownloadSources(version, plan.options.mirrorPreference)
   if (sources.length === 0) throw new Error('清单没有给出任何下载源')
 
-  const urlFileName = basename(new URL(sources[0].url).pathname)
-  // VS Code 的下载地址以 /stable 结尾，取出来没有扩展名。Windows 主要按扩展名决定怎么执行，
-  // 一个叫 `vscode-1.141.0-stable` 的文件能被跑起来纯属运气 —— 这里显式补上。
-  const fileName =
-    urlFileName.includes('.') || version.install?.type === 'zip'
-      ? urlFileName
-      : `${urlFileName}.exe`
-  const archivePath = join(downloadDir, `${item.id}-${item.version}-${fileName}`)
+  // 命名规则见 @shared/download-name —— 离线包制作走的是同一个函数，
+  // 两边不一致会让离线安装必然失败（曾经就是这样：VS Code 那个 /stable 的 URL）。
+  const archivePath = join(
+    downloadDir,
+    downloadFileName({
+      toolId: item.id,
+      version: item.version,
+      url: sources[0].url,
+      installType: version.install?.type
+    })
+  )
   item.archivePath = archivePath
 
   item.state = 'downloading'

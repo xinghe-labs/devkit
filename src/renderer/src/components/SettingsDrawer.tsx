@@ -62,6 +62,15 @@ function Row({
  * 这里所有开关都对应真实的机器行为（写 PATH、改镜像配置文件、下载），
  * 所以每一项都写清楚"它会改什么"，而不是只给一个光秃秃的开关。
  */
+/** 取 URL 主机名，用于热更新源的"内容来自哪里"提示 */
+function hostOfUrl(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
 export function SettingsDrawer() {
   const { t, i18n } = useTranslation()
   const open = useManageStore((state) => state.settingsOpen)
@@ -276,15 +285,44 @@ export function SettingsDrawer() {
             />
           </Row>
 
+          {/*
+            热更新源是**用户自己填的任意 https 地址**，而清单里的 source.url / sha256
+            决定了 devkit 会下载并（用本地模板）执行哪个二进制。
+            字段白名单挡住了"往清单里塞命令"，但挡不住"把某个版本指向攻击者的服务器"。
+            所以执行前必须让用户看清来源主机并明确确认 —— 不能点一下就拉远程内容。
+          */}
+          <Alert
+            style={{ marginTop: 4 }}
+            type="warning"
+            showIcon
+            message={t('settings.hotUpdateTrust')}
+            description={t('settings.hotUpdateTrustHint', {
+              host: settings.manifestHotUpdateUrl
+                ? hostOfUrl(settings.manifestHotUpdateUrl)
+                : t('settings.hotUpdateNoUrl')
+            })}
+          />
+
           <Space>
-            <Button
-              size="small"
-              disabled={!settings.manifestHotUpdateUrl}
-              loading={busy}
-              onClick={() => void runHotUpdate(settings.manifestHotUpdateUrl ?? '')}
+            <Popconfirm
+              title={t('settings.hotUpdateConfirm')}
+              description={t('settings.hotUpdateConfirmHint', {
+                host: settings.manifestHotUpdateUrl
+                  ? hostOfUrl(settings.manifestHotUpdateUrl)
+                  : ''
+              })}
+              okText={t('settings.hotUpdateRun')}
+              cancelText={t('common.cancel')}
+              onConfirm={() => void runHotUpdate(settings.manifestHotUpdateUrl ?? '')}
             >
-              {t('settings.hotUpdateRun')}
-            </Button>
+              <Button
+                size="small"
+                disabled={!settings.manifestHotUpdate || !settings.manifestHotUpdateUrl}
+                loading={busy}
+              >
+                {t('settings.hotUpdateRun')}
+              </Button>
+            </Popconfirm>
             <Button size="small" loading={busy} onClick={() => void clearManifestOverride()}>
               {t('settings.hotUpdateReset')}
             </Button>

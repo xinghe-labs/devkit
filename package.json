@@ -34,7 +34,7 @@
     "dist:publish": "electron-vite build && electron-builder --win --publish always",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
-    "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

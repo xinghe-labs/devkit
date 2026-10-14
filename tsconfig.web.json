@@ -1,8 +1,18 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "jsx": "react-jsx"
   },
-  "include": ["src/renderer/src/**/*", "src/shared/**/*", "src/preload/index.d.ts"]
+  "include": [
+    "src/renderer/src/**/*",
+    "src/shared/**/*",
+    "src/preload/index.d.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
 }

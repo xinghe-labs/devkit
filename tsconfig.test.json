@@ -1,0 +1,23 @@
+{
+  "//": "测试文件的类型检查。测试跑在 Node 里（vitest），但会引用渲染层源码（用 window），",
+  "//2": "所以这里同时需要 node 与 DOM 两套类型 —— 单独一份配置比塞进任何一边都干净。",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/preload/index.d.ts",
+    "scripts/**/*.test.ts"
+  ]
+}

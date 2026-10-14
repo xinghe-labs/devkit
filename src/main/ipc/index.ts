@@ -305,7 +305,10 @@ export function registerIpcHandlers(): void {
     const toolId = asToolId(request.toolId, 'toolId')
     const version = asNonEmptyString(request.version, 'version', 40)
     const uninstallRequest: UninstallRequest = { toolId, version }
-    return uninstallVersion(uninstallRequest.toolId, uninstallRequest.version)
+    // 把清单一起传下去：机器级 MSI（7-Zip）要在删目录前先走它自己的卸载程序，
+    // 否则「应用和功能」里会留一条指向不存在目录的幽灵条目
+    const tool = loadManifests().tools.find((item) => item.id === uninstallRequest.toolId)
+    return uninstallVersion(uninstallRequest.toolId, uninstallRequest.version, undefined, tool)
   })
 
   /* ---------------- 设置与镜像源 ---------------- */
@@ -578,7 +581,18 @@ export function registerIpcHandlers(): void {
   /* ---------------- 清单热更新（FR-15） ---------------- */
 
   handle(IPC.manifestHotUpdate, async (_event, url: unknown): Promise<HotUpdateResultView> => {
+    // 这个开关以前也没有消费者：拨掉之后热更新照样能跑。
+    // 关掉时要给出明确原因，而不是静默成功。
+    if (!loadConfig().manifestHotUpdate) {
+      throw new IpcValidationError('清单热更新已在设置里关闭，请先打开再执行')
+    }
     const target = asNonEmptyString(url, 'url', 500)
+    // 留痕：清单源是用户自己填的，出问题时日志里要能看到内容是从哪个主机拉的
+    try {
+      logger.info('manifest', `清单热更新来源：${new URL(target).host}`)
+    } catch {
+      throw new IpcValidationError('清单更新地址不是合法的 URL')
+    }
     const { tools } = loadManifests()
     const result = await runHotUpdate({ url: target, tools, proxy: loadConfig().proxy })
     return result

@@ -254,10 +254,21 @@ async function npmInfo(pkg: string, want: string | 'latest'): Promise<NpmInfo> {
 /**
  * npm 类工具的供应链说明。
  *
- * 必须写清楚：devkit 固定的是**顶层包 tarball** 的 SHA-256，而 npm 在安装时会去
- * registry 解析这个包的依赖与平台二进制 —— 这一部分不在 devkit 的校验范围内。
- * 实测 `@anthropic-ai/claude-code` 本身只有 0.2 MB，真正的可执行文件在
- * `@anthropic-ai/claude-code-win32-x64` 这个可选依赖里。
+ * 必须写清楚三件事，少一件都是误导：
+ *
+ * 1. devkit 固定的是**顶层包 tarball** 的 SHA-256，而 npm 在安装时会去 registry
+ *    解析这个包的依赖与平台二进制 —— 这一部分不在 devkit 的校验范围内。
+ *    实测 `@anthropic-ai/claude-code` 本身只有 0.2 MB，真正的可执行文件在
+ *    `@anthropic-ai/claude-code-win32-x64` 这个可选依赖里。
+ * 2. **依赖的 `install` / `postinstall` 脚本会以当前用户身份执行。**
+ *    这是 npm 生态的固有行为，devkit 没有拦截。
+ * 3. 为什么**不能**简单地加 `--ignore-scripts` 来堵住第 2 条：实测
+ *    `@google/gemini-cli` 与 `@qwen-code/qwen-code` 依赖的原生模块
+ *    （`node-pty` 的 `install: node scripts/prebuild.js || node-gyp rebuild`、
+ *    `@github/keytar` 的 `install: node script/install.js || npm run build`）
+ *    正是靠 install 脚本取/编译原生二进制的。加了这个开关，这两个 CLI 会**装成废的** ——
+ *    命令在、一跑就报找不到模块。所以这里选择**如实告知**而不是假装安全。
+ *
  * 这与"官方直链 + SHA-256"的模型**不等价**，不写清楚就是误导用户。
  */
 function npmNotes(pkg: string, bin: string): { 'zh-CN': string; 'en-US': string } {
@@ -268,6 +279,9 @@ function npmNotes(pkg: string, bin: string): { 'zh-CN': string; 'en-US': string 
       `devkit 固定的是顶层包 tarball 的 SHA-256 与版本号；但 npm 在安装时仍会去 registry ` +
       `解析该包的依赖与平台二进制（例如 claude-code 本体只有 0.2 MB，真正的可执行文件在 ` +
       `平台专用可选依赖里）—— **这一部分不在 devkit 的校验范围内**。` +
+      `另外，这些依赖的 \`install\` / \`postinstall\` 脚本会以你的用户身份执行 —— ` +
+      `devkit 不拦截它（实测加 \`--ignore-scripts\` 会让 gemini-cli / qwen-code 因为拿不到 ` +
+      `原生二进制而装成废的，所以只能如实告知）。` +
       `这是 npm 生态的固有特性，与"官方直链 + SHA-256"的模型不等价，选之前请知悉。` +
       `安装需要机器上有 Node.js（npm 随它一起提供）。`,
     'en-US':
@@ -276,8 +290,11 @@ function npmNotes(pkg: string, bin: string): { 'zh-CN': string; 'en-US': string 
       `SHA-256 and version, but npm still resolves that package's dependencies and platform binary ` +
       `from the registry at install time (claude-code itself is only 0.2 MB; the real executable ` +
       `lives in a platform-specific optional dependency) — **that part is outside devkit's ` +
-      `verification**. This is inherent to the npm ecosystem and is NOT equivalent to the ` +
-      `"official direct link + SHA-256" model. Node.js is required (npm ships with it).`
+      `verification**. Their \`install\` / \`postinstall\` scripts also run with your user ` +
+      `privileges, and devkit does not block them: adding \`--ignore-scripts\` was measured to ` +
+      `leave gemini-cli / qwen-code without their native binaries, i.e. installed but broken. ` +
+      `This is inherent to the npm ecosystem and is NOT equivalent to the "official direct link + ` +
+      `SHA-256" model. Node.js is required (npm ships with it).`
   }
 }
 
