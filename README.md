@@ -15,8 +15,9 @@
 >
 > - **安装包没有代码签名。** Windows SmartScreen 会弹「Windows 已保护你的电脑」。
 >   这是**预期行为**（不是文件损坏、也不是被篡改），点「更多信息」→「仍要运行」即可。
->   签名正在通过 [SignPath](https://signpath.org/)（开源项目免费）申请中，接入步骤见
->   [docs/CODE-SIGNING.md](./docs/CODE-SIGNING.md)。
+>   签名**暂缓申请**：SignPath Foundation 对可执行程序要求「一定的可验证声誉」，
+>   而这个项目刚公开。等积累一些实际使用后再申请 —— 签名步骤已经接进 `release.yml`，
+>   审批通过后填几个 secret 就会自动生效，详见 [docs/CODE-SIGNING.md](./docs/CODE-SIGNING.md)。
 > - **还没在「全新 Windows 机器」上做过端到端验收。** devkit 的定位是「在什么都没装的机器上装环境」，
 >   但目前的真机验证都是在**已经装好 Node/Python/Git/Maven 的开发机**上做的。
 >   已知未验证项逐条列在 [docs/VERIFICATION.md](./docs/VERIFICATION.md) §5，不藏。

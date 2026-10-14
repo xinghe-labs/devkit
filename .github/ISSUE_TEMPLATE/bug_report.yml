@@ -1,0 +1,107 @@
+name: 🐞 Bug 报告
+description: 安装 / 激活 / 自检失败，或界面行为异常
+title: '[bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢你愿意试用。devkit 现在是**技术预览**，而且**核心场景（全新机器）还没有验收过** ——
+        所以任何一个真实的失败案例都很有价值，尤其是"在一台什么都没装的机器上"。
+
+        **请务必附上下面第 6 项要求的诊断信息。** devkit 自己就能生成，
+        没有它基本无法定位问题（作者手上只有一台已经装好一堆东西的开发机）。
+
+  - type: input
+    id: devkit-version
+    attributes:
+      label: devkit 版本
+      description: 界面上「关于」里能看到；或者写下载的文件名
+      placeholder: 例如 v0.6.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-form
+    attributes:
+      label: 你用的是哪个形态
+      options:
+        - 安装版（devkit-x.y.z-setup.exe）
+        - 便携版（devkit-x.y.z-portable.exe）
+        - 从源码跑（pnpm dev）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: machine-freshness
+    attributes:
+      label: 这台机器的状态（**这条最重要**）
+      description: |
+        devkit 的定位是"在什么都没装的机器上装环境"，但这一点**从未被验收过**。
+        如果你正好是在一台新机器上试的，这个案例的价值会高一个量级。
+      options:
+        - 全新安装的 Windows，之前没装过任何开发工具
+        - 重装过系统，装过一些工具但不多
+        - 用了很久的开发机，已经装了很多工具（Node / Python / Git / JDK…）
+        - 虚拟机 / 沙箱里的干净系统
+    validations:
+      required: true
+
+  - type: textarea
+    id: windows-info
+    attributes:
+      label: Windows 版本
+      description: 按 Win+R 输入 `winver`，把版本号和内部版本号贴上来
+      placeholder: |
+        例如：Windows 11 家庭中文版，版本 25H2，内部版本 26300.9550
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 你做了什么
+      description: 选了哪些工具 / 用了哪个预设 / 走到哪一步失败的
+      placeholder: |
+        例如：
+        1. 打开 devkit，选「AI 编码」预设
+        2. 点安装 → 预检通过 → 开始
+        3. 装到 claude-code 时失败
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 期望 vs 实际
+      placeholder: |
+        期望：node -v 能输出 v24.x
+        实际：报 "不是内部或外部命令"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 6. 诊断信息（**没有它基本无法定位问题**）
+
+        devkit 能自己生成下面这些，请都附上：
+
+        1. **环境体检报告** —— 设置页 → 「环境体检」→ 导出
+           （会诊断 PATH 脏数据、命令解析冲突、环境变量指向不存在目录等）
+        2. **安装报告** —— 安装流程结束后的「导出报告」
+        3. **日志** —— 目录 `%APPDATA%\devkit\logs\`，把**出错那一次**的 `.log` 文件拖进来
+           （如果失败发生在安装之前，把当次启动的那个也一起给）
+
+        > 日志里可能有你的用户名与本地路径。**介意的话可以先自己替换掉再贴** ——
+        > 我们只需要报错内容与路径结构，不需要真实用户名。
+
+  - type: checkboxes
+    id: diagnostics
+    attributes:
+      label: 确认
+      options:
+        - label: 我已经附上了体检报告 / 安装报告 / 日志
+          required: true
+        - label: 我确认这里面没有密钥、token 或我不想公开的内容
+          required: true
