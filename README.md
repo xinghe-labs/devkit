@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > [!WARNING]
-> **早期版本（v0.2.x）· 安装包未签名 —— 公开试用，但请先读完这一段**
+> **早期版本（v0.6.x）· 安装包未签名 —— 公开试用，但请先读完这一段**
 >
 > - **安装包没有代码签名。** Windows SmartScreen 会弹「Windows 已保护你的电脑」。
 >   这是**预期行为**（不是文件损坏、也不是被篡改），点「更多信息」→「仍要运行」即可。

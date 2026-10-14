@@ -1,5 +1,8 @@
 # devkit 实测记录（Verification）
 
+> **本文件的绝对路径做过匿名化**（`%USERPROFILE%` / `%APPDATA%` / `D:\work`），git 身份也换成了占位符。
+> 除此之外，命令、输出、数字都是逐字保留的真实记录 —— 匿名化只动路径与身份，不动结论。
+
 > 这份文档只记**实际跑过的命令与实际输出**。
 > 没有在这里出现的结论，都只能算"设计上如此"，不算已验证。
 >
@@ -301,7 +304,7 @@ $ ls release/win-unpacked/resources/manifest/tools/ | wc -l
 | VS Code 自检永远拿到空输出 | `Code.exe` 是 GUI 子系统程序，`Code.exe --version` 退出码 0 但**什么都不输出**，用 `\d+\.\d+` 匹配会一直失败 | 清单自检改用 `bin\\code.cmd --version`（实测输出 `1.141.0`） |
 | 下载产物没有扩展名 | VS Code 的下载地址以 `/stable` 结尾，产物叫 `vscode-1.141.0-stable`（无扩展名），能不能被当程序跑全看运气 | URL 末段没有扩展名且不是 zip 时补 `.exe` |
 | 官方安装器会**自己**写用户 PATH | 实测 VS Code 的 Inno 安装器在 `/VERYSILENT` 下仍然往用户 PATH 写了 `...\vscode\<版本>\bin`；试过 `/MERGETASKS=!addtopath` 阻止，**无效**。这与 devkit 的「安装 ≠ 激活」原则冲突：用户没点过激活，命令却能用了，而且那条 PATH 不受 devkit 的记录管理、卸载时也没人清 | 改成通用方案：安装前后各取一次用户 PATH，有变化就**整体还原**并把被移除的条目写进日志与报告。不依赖任何安装器的任务名，任何安装器都拦得住 |
-| `.cmd` 回退的参数白名单也是纯 ASCII | 假安装器收到的 `/DIR=C:\Users\张三\AppData...` 被判为"不安全字符"直接拒执行 —— devkit 自己的中文路径会让回退彻底失效 | 参数白名单同样放宽为「只禁 cmd 元字符、通配符与空白」，不禁中文 |
+| `.cmd` 回退的参数白名单也是纯 ASCII | 假安装器收到的 `/DIR=%USERPROFILE%\AppData...` 被判为"不安全字符"直接拒执行 —— devkit 自己的中文路径会让回退彻底失效 | 参数白名单同样放宽为「只禁 cmd 元字符、通配符与空白」，不禁中文 |
 | 预检拿"用不到的条件"拦人 | 所有项都已安装（本次根本不需要下载）时，网络探测失败仍会让预检阻断，重跑一个已装好的工具被卡住 | 预检先判断是否真有需要下载的项；全部已安装时跳过网络探测并给出 ok 级结论 |
 
 ---
@@ -397,7 +400,7 @@ claude  claude.cmd  claude.ps1  node_modules
 
 ```
 $ ls -lad %APPDATA%/npm
-lrwxrwxrwx ... C:\Users\张三\AppData\Roaming\npm -> /d/npm/npm-global
+lrwxrwxrwx ... %USERPROFILE%\AppData\Roaming\npm -> /d/npm/npm-global
 
 那些 .cmd 的时间戳：claude/codex/gemini = 10-10 16:45，copilot = 03-19（用户此前自己全局装的）
 本次安装发生在 10-12 18:36~18:50，该目录里**没有任何 10-12 的文件**。
@@ -492,7 +495,7 @@ findings: machine-path-problems(error, 10 条证据, 可修复)
 ```
 python → D:\Python\python.exe（实际生效）
 python → C:\Program Files\LibreOffice\program\python.exe
-npm    → C:\Users\张三\AppData\Roaming\npm\npm（实际生效）
+npm    → %USERPROFILE%\AppData\Roaming\npm\npm（实际生效）
 npm    → D:\node\npm  /  D:\npm\npm-global\npm
 git    → ...\Git\mingw64\bin\git.exe（实际生效） / ...\Git\cmd\git.exe
 ```

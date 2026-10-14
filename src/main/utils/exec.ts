@@ -75,7 +75,7 @@ function decode(buffer: Buffer): string {
  * 命令路径的约束：**只禁 cmd 元字符与引号**，不禁空格与中文。
  *
  * 为什么不能像参数那样用纯 ASCII 白名单：devkit 自己的安装目录长这样 ——
- * `%USERPROFILE%\.devkit\versions\maven\3.10.0\bin\mvn.cmd`。
+ * `C:\Users\张三\.devkit\versions\maven\3.10.0\bin\mvn.cmd`。
  * 用户名是中文、路径可能带空格，用 ASCII 白名单会把**我们自己装的工具**全部拒之门外
  * （实测：Maven / Gradle / VS Code 的自检都是 .cmd，全部踩到）。
  * 元字符才是真正的风险，所以这里只挡元字符。
@@ -85,7 +85,7 @@ const SAFE_COMMAND_PATH = /^[^"&|<>^%!\r\n\t]+$/
  * 参数：**只禁 cmd 元字符、通配符与空白**，不禁中文。
  *
  * 为什么不能是纯 ASCII 白名单：回退路径是给 `.cmd` / `.bat` 用的，而它们的参数里
- * 经常带着 devkit 自己的路径 —— `%USERPROFILE%\.devkit\versions\...`。
+ * 经常带着 devkit 自己的路径 —— `C:\Users\张三\.devkit\versions\...`。
  * 用 ASCII 白名单会把中文用户名下的每一次回退都拒掉（实测：假的 .cmd 安装器
  * 收到 `/DIR=C:\Users\张三\AppData\Local\Temp\...` 就被拒了）。
  * 真正的风险是 cmd 的元字符与 %VAR% / 延迟展开，不是汉字。

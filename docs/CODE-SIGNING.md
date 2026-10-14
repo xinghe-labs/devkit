@@ -96,7 +96,7 @@ Variables（明文，可改）：
 然后本地核对（Windows PowerShell 7 里 `Get-AuthenticodeSignature` 可用）：
 
 ```powershell
-Get-AuthenticodeSignature .\devkit-0.3.0-setup.exe | Format-List Status, SignerCertificate
+Get-AuthenticodeSignature .\devkit-0.6.1-setup.exe | Format-List Status, SignerCertificate
 # Status 应该是 Valid
 ```
 

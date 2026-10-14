@@ -848,7 +848,7 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 
 ```jsonc
 // 安装报告里会看到：
-// vscode@1.141.0 安装器自己加的 PATH 条目已还原（%USERPROFILE%\.devkit\versions\vscode\1.141.0\bin），需要的话请点「激活」
+// vscode@1.141.0 安装器自己加的 PATH 条目已还原（C:\Users\张三\.devkit\versions\vscode\1.141.0\bin），需要的话请点「激活」
 ```
 
 这条规则对**任何**安装器都成立，不依赖对某个安装器参数的逆向。
