@@ -18,7 +18,7 @@
 | `pnpm manifest:check` | 25 个清单文件，25 个通过校验；22 个 `ready`、3 个 `detect-only`；校验失败 0 |
 | `pnpm typecheck` | 主进程 + 渲染进程，0 错误 |
 | `pnpm lint` | ESLint 0 问题 |
-| `pnpm test` | 28 个测试文件 / **354 个测试全部通过** |
+| `pnpm test` | 44 个测试文件 / **541 个测试全部通过**（截至 v0.6.2） |
 | `pnpm build` | 三端产物生成成功（main / preload / renderer） |
 | `pnpm dist` | `release/devkit-0.1.0-setup.exe`（111.9 MB）+ `release/devkit-0.1.0-portable.exe`（111.7 MB） |
 | `pnpm release:index` | 生成 `release/latest.json`（含两个产物的 SHA-256 与体积） |
@@ -859,6 +859,95 @@ latest.json 声明: 0edd1d41e9269f0484ec6282e9936a73d5e2484c38e347545756ef08aa1c
 > 注意：CI 构建的安装包与本地 `pnpm dist` 构建的**不是字节相同的**（111022318 vs 111998839）。
 > 这是正常的 —— 安装器不是可复现构建。以 Release 上的那份为准，`latest.json` 的校验和
 > 与之自洽即可（上面已验证）。
+
+---
+
+## 3.20 独立多维审计与整改（v0.6.2）
+
+### 方法
+
+用 7 个独立子代理做审计：6 个维度各审一个面（架构 / 安全 / 测试 / 需求一致性 /
+产品可用性 / 供应链与许可证），第 7 个对前 6 份报告做**对抗性复核并打分**。
+审计员只读，每条结论要求 `文件:行号` 证据。
+
+**审计员的结论不是证据。** 报告里标注"已核实"的每一条，本文作者都自己复核过一遍 ——
+下面区分「我复核确认」与「审计员声称但我未核实」。
+
+### 评分（复核后）
+
+| 维度 | 审计员 | 复核后 | 复核说明 |
+| --- | --- | --- | --- |
+| 架构与代码质量 | 7 | 6.5 | 结构/类型/无环确实好；但"同一知识两处实现"已真实造成功能性 bug |
+| 安全性 | 6 | 6 | 底座扎实；提权通道与清单源信任有缺口 |
+| 测试质量 | 6 | 5.5 | 已覆盖的是真水准；但会改机器的几个模块零测试 |
+| 需求—实现一致性 | 5 | 4.5 | 多条 FR 标 ✅ 而代码不存在 |
+| 产品与可用性 | 5 | 5 | 首次成功率有确定性破洞 |
+| 供应链与许可证 | 6 | 6 | 哈希格式干净；但哈希来源可被镜像替换 |
+| **总分** | — | **5.5 / 10** | 质量不错的骨架，不是可交付的产品 |
+
+### 已修（每条都自己复核过）
+
+| # | 问题 | 证据 | 修法 |
+| --- | --- | --- | --- |
+| 1 | **离线包里的 VS Code 必然装不上** | `offline/index.ts:88` 的 `archiveFileName()` 不补扩展名；`executor/index.ts:174` 补 `.exe`。VS Code 的 URL 是 `.../win32-x64-user/stable`（无扩展名） | 抽出 `@shared/download-name` 作为唯一实现；单测覆盖 VS Code 形态 |
+| 2 | **界面显示原始 i18n key** | `App.tsx` 用 `update.available` 等 4 个键，两个 locale 里**没有 `update` 这一节**；`common.cancel` 也缺 | 补齐；新增 `i18n.test.ts` 兜住（叶子键对齐 / 字面量键必须存在 / 占位符一致） |
+| 3 | **detect-only 工具勾了没反应** | `ToolRow.tsx:88` Checkbox 无 `disabled`；`buildPlan` 抛错但只在预检弹窗渲染 | Checkbox 禁用并说明原因；install store 的错误接到顶部提示条 |
+| 4 | `configureMirrors` 是死开关 | 引用只有 settings 读写 + UI + 类型，安装流程零引用 | 接进安装成功后的流程（只做 npm/pip，与开关文案一致） |
+| 5 | `manifestHotUpdate` 是死开关 | 同上；布尔值无消费者 | IPC 里生效，关掉时给出明确原因 |
+| 6 | **机器级 MSI 卸不干净** | `sevenzip` 声明 `uninstall.type=registry`；`uninstall/index.ts` 零处 `UninstallString`/`msiexec` | 新增 `uninstall/registry.ts`：MSI 走 `msiexec /x {ProductCode}`，非 MSI 回退 `UninstallString`；**卸载后复验注册表**；失败则中止不删目录 |
+| 7 | **更新包缺 SHA-256 时仍 `ok:true`** | `updater/index.ts:232` 只 `logger.warn` 然后照样落盘 | 改为直接拒绝 |
+| 8 | **清单 notes 从不渲染** | `ToolDetail.tsx` 零处 `.notes` —— 供应链警示写在了用户看不到的地方 | ToolDetail 渲染 notes；并把 npm 类工具的 notes 写准 |
+| 9 | **提权通道读用户可写文件** | `run-job.ts` 把 `devkit-elevate.ps1` 与 `job-<秒级时间戳>.json` 写进 `%APPDATA%\devkit\elevation`，再由提权进程执行 | 脚本与作业全部内联进 `-EncodedCommand`；结果带 nonce；job id 改随机 |
+| 10 | 热更新源无信任边界 | `hotupdate/index.ts:41` 只校验 `https://` 前缀 | 执行前弹确认并显示来源主机；主进程日志留痕；设置页常驻警示 |
+| 11 | SPEC 多处虚假声明 | `devkit` CLI 不存在、FR-15「启动时自动拉取」与「只接受官方来源」不成立、M4 写 `electron-updater`、M2 数字过时 | 逐条改成事实，并把「未实现及原因」写在原处 |
+| 12 | 文档测试数字过时 | README 写 361、VERIFICATION 写 28 文件/354，实际 44/541 | 更新 |
+
+### 一处**没有**采纳审计建议
+
+审计建议「npm 模板加 `--ignore-scripts`」堵住安装脚本执行。**核实后没有采纳**：
+
+```
+node-pty         install: node scripts/prebuild.js || node-gyp rebuild
+@github/keytar   install: node script/install.js || npm run build
+```
+
+`gemini-cli` 与 `qwen-code` 依赖这两个原生模块，而它们的原生二进制**正是靠 install 阶段取/编译的**。
+加上这个开关，这两个 CLI 会**装成废的**（命令在、一跑就报找不到模块）。
+
+真正的问题是**清单里的 notes 从不渲染**（见上表 #8）—— 那段认真写的供应链警示用户看不到。
+所以改成：渲染 notes + 把风险写准（讲清依赖的 install 脚本会以当前用户身份执行、
+以及为什么不能简单加那个开关），而不是做一个会破坏功能的"修复"。
+
+### 我未能核实的（审计员声称，但我不背书）
+
+- **全新 Windows 上的真机安装结果** —— 没有任何人跑过。这本身就是审计里最重要的一条结论。
+- UAC 竞态的可利用性：我确认了设计缺口（已修），但没有做 PoC。
+- 当前清单的哈希**实际来自哪个源**（`refresh-manifests.ts:149` 按测速取最快，可能是镜像）。
+- `anomalyco/opencode` 是否为官方组织。
+- MSI / NSIS 的真机行为。
+
+### 审计提出的、本轮未修的
+
+- `activate/index.ts` 的 `getDevkitHome()` 仍硬编码 `homedir()/.devkit`（与已修的
+  `resolveNpmCmd` 同类）。改动它要动激活链路，而那需要真机验证版本切换。
+- `devkit` CLI 未实现（已在 SPEC FR-11 如实标注，理由见那里）。
+- `executor/index.ts`（437 行）与 `ipc/index.ts`（659 行）仍无测试。
+  这两个模块需要完整的安装上下文，用 mock 写出来的测试价值有限 ——
+  更该做的是干净机器上的端到端验收。
+
+### 本轮新增测试
+
+| 文件 | 用例 | 覆盖 |
+| --- | --- | --- |
+| `shared/download-name.test.ts` | 10 | 命名唯一实现，含 VS Code 的 `/stable` 形态 |
+| `renderer/src/i18n/i18n.test.ts` | 4 | 叶子键对齐 / 字面量键存在 / 占位符一致 |
+| `uninstall/registry.test.ts` | 14 | 注册表卸载的目标推导（MSI vs UninstallString） |
+| `elevation/helper-script.test.ts` | 13（+8） | **脚本自己不读文件**、nonce 回写、内联构建与编码 |
+| `elevation/run-job.test.ts` | 7（+2） | **作业目录里不落可执行内容**、超大作业明确报错 |
+| `systemconfig/index.test.ts` | 14 | 写路径的四条拒绝规则（读不到就不改 / 没备份不还原 / 私钥永不还原 / 还原后复验） |
+| `doctor/fix.test.ts` | 11 | 三条硬规矩（先备份 / 改完复验 / 空值拒绝）+ 只动 devkit 自己的条目 |
+
+（用例数由 `npx vitest run <文件>` 逐个实测得出，不是估算。总计从 479 增至 541。）
 
 ---
 

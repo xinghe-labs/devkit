@@ -505,7 +505,8 @@ Download from [Releases](https://github.com/xinghe-labs/devkit/releases):
 ### Status
 
 - 25 manifests (22 installable, 3 detect-only), 9 install templates
-- 361 unit tests; CI runs lint / typecheck / manifest validation / tests plus a UI smoke job
+- 541 unit tests across 44 files; CI runs lint / typecheck (three tsconfigs) / manifest
+  validation / tests plus a UI smoke job
   that fails on any renderer error
 - Independent adversarial security review: 3 high / 3 medium / 1 low findings, all fixed with
   regression tests — see [docs/security-review.md](./docs/security-review.md)
