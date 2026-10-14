@@ -514,6 +514,34 @@ Design docs ([SPEC.md](./SPEC.md), [docs/VERIFICATION.md](./docs/VERIFICATION.md
 [docs/market-research.md](./docs/market-research.md)) are written in Chinese — the product UI
 itself is fully bilingual (zh-CN / en-US).
 
+## Code signing policy（代码签名策略）
+
+> Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+**状态**：签名步骤已接进 `release.yml`，但**尚未启用** —— 等 SignPath Foundation 审批通过、
+配好 `SIGNPATH_API_TOKEN` 后自动生效。在那之前发布的安装包是**未签名**的，
+Windows SmartScreen 会提示（详见文件顶部警告）。申请进展与配置步骤见
+[docs/CODE-SIGNING.md](./docs/CODE-SIGNING.md)。
+
+**团队角色**（当前为单人项目，三个角色由同一人承担）：
+
+| 角色 | 职责 | 成员 |
+| --- | --- | --- |
+| **Authors**（提交者） | 可直接修改版本库中的源码 | [@xinghe-labs](https://github.com/xinghe-labs) |
+| **Reviewers**（审阅者） | 审阅来自非提交者的改动（PR） | [@xinghe-labs](https://github.com/xinghe-labs) |
+| **Approvers**（批准者） | 决定某个发布是否可以签名 | [@xinghe-labs](https://github.com/xinghe-labs) |
+
+**隐私**：本程序不会向任何网络系统传输信息，除非用户（或安装/操作它的人）明确要求。
+devkit 不含遥测、埋点或数据上报；日志只落在本地（`%APPDATA%\devkit\logs\`）。
+唯一会联网的操作是用户自己发起的下载、镜像源探测与更新检查。
+
+**系统变更**：devkit 会改用户 PATH、环境变量与镜像源配置 —— 每一处都先在界面上说明，
+改动前备份原值，并提供还原入口。安装与激活是分开的：**安装只写 `%USERPROFILE%\.devkit\`，
+不改系统**；只有用户明确要求才写环境。
+
+**卸载**：界面里的「已安装」抽屉可逐项卸载 —— 删版本目录、移除对应的 PATH 条目与 junction，
+并按备份还原。系统级安装（MSI）走安装器自带的卸载程序。
+
 ## License
 
 [MIT](./LICENSE)
