@@ -1,14 +1,17 @@
 # devkit
 
-> 一键开发环境部署器 · One-click development environment deployer
+> **Windows 开发环境部署器 · 技术预览（Technical Preview）**
 >
-> 在**一台什么都没装的 Windows 电脑**上，用图形界面勾选需要的东西，一键把开发环境**装好、配好、验好**。
+> **目标**：在**一台什么都没装的 Windows 电脑**上，用图形界面勾选需要的东西，一次把开发环境**装好、配好、验好**。
+>
+> ⚠️ **现在还不是「一键搞定」** —— 核心场景（干净机器）尚未验收，安装包也未签名。
+> 请先读完下面这段警告，再决定要不要试。
 
 [![CI](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > [!WARNING]
-> **早期版本（v0.6.x）· 安装包未签名 —— 公开试用，但请先读完这一段**
+> **技术预览（v0.6.x）· 安装包未签名 —— 欢迎试用，但请先读完这一段**
 >
 > - **安装包没有代码签名。** Windows SmartScreen 会弹「Windows 已保护你的电脑」。
 >   这是**预期行为**（不是文件损坏、也不是被篡改），点「更多信息」→「仍要运行」即可。
@@ -421,9 +424,13 @@ set DEVKIT_DATA_ROOT=D:\devkit
 
 ## English
 
-**devkit** is a Windows desktop app that sets up a development environment on a fresh
+**devkit** is a Windows desktop app that aims to set up a development environment on a fresh
 machine in one click — installing, configuring (mirrors, PATH, git, SSH) and **verifying**
 (post-install self-check) the tools you select.
+
+> **Technical preview.** The core scenario — a genuinely clean Windows machine — has **not**
+> been accepted yet, and the installers are unsigned. Read the warning at the top of this file
+> before trying it.
 
 It is not a package downloader — winget / Chocolatey / Scoop already do that. devkit covers
 the three things they leave out:
