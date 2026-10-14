@@ -783,6 +783,85 @@ Rust                          → warn（不阻断），消息点名 MSVC 与 li
 
 ---
 
+## 3.19 公开前审计、PII 清理与历史改写（v0.6.1）
+
+### 审计发现的隐私问题（都已修掉并验证）
+
+| # | 问题 | 位置 | 处理 |
+| --- | --- | --- | --- |
+| 1 | **真实姓名 + QQ 邮箱** | `VERIFICATION.md` 的 git 身份还原记录 | 换成 `<原有身份> <原有邮箱>`（那段测试的意义是"逐字节还原"，占位符不丢信息） |
+| 2 | **7 个提交的作者身份是真实身份** | git 元数据（GitHub 上每个提交都会显示） | 改写为 `devkit <devkit@local>` |
+| 3 | **本机路径指纹 24 处** | SPEC.md(3)、VERIFICATION.md(17)、源码注释(4) | 文档里换成 `%USERPROFILE%` / `%APPDATA%`；源码与 SPEC 里换成 `C:\Users\张三`（注释本意就是"中文用户名"） |
+| 4 | 工作目录路径 5 处 | VERIFICATION.md | 换成 `D:\work` |
+
+密钥扫描（全部 183 个受版本控制的文件）：**0 命中**。
+
+### 历史改写
+
+私有仓库转公开会把**全部历史**一起公开，所以光改工作树不够。用内置的 `git filter-branch`：
+
+```
+--env-filter       改写 7 个提交的作者/提交者身份
+--tree-filter      改写文件内容里的 PII（逐字节二进制替换，保持换行符）
+--tag-name-filter  同步改写 9 个 release tag
+```
+
+**改写前后的验证（四条，逐条有据）**：
+
+1. 逐 tag 对比新旧树：**差异只有 PII 行**，每个文件行数完全相同（如 SPEC.md 1019→1019、
+   `exec.ts` 216→216）
+2. HEAD 的 tree hash 前后一致（`c3bd52c6…`）—— 证明只动了提交元数据
+3. 门禁：25 清单 / 479 测试 / 0 typecheck / 0 lint（`manifest:check` 会校验全部哈希，
+   通过即证明没有损坏任何清单数据）
+4. **从 GitHub 重新克隆再扫全部 43 个提交**：真实姓名 / QQ 邮箱 / 用户名 / 工作目录
+   **均为 0 处**，提交身份只有 `devkit <devkit@local>`
+
+**备份**（放在仓库外的本地目录，含旧历史的 PII，确认无误后可删）：
+`devkit-before-rewrite.bundle`（`git bundle verify` 通过）+ 改写前的 HEAD 与全部远程 ref 记录。
+刻意不放仓库里 —— 它就是那份带 PII 的旧历史。
+
+**副作用核对**：force-push 后 9 个 release **全部存活**（各 3 个资产，v0.6.1 仍是 Latest），
+force-push 后的 main 跑了一次 CI（3m42s ✅）。
+
+### 定位调整
+
+标语原来把**目标**当**事实**陈述（"一键开发环境部署器 …… 一键把开发环境装好、配好、验好"），
+而核心场景从未验收、安装包也未签名。改成：
+
+```
+Windows 开发环境部署器 · 技术预览（Technical Preview）
+目标：在什么都没装的 Windows 电脑上 ……
+⚠️ 现在还不是「一键搞定」—— 核心场景（干净机器）尚未验收，安装包也未签名。
+```
+
+英文段落同步从 "sets up … in one click" 改成 "aims to set up … in one click" 加技术预览说明。
+警告块本身没动 —— 它已经把 4 条限制逐条写清了。
+
+### 更新检查端到端（本次顺带关掉的一项）
+
+仓库转公开后，Release 资产可以匿名取到了 —— 这是 §5 里那条"需要一个可匿名访问的 https 更新源"
+卡住的原因。实测：
+
+```
+$ curl -sL https://github.com/xinghe-labs/devkit/releases/latest/download/latest.json
+  HTTP 200，JSON 有效（version / url / checksums / sizes 齐全）
+
+$ curl -sL https://github.com/xinghe-labs/devkit/releases/latest/download/devkit-0.6.1-setup.exe
+  HTTP 200，111022318 字节（耗时 251.8s）
+
+本地算 SHA-256 : 0edd1d41e9269f0484ec6282e9936a73d5e2484c38e347545756ef08aa1cf88a
+latest.json 声明: 0edd1d41e9269f0484ec6282e9936a73d5e2484c38e347545756ef08aa1cf88a   ✓ 一致
+体积            : 111022318 / 期望 111022318                                       ✓ 一致
+```
+
+全程不带任何凭据，走的就是陌生人拿到 exe 之后更新检查会走的那条路。
+
+> 注意：CI 构建的安装包与本地 `pnpm dist` 构建的**不是字节相同的**（111022318 vs 111998839）。
+> 这是正常的 —— 安装器不是可复现构建。以 Release 上的那份为准，`latest.json` 的校验和
+> 与之自洽即可（上面已验证）。
+
+---
+
 ## 4. 安全相关的专项测试
 
 | 项 | 测试文件 | 覆盖内容 |
@@ -837,7 +916,6 @@ ExpandString；热更新不合并 detect/install/activate；提权脚本不混�
 | 4 | `Checkpoint-Computer` 还原点 | 需要管理员，且多数机器未启用系统保护 | 虚拟机里开启系统保护后验证 |
 | 5 | 代码签名 | 需要 SignPath 账号与 CI 凭据 | 申请后接入 `release.yml` |
 | 6 | **v0.5.0 新增的 6 个版本条目**（go 1.26.9 / gradle 8.14.6 / jdk 25.0.4.1 / maven 3.9.16 / nodejs 22.23.3 / nodejs 20.20.2）的「装 → 自检 → 激活 → 卸载」 | 地址与 SHA-256 都取自官方源，但安装链路没跑过 | 干净虚拟机里各装一次。**用户已明确不在本机跑安装验证**，所以这条是长期未验证项，不是待办 |
-| 7 | 更新检查的端到端 | 需要一个**可匿名访问**的 https 更新源；私有仓库的 Release 资产需要鉴权，取不到 | 把 `latest.json` 放到任意可公开访问的 https 静态托管，填进设置即可验证 |
 
 > 第 1~4、6 项都需要一台**干净虚拟机**。SPEC §12 已经确认过用户愿意安装
 > VMware Workstation Player / VirtualBox 用于这类验收。
@@ -850,6 +928,7 @@ ExpandString；热更新不合并 detect/install/activate；提权脚本不混�
 
 - ~~用户 PATH 的真实写入~~ → §3.5 已真机完成「写入 + 备份 + 逐字节还原」
 - ~~GitHub Release 发布~~ → §3.10 已在 GitHub 上跑通 `release.yml` 并发布 v0.1.0
+- ~~更新检查的端到端~~ → §3.19 仓库转公开后，匿名取 `latest.json` + 下载资产 + 核对 SHA-256，全链路通过
 
 ---
 
