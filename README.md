@@ -10,6 +10,18 @@
 [![CI](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-labs/devkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+## 界面一览
+
+| 主界面：勾选 → 安装 | 安装流程：预检 → 下载 → 校验 → 安装 → 自检 |
+| --- | --- |
+| ![主界面](docs/images/screenshot-main.png) | ![安装流程](docs/images/screenshot-install-flow.png) |
+
+| 环境体检：PATH 脏数据诊断 | 环境档案 / 换机迁移 |
+| --- | --- |
+| ![环境体检](docs/images/screenshot-doctor.png) | ![环境档案](docs/images/screenshot-profile.png) |
+
+更多界面（已安装管理 / 设置 / VS Code 插件）见 [docs/images/](./docs/images)。
+
 > [!WARNING]
 > **技术预览（v0.6.x）· 安装包未签名 —— 欢迎试用，但请先读完这一段**
 >
