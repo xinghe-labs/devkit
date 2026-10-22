@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # npm 依赖：安全告警靠仓库设置里的 Dependabot alerts（已开启），
+  # 这里配置的是常规版本升级 PR —— 每月一次，避免 daily 刷屏。
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      # devDependencies 打包升级（次要版本），减少 PR 数量
+      dev-minor:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions：钉了 SHA，升级 = 换 SHA，所以单独成组、人工核对 diff
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
