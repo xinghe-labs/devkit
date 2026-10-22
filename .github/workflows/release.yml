@@ -30,7 +30,7 @@ jobs:
       SIGNPATH_ARTIFACT_CONFIG_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIG_SLUG || 'nsis-installer' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
