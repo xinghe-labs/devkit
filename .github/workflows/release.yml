@@ -30,11 +30,11 @@ jobs:
       SIGNPATH_ARTIFACT_CONFIG_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIG_SLUG || 'nsis-installer' }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 22
           cache: pnpm
@@ -103,7 +103,7 @@ jobs:
       - name: 上传未签名产物（SignPath 需要先有 artifact）
         if: env.SIGNPATH_API_TOKEN != ''
         id: upload-unsigned
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: unsigned-installer
           path: release/devkit-*-setup.exe
@@ -111,7 +111,7 @@ jobs:
 
       - name: 提交 SignPath 签名请求
         if: env.SIGNPATH_API_TOKEN != ''
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
@@ -157,7 +157,7 @@ jobs:
           Write-Host "未签名的 exe 会被 SmartScreen 拦截，详见 docs/CODE-SIGNING.md"
 
       - name: 发布到 GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@5113cdc90fd4d541c801c55356214017bf5ae34b
         with:
           draft: true
           # body_path 会与自动生成的变更记录合并：先放"请先读这一段"，再是提交列表
