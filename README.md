@@ -427,13 +427,13 @@ set DEVKIT_DATA_ROOT=D:\devkit
 
 ## 参与贡献
 
-- 提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)（`feat:` / `fix:` / `docs:` / `chore:`）
-- PR 必须通过 `pnpm manifest:check`、`pnpm typecheck`、`pnpm lint`、`pnpm test`
-- 新增软件清单请附上**官方下载页链接**与**该版本的 SHA-256**（可以直接跑 `pnpm manifest:refresh <id>`）
+开发环境搭建、提交规范、本项目的几条硬规矩，见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+发现安全漏洞请走 [SECURITY.md](./SECURITY.md) 的私密通道，不要开公开 issue。
 
 完整需求与设计见 [SPEC.md](./SPEC.md)，实测记录见 [docs/VERIFICATION.md](./docs/VERIFICATION.md)，
 市场调研见 [docs/market-research.md](./docs/market-research.md)，
-独立安全审查（含修法与回归测试）见 [docs/security-review.md](./docs/security-review.md)。
+独立安全审查（含修法与回归测试）见 [docs/security-review.md](./docs/security-review.md)，
+致谢见 [ACKNOWLEDGMENTS.md](./ACKNOWLEDGMENTS.md)。
 
 ## English
 
@@ -523,6 +523,8 @@ Download from [Releases](https://github.com/xinghe-labs/devkit/releases):
 - Independent adversarial security review: 3 high / 3 medium / 1 low findings, all fixed with
   regression tests — see [docs/security-review.md](./docs/security-review.md)
 - License: MIT · Requires Windows 10 22H2+ x64
+- See also: [CONTRIBUTING.md](./CONTRIBUTING.md) · [SECURITY.md](./SECURITY.md) ·
+  [Code of Conduct](./CODE_OF_CONDUCT.md) · [ACKNOWLEDGMENTS.md](./ACKNOWLEDGMENTS.md)
 
 Design docs ([SPEC.md](./SPEC.md), [docs/VERIFICATION.md](./docs/VERIFICATION.md),
 [docs/market-research.md](./docs/market-research.md)) are written in Chinese — the product UI
@@ -559,3 +561,15 @@ devkit 不含遥测、埋点或数据上报；日志只落在本地（`%APPDATA%
 ## License
 
 [MIT](./LICENSE)
+
+---
+
+<div align="center">
+
+**安装 ≠ 激活 · 零遥测 · 可回退**
+
+[下载最新版](https://github.com/xinghe-labs/devkit/releases/latest) ·
+[报告问题](https://github.com/xinghe-labs/devkit/issues/new?template=bug_report.yml) ·
+[参与贡献](./CONTRIBUTING.md)
+
+</div>
