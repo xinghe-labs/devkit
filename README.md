@@ -115,29 +115,17 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm manifest:check   # 提交前的
 
 > Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
-**状态**：签名步骤已接进 `release.yml`，但**尚未启用** —— 等 SignPath Foundation 审批通过、
-配好 `SIGNPATH_API_TOKEN` 后自动生效。在那之前发布的安装包是**未签名**的。
+**Authors / Reviewers / Approvers**（当前为单人项目，三角色同一人）：
+[@xinghe-labs](https://github.com/xinghe-labs)。
 
-**团队角色**（当前为单人项目，三个角色由同一人承担）：
-**Authors / Reviewers / Approvers** 均为 [@xinghe-labs](https://github.com/xinghe-labs)。
+**隐私**：本程序不会向任何网络系统传输信息，除非用户明确要求；日志只落本地。
+**系统变更**：改 PATH / 环境变量 / 镜像源前会先说明并备份原值，可还原、可逐项卸载。
 
-**隐私**：本程序不会向任何网络系统传输信息，除非用户明确要求。日志只落本地。
-
-**系统变更与卸载**：改 PATH / 环境变量 / 镜像源前会先说明并备份原值，提供还原入口；
-「已安装」抽屉可逐项卸载并按备份还原。
+签名尚未启用（原因见顶部警告），审批通过并配置后自动生效，详见
+[docs/CODE-SIGNING.md](./docs/CODE-SIGNING.md)。
 
 ## License
 
 [MIT](./LICENSE)
 
----
 
-<div align="center">
-
-**安装 ≠ 激活 · 零遥测 · 可回退**
-
-[下载最新版](https://github.com/xinghe-labs/devkit/releases/latest) ·
-[报告问题](https://github.com/xinghe-labs/devkit/issues/new?template=bug_report.yml) ·
-[参与贡献](./CONTRIBUTING.md)
-
-</div>
