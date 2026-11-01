@@ -157,7 +157,7 @@ jobs:
           Write-Host "未签名的 exe 会被 SmartScreen 拦截，详见 docs/CODE-SIGNING.md"
 
       - name: 发布到 GitHub Release
-        uses: softprops/action-gh-release@5113cdc90fd4d541c801c55356214017bf5ae34b
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           draft: true
           # body_path 会与自动生成的变更记录合并：先放"请先读这一段"，再是提交列表
