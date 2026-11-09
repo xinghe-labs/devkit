@@ -41,7 +41,7 @@
 
 - `src/main`（core 16,832 + ipc 763 + utils 801 + preload 143 + index 181 = **约 18,700 行**）是重写对象；`src/shared` 1,649 行中约一半是渲染进程也要用的 TS 类型/常量（保留）
 - renderer（components 2,424 + store 1,502 + i18n 132 + App/main ≈ **4,100 行**）**零重写**，只改 `main.tsx` 一行 + 删 preload
-- IPC 面：**47 个类型化方法**（`src/preload/index.ts`）+ 2 个推送通道（`logLine` / `installProgress`）—— 全部一一映射，无遗漏路径
+- IPC 面：**46 个请求-响应方法 + 2 个推送通道 = 48 个白名单通道**（`src/shared/ipc.ts`，实测逐一清点）—— 全部一一映射，无遗漏路径
 
 ---
 
@@ -72,7 +72,7 @@ devkit/
 │     ├─ devkit-manifest/        # 清单加载/Schema 校验/热更新白名单
 │     ├─ devkit-core/            # 纯业务逻辑，不碰 OS（可单测）
 │     ├─ devkit-sys/             # 唯一允许直接调 Windows API 的层
-│     └─ devkit-app/             # Tauri 壳：47 commands + 2 events + AppState
+│     └─ devkit-app/             # Tauri 壳：46 commands + 2 events + AppState
 ├─ resources/manifest/           # 不变（R6 起打进二进制 + 运行时 override）
 ├─ scripts/                      # TS 脚本逐步被 Rust bin 替代（manifest:refresh 等）
 └─ .github/workflows/            # 增加 rust job；发布流水线改造（§9）
@@ -99,7 +99,7 @@ devkit-types ◄── devkit-manifest ◄── devkit-core ◄── devkit-sy
 | `devkit-manifest` | 清单加载、JSON Schema 校验、热更新字段白名单、版本比较 | jsonschema（或自写校验）, serde_json | `core/manifest/` |
 | `devkit-core` | plan/preflight（规则部分）/executor/downloader/providers/installer/providers/templates/presets/profile/offline/hotupdate/updater/settings/config/report/vscode | reqwest(rustls), sha2, hex, zip, tokio, futures, tracing | 对应 13 个模块 |
 | `devkit-sys` | 注册表、PATH/环境变量、Junction、UAC 提权、进程探测、WM_SETTINGCHANGE、还原点、卸载登记 | windows, windows-registry, junction | `activate/` `detect/` `doctor/` `systemconfig/` `uninstall/` `elevation/` |
-| `devkit-app` | Tauri commands（47 个）、事件转发（2 个）、AppState、窗口/托盘/single-instance | tauri 2, tokio, tracing-subscriber | `index.ts` `ipc/` |
+| `devkit-app` | Tauri commands（46 个）、事件转发（2 个）、AppState、窗口/托盘/single-instance | tauri 2, tokio, tracing-subscriber | `index.ts` `ipc/` |
 
 > 备选：把 manifest 并进 core 省一个 crate。**建议保留独立 crate**——manifest 的 schema 校验与热更新白名单是安全关键，独立 crate 让 CI 可以单独跑它的测试矩阵（含 schema fixture）。
 
@@ -135,7 +135,7 @@ devkit-types ◄── devkit-manifest ◄── devkit-core ◄── devkit-sy
 | 22 | `core/vscode/` | 266 | devkit-core | `code --list-extensions` / `--install-extension`（注入 CommandRunner） | 0 |
 | 23 | `core/settings/` | 232 | devkit-core | 用户配置 `config.json` 读写 + 默认值 | 0 |
 | 24 | `core/security-regression.test.ts` | — | 冻结为跨 crate 回归 | 提权/路径穿越/占位符注入等安全用例，**拆到对应 crate 逐一重建** | 1 |
-| 25 | `ipc/` + `index.ts` + `utils/` | 1,745 | devkit-app | 47 commands；`validate.ts` 被 serde 替代（结构性强类型 = 天然校验）；`utils/exec.ts` → `CommandRunner` trait | 0（契约测试新增） |
+| 25 | `ipc/` + `index.ts` + `utils/` | 1,745 | devkit-app | 46 commands；`validate.ts` 被 serde 替代（结构性强类型 = 天然校验）；`utils/exec.ts` → `CommandRunner` trait | 0（契约测试新增） |
 | 26 | `preload/` | 143 | 删除 | 由 renderer 侧适配层（~80 行 TS）替代，见 §7 | 0 |
 
 **总计**：重写 ~18.7k 行 TS → 预计 14–20k 行 Rust（业务逻辑密度更高，测试另计）。
@@ -213,14 +213,14 @@ Rust 版设计（**不变式 1–4 逐条对应**）：
 
 | 现状 | Rust 版 | 数量 |
 | --- | --- | --- |
-| `ipcMain.handle(IPC.x)` + `validate.ts` 手写校验 | `#[tauri::command]` + serde 反序列化（类型不符即拒绝，错误信息结构化） | 47 → 47 |
+| `ipcMain.handle(IPC.x)` + `validate.ts` 手写校验 | `#[tauri::command]` + serde 反序列化（类型不符即拒绝，错误信息结构化） | 46 → 46 |
 | `IPC.logLine`（ipcRenderer.on） | `app.emit("log-line", LogEntry)` ↔ renderer `listen("log-line")` | 1 |
 | `IPC.installProgress` | `app.emit("install-progress", InstallProgressEvent)` | 1 |
 | `contextBridge.exposeInMainWorld('devkit', api)` | **删 preload**；renderer 侧 `tauri-adapter.ts` 实现 `DevkitApi` | 1 文件 |
 
 ### 适配层（关键设计）
 
-现状 `DevkitApi` 类型在 `src/shared/api.ts`，renderer 47 个调用点全部写的是 `window.devkit.xxx()`。迁移做法：
+现状 `DevkitApi` 类型在 `src/shared/api.ts`（48 个成员 = 46 个请求-响应方法 + 2 个订阅器），renderer 全部调用点写的是 `window.devkit.xxx()`。迁移做法：
 
 ```ts
 // src/renderer/src/api/tauri-adapter.ts（新增，~80 行）
@@ -234,7 +234,7 @@ const api: DevkitApi = {
     const un = listen<LogEntry>('log-line', (e) => cb(e.payload))
     return () => { void un.then((f) => f()) }
   },
-  // ...47 个方法一一对应，签名与 DevkitApi 完全一致
+  // ...46 个方法一一对应，签名与 DevkitApi 完全一致
 }
 export const installTauriBridge = (): void => { window.devkit = api }
 ```
@@ -298,7 +298,7 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 - renderer 从 electron-vite 迁出：拆出纯 vite 配置（`vite.renderer.config.ts`），dev 模式 `tauri dev` 挂载现有 renderer
 - 1 个 `ping` command + `get_app_info`（真实实现）打通 dev 环境
 - CI 增加 rust job（fmt/clippy/test）
-- **验收**：`pnpm dev:tauri` 打开窗口，显示现有 UI（数据空壳），47 命令中 1 个真实可用；CI 双绿
+- **验收**：`pnpm dev:tauri` 打开窗口，显示现有 UI（数据空壳），46 命令中 1 个真实可用；CI 双绿
 - **tag**：`rust-r0`
 
 ### R1 — 类型与清单
@@ -333,7 +333,7 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 ### R5 — 提权与全命令面收口
 
 - elevation（§6.5 不变式逐条验收）、offline、hotupdate、updater、presets、profile、vscode、settings、config(mirrors)
-- 47 个 command + 2 个 event 全部实现；适配层完成，renderer 47 个调用点无感切换
+- 46 个 command + 2 个 event 全部实现（逐条对照附录 A 勾销）；适配层完成，renderer 全部调用点无感切换
 - **验收**：UAC 单次弹窗、SHA-256 复验、nonce 校验三条实测（虚拟机）；`security-regression` 三条全部在 Rust 侧重建立并通过
 - **tag**：`rust-r5`
 
@@ -387,7 +387,7 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ---
 
-## 13. 未决问题（执行到对应阶段前必须敲定）
+## 13. 未决问题（1/3/4 已在附录 H/I 敲定；2/5 留待 R6 实测定案）
 
 1. **portable 产物口径**（R6）：Tauri 无官方 portable target；「单 exe 无外置资源」是否满足原 portable 用户预期，需实测后决定是否保留该 target
 2. **manifest 内嵌 vs 外置**（R6）：倾向内嵌 + override，但首发保留外置方案作为 fallback 更稳
@@ -401,6 +401,656 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 - 代码规模：`src/main/core` 16,832 行；`ipc` 763；`utils` 801；`preload` 143；`shared` 1,649；renderer ~4,100
 - 测试：44 文件 / 541 用例全绿（`pnpm test`，15.4s）；typecheck / lint 零错误
-- IPC：47 个类型化方法（`src/preload/index.ts`）+ 2 推送通道（`src/shared/ipc.ts`）
+- IPC：46 个请求-响应方法 + 2 个推送通道 = 48 个白名单通道（`src/shared/ipc.ts`）
+- `preload/index.ts` 暴露 48 个成员（46 方法 + 2 订阅器，`onLogLine`/`onInstallProgress`）
 - 清单：25 个工具 JSON + schema（`resources/manifest/`）
 - renderer 无 Electron 专有 API（`nodeIntegration:false`，纯 Web 标准）——Tauri 迁移的直接依据
+
+---
+
+## 附录 A：IPC 全量映射表（46 请求-响应 + 2 推送，零删减）
+
+> 事实来源：`src/shared/ipc.ts`（通道白名单）+ `src/shared/api.ts`（`DevkitApi` 48 成员）。
+> Rust 命令名 = camelCase 去 `get/set` 语义化转 snake_case，一一对应、无动态拼接。
+> **响应形状铁律**：域错误一律走响应结构体里的 `error` 字段（现状即如此），命令签名 `Result<T, String>` 仅在基础设施故障（panic/序列化失败）时返回 Err，由适配层转成 Promise rejection。
+
+| # | DevkitApi 方法 | IPC 通道 | Rust command | 参数 → 响应 | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `getAppInfo` | `app:info` | `get_app_info` | → `AppInfo` | runtime 字段语义见附录 F.4 |
+| 2 | `listManifests` | `manifest:list` | `list_manifests` | → `ManifestLoadResult` | |
+| 3 | `runDetection` | `detect:run` | `run_detection` | `DetectRequest?` → `DetectionResult[]` | 空/缺省 = 全量 |
+| 4 | `getLocale` | `locale:get` | `get_locale` | → `Locale` | |
+| 5 | `setLocale` | `locale:set` | `set_locale` | `Locale` → `Locale` | 归一化后回写 |
+| 6 | `tailLog` | `log:tail` | `tail_log` | `count?` → `LogEntry[]` | 读内存环形缓冲（附录 F.2） |
+| 7 | `openLogDir` | `log:open-dir` | `open_log_dir` | → `bool` | opener::reveal_item_in_dir |
+| 8 | `signalReady` | `app:renderer-ready` | `signal_ready` | → `bool` | |
+| 9 | `prepareInstall` | `install:prepare` | `prepare_install` | `PlanSelection[]`, `dryRun?`, `availableToolIds?` → `PlanPreparation` | 计划留主进程，renderer 只拿 planId |
+| 10 | `startInstall` | `install:start` | `start_install` | `planId` → `StartInstallResult` | planId 不匹配 = 拒绝 |
+| 11 | `cancelInstall` | `install:cancel` | `cancel_install` | → `bool` | 取消不是错误（附录 C.1） |
+| 12 | `getPendingPlan` | `install:pending` | `get_pending_plan` | → `PendingPlanLoad` | 三态 tagged enum |
+| 13 | `discardPendingPlan` | `install:discard-pending` | `discard_pending_plan` | → `bool` | |
+| 14 | `resumeInstall` | `install:resume` | `resume_install` | → `StartInstallResult` | FR-17 |
+| 15 | `exportInstallReport` | `install:export-report` | `export_install_report` | → `string \| null` | 用户取消 = null |
+| 16 | `listPresets` | `preset:list` | `list_presets` | → `Preset[]` | |
+| 17 | `savePreset` | `preset:save` | `save_preset` | `PresetInput` → `Preset` | 现为 unknown，serde 强类型化 |
+| 18 | `deletePreset` | `preset:delete` | `delete_preset` | `id` → `bool` | builtin 拒删 |
+| 19 | `importPreset` | `preset:import` | `import_preset` | `PresetInput` → `Preset` | 同 17 |
+| 20 | `getActivationSnapshot` | `activate:snapshot` | `get_activation_snapshot` | → `ActivationSnapshot` | |
+| 21 | `activateVersion` | `activate:apply` | `activate_version` | `ActivateRequest` → `ActivateResult` | |
+| 22 | `deactivateTool` | `activate:remove` | `deactivate_tool` | `toolId` → `{removed: string[], error: string \| null}` | 匿名形状 → 命名结构体 `DeactivateResult` |
+| 23 | `listInstalled` | `installed:list` | `list_installed` | → `InstalledTool[]` | |
+| 24 | `uninstallTool` | `uninstall:run` | `uninstall_tool` | `UninstallRequest` → `UninstallResult` | |
+| 25 | `getSettings` | `settings:get` | `get_settings` | → `UserConfigView` | 含派生字段（附录 G） |
+| 26 | `saveSettings` | `settings:save` | `save_settings` | `UserConfigPatch` → `UserConfigView` | 现为 unknown patch，逐字段校验 |
+| 27 | `applyMirrors` | `mirrors:apply` | `apply_mirrors` | `MirrorSetting[]` → `MirrorApplyResult` | URL 过 MIRROR_URL_PATTERN |
+| 28 | `openExternal` | `app:open-external` | `open_external` | `url` → `bool` | 只接受 https |
+| 29 | `getVscodeStatus` | `vscode:status` | `get_vscode_status` | → `VscodeStatus` | |
+| 30 | `listVscodeExtensions` | `vscode:list` | `list_vscode_extensions` | → `VscodeExtension[]` | |
+| 31 | `installVscodeExtensions` | `vscode:install` | `install_vscode_extensions` | `ids: string[]` → `VscodeInstallResult` | |
+| 32 | `checkForUpdate` | `update:check` | `check_for_update` | → `UpdateInfo` | latest.json 协议不变 |
+| 33 | `downloadUpdate` | `update:download` | `download_update` | → `DownloadUpdateResult` | SHA-256 不过即丢弃 |
+| 34 | `installUpdate` | `update:install` | `install_update` | `filePath` → `bool` | 只允许 updates 目录内 exe |
+| 35 | `exportProfile` | `profile:export` | `export_profile` | `ExportProfileRequest` → `ExportProfileResult` | 弹保存对话框 |
+| 36 | `importProfile` | `profile:import` | `import_profile` | → `ImportProfileResult` | 弹打开对话框 |
+| 37 | `applyProfile` | `profile:apply` | `apply_profile` | `EnvProfile`, `ApplyProfileOptions` → `ApplyProfileResult` | |
+| 38 | `runDoctor` | `doctor:run` | `run_doctor` | → `DoctorReport` | 只读 |
+| 39 | `applyDoctorFix` | `doctor:fix` | `apply_doctor_fix` | `DoctorFixId` → `DoctorFixResult` | 先备份后改 |
+| 40 | `getSystemConfig` | `system:status` | `get_system_config` | → `SystemConfigItem[]` | |
+| 41 | `applySystemConfig` | `system:apply` | `apply_system_config` | `SystemConfigRequest` → `SystemConfigResult` | machine 项走提权 |
+| 42 | `revertSystemConfig` | `system:revert` | `revert_system_config` | `SystemConfigRevertRequest` → `SystemConfigResult` | 无备份拒绝 |
+| 43 | `runHotUpdate` | `manifest:hot-update` | `run_hot_update` | `url` → `HotUpdateResultView` | 白名单过滤 |
+| 44 | `clearManifestOverride` | `manifest:clear-override` | `clear_manifest_override` | → `number` | 返回删除文件数 |
+| 45 | `packOffline` | `offline:pack` | `pack_offline` | `OfflinePackRequest` → `OfflinePackResult` | L2/L3 排除必须可见 |
+| 46 | `importOfflinePack` | `offline:import` | `import_offline_pack` | `packDir?` → `OfflineImportResult` | 匿名形状 → 命名结构体 |
+| 47 | `onLogLine`（订阅器） | `log:line`（推送） | `listen("log-line")` | `LogEntry` 推送 | tauri `emit`，仅主进程发 |
+| 48 | `onInstallProgress`（订阅器） | `install:progress`（推送） | `listen("install-progress")` | `InstallProgressEvent` 推送 | 每次全量 plan 快照 |
+
+事件名约定：`log-line` / `install-progress`（tauri 事件名仅允许字母数字 `-` `/` `:` `_`，两者合法）。
+
+---
+
+## 附录 B：serde 契约（devkit-types 完整规格）
+
+### B.1 全局规则（12 条，翻译时逐条对号）
+
+1. **单一来源**：`devkit-types` 是 Rust 侧唯一类型来源；`src/shared/types.ts` 保留给 renderer，不新增字段。漂移由契约测试（R1 起）锁定。
+2. **字符串枚举**：全部 `#[derive(Serialize, Deserialize)]` + `#[serde(rename_all = "kebab-case")]`，与 TS 字面量逐字对齐（`exe-nsis`、`version-mismatch`、`installed-by-devkit`…）。**例外**：`Locale`（`zh-CN`/`en-US` 含大写）用显式 `#[serde(rename = "zh-CN")]`；`LicenseTier`（`L1`/`L2`/`L3`）同理。
+3. **TS 可选字段**（`field?: T`）→ `Option<T>` + `#[serde(skip_serializing_if = "Option::is_none")]`（TS `JSON.stringify` 会丢弃 undefined，Rust 写出必须同样省略该键）。
+4. **TS 可空字段**（`field: T \| null`）→ `Option<T>` **不加** skip（TS 序列化时键恒在、值为 `null`，Rust 必须写出 `"error": null`）。判定口诀：**缺省省键，可空存 null**。
+5. **数据存储结构体**（InstallPlan/EnvProfile/Preset/UserConfig 及其成员）加容器级 `#[serde(rename_all = "camelCase", default)]`，旧文件缺字段可读；**清单输入结构体**（ToolManifest 族）不加容器 default，必填字段缺失即报错（对齐 validate.ts）。
+6. **未知字段**：默认忽略（对齐 TS 行为，pending.json 结构嗅探兼容）；仅清单校验路径加 `#[serde(deny_unknown_fields)]`。
+7. **Record<string, X>** → `HashMap<String, X>`（fixture 比对用 `serde_json::Value` 相等，键序无关）。
+8. **LocalizedText** 是动态键（`Partial<Record<Locale,string>> & Record<string,string|undefined>`）→ `pub struct LocalizedText(pub HashMap<String, String>)`，实现 `get(locale)` 复刻 `src/shared/localized.ts` 回退链：`zh-CN → en-US → 首个条目`。
+9. **schemaVersion: 1** → `u8` + 自定义反序列化断言 `== 1`，其余值报结构化错误（TS 侧 `looksLikePlan` 同语义）。
+10. **数值**：字节数一律 `u64`；ISO 时间戳保持 `String`（不做 chrono 转换，避免往返漂移）。
+11. **MIRROR_URL_PATTERN** 原样搬进 `devkit-types::mirror`：`^https:\/\/[A-Za-z0-9._~:\/@!*,=+-]{3,200}$`（白名单字符集，不是黑名单——安全审查 H2 的教训），`save_settings` / `apply_mirrors` / hotupdate 白名单共用。
+12. **反序列化失败**一律返回结构化错误并落日志，绝不 panic；错误文案保持 zh-CN（renderer 直接展示）。
+
+### B.2 类型清单（TS 侧 83 个全部覆盖 + 新增 5 个，无遗漏）
+
+> 来源：`src/shared/types.ts` 全量。要点列只写**例外**；未注明的结构体套用 B.1 默认规则（camelCase + kebab-case 枚举）。
+
+| TS 类型 | Rust 类型 | serde 要点 |
+| --- | --- | --- |
+| `Locale` | `Locale` | 显式 rename `zh-CN`/`en-US` |
+| `LocalizedText` | `LocalizedText` | HashMap 包裹 + `get()` 回退链（规则 8） |
+| `ToolCategory` | `ToolCategory` | 7 变体 |
+| `LicenseTier` | `LicenseTier` | 显式 rename `L1`/`L2`/`L3` |
+| `ManifestStatus` | `ManifestStatus` | detect-only/ready |
+| `InstallType` | `InstallType` | 7 变体；`exe-7zsfx` 等 kebab |
+| `InstallScope` | `InstallScope` | user/machine |
+| `RegistryDetectRule` | `RegistryDetectRule` | 字段 `match` 是 Rust 关键字 → `#[serde(rename = "match")] pub match_rules: HashMap<String,String>` |
+| `DetectCommandSpec` | `DetectCommandSpec` | args/expectRegex 可选省键 |
+| `DetectSpec` | `DetectSpec` | 三手段全可选 |
+| `InstallSpec` | `InstallSpec` | params 可选省键 |
+| `UninstallSpec` | `UninstallSpec` | template 可选省键 |
+| `ActivateSpec` | `ActivateSpec` | 三字段全可选省键 |
+| `ToolVersionSpec` | `ToolVersionSpec` | source/mirrors/install/uninstall/activate/configure/verify/recommended/dependsOn/releaseDate/sizeBytes/requiresReboot 均可选省键；channel/arch/installScope 必填 |
+| `ToolManifest` | `ToolManifest` | deny_unknown_fields（规则 6）；homepage/license/provider/notes 可选省键 |
+| `DetectionStatus` | `DetectionStatus` | 5 变体 |
+| `DetectionResult` | `DetectionResult` | installedVersion/recommendedVersion/evidence/error 为 `\| null` 恒在 |
+| `ManifestLoadError` | `ManifestLoadError` | |
+| `ManifestLoadResult` | `ManifestLoadResult` | source 枚举 builtin/remote |
+| `AppInfo` | `AppInfo` | 8 个字符串字段全必填 |
+| `LogLevel` | `LogLevel` | debug/info/warn/error |
+| `LogEntry` | `LogEntry` | 4 字段必填 |
+| `DetectRequest` | `DetectRequest` | toolIds 可选省键 |
+| `MirrorPreference` | `MirrorPreference` | 5 变体 |
+| `PlanItemState` | `PlanItemState` | 9 变体 |
+| `PlanItem` | `PlanItem` | downloadAttempts 可选省键；error/note/startedAt/finishedAt/installDir/archivePath `\| null` 恒在 |
+| `PlanOptions` | `PlanOptions` | proxy `\| null` 恒在 |
+| `PlanSummary` | `PlanSummary` | 5 个 u32 |
+| `InstallPlan` | `InstallPlan` | schemaVersion 断言 ==1；容器 default |
+| `PlanSelection` | `PlanSelection` | version 可选省键 |
+| `PlanBuildError` | `PlanBuildError` | |
+| `PreflightCheck` | `PreflightCheck` | level 枚举 ok/warn/error |
+| `PreflightResult` | `PreflightResult` | |
+| `PlanPreparation` | `PlanPreparation` | problems: `Vec<PlanBuildError>`（TS 现恒空，保留字段） |
+| `InstallProgressDetail` | `InstallProgressDetail` | 三字段全可选省键 |
+| `InstallProgressEvent` | `InstallProgressEvent` | currentItemId/detail `\| null` 恒在 |
+| `PendingPlanLoad` | `PendingPlanLoad` | `#[serde(tag = "status")]` 三态：none/ok/invalid，untagged 候选（fixture 验证） |
+| `StartInstallResult` | `StartInstallResult` | error 可选省键 |
+| `Preset` | `Preset` | builtin bool |
+| `ActivationRecord` | `ActivationRecord` | env HashMap |
+| `ActivationSnapshot` | `ActivationSnapshot` | backupFile `\| null` 恒在 |
+| `ActivateRequest` | `ActivateRequest` | |
+| `ActivateResult` | `ActivateResult` | record/note/error `\| null` 恒在 |
+| `InstalledTool` | `InstalledTool` | installedAt `\| null` 恒在 |
+| `UninstallRequest` | `UninstallRequest` | |
+| `UninstallResult` | `UninstallResult` | |
+| `MirrorTarget` | `MirrorTarget` | 9 变体 |
+| `MirrorSetting` | `MirrorSetting` | |
+| `MirrorApplyResult` | `MirrorApplyResult` | |
+| `UserConfigView` | `UserConfigView` | proxy/manifestHotUpdateUrl/updateFeedUrl/pathBackupFile/dataRoot `\| null` 恒在；dataRootSource 枚举 env/config/default |
+| `EnvProfile` | `EnvProfile` | schemaVersion ==1；git.userName/Email `\| null`；mirrors[].url `\| null` |
+| `ProfileToolState` | `ProfileToolState` | 4 变体 kebab |
+| `ProfileDiffEntry` | `ProfileDiffEntry` | name `LocalizedText \| null` |
+| `ProfileDiff` | `ProfileDiff` | summary 4 个 u32 |
+| `ApplyProfileOptions` | `ApplyProfileOptions` | 4 bool |
+| `ApplyProfileResult` | `ApplyProfileResult` | |
+| `ExportProfileRequest` | `ExportProfileRequest` | |
+| `ExportProfileResult` | `ExportProfileResult` | |
+| `ImportProfileResult` | `ImportProfileResult` | profile/diff/error `\| null` |
+| `DoctorLevel` | `DoctorLevel` | ok/warn/error |
+| `DoctorCategory` | `DoctorCategory` | 5 变体 |
+| `DoctorFixId` | `DoctorFixId` | 3 变体 kebab |
+| `DoctorFix` | `DoctorFix` | scope user/machine |
+| `DoctorFinding` | `DoctorFinding` | fix `\| null` |
+| `PathEntryKind` | `PathEntryKind` | 5 变体 kebab |
+| `PathEntryView` | `PathEntryView` | reason/duplicateOf `\| null` |
+| `PathAnalysisView` | `PathAnalysisView` | counts: HashMap<PathEntryKind,u32> |
+| `DoctorReport` | `DoctorReport` | |
+| `DoctorFixResult` | `DoctorFixResult` | |
+| `SystemConfigId` | `SystemConfigId` | 6 变体 kebab |
+| `SystemConfigItem` | `SystemConfigItem` | backupAt `\| null`；revertible bool |
+| `SystemConfigRevertRequest` | `SystemConfigRevertRequest` | |
+| `SystemConfigRequest` | `SystemConfigRequest` | gitName/gitEmail/machinePathMode 可选省键 |
+| `SystemConfigResult` | `SystemConfigResult` | |
+| `VscodeCategory` | `VscodeCategory` | 8 变体 |
+| `VscodeExtension` | `VscodeExtension` | |
+| `VscodeStatus` | `VscodeStatus` | version/codePath `\| null` |
+| `VscodeInstallResult` | `VscodeInstallResult` | failed: Vec<{id,error}> |
+| `DownloadUpdateResult` | `DownloadUpdateResult` | filePath/verified/error 可空恒在 |
+| `UpdateInfo` | `UpdateInfo` | latestVersion/downloadUrl/downloadSha256/sizeBytes/notes/error 可空恒在 |
+| `HotUpdateResultView` | `HotUpdateResultView` | |
+| `OfflinePackRequest` | `OfflinePackRequest` | outputDir 可选省键 |
+| `OfflinePackResult` | `OfflinePackResult` | skipped: Vec<{id,tier,reason}> |
+| （新增）`OfflineImportResult` | 命名化 TS 匿名形状 | ok/imported/missing/entries/error |
+| （新增）`DeactivateResult` | 命名化 TS 匿名形状 | removed/error |
+| （新增）`PresetInput` | savePreset/importPreset 入参 | 对齐 validate.ts 校验规则，失败返回域错误 |
+| （新增）`UserConfigPatch` | saveSettings 入参 | 全字段 Option，逐字段校验（proxy 必须空或 http(s) URL、concurrency 1..=3、dataRoot 绝对路径） |
+| （新增）`UserConfig` | config.json 持久化形状 | 13 字段，见附录 G |
+
+### B.3 范式完整定义（InstallPlan 全家桶，其余按此机械翻译）
+
+```rust
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+use crate::{InstallScope, LicenseTier, MirrorPreference};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PlanItemState {
+    Pending,
+    Downloading,
+    Verifying,
+    Installing,
+    Checking,
+    Success,
+    Failed,
+    Skipped,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadAttempt {
+    pub source: String,
+    pub url: String,
+    pub error: String,
+}
+
+/// TS PlanItem：可空字段恒在（null），可选字段（downloadAttempts）省键（规则 3/4）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PlanItem {
+    pub id: String,
+    pub version: String,
+    pub tier: LicenseTier,
+    pub install_scope: InstallScope,
+    pub requires_admin: bool,
+    pub requires_reboot: bool,
+    pub depends_on: Vec<String>,
+    pub state: PlanItemState,
+    pub attempts: u32,
+    pub error: Option<String>,      // TS: string | null —— None 序列化为 null，键恒在
+    pub note: Option<String>,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub install_dir: Option<String>,
+    pub archive_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_attempts: Option<Vec<DownloadAttempt>>, // TS 可选字段
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PlanOptions {
+    pub concurrency: u32,               // 1..=3，executor 处再断言
+    pub mirror_preference: MirrorPreference,
+    pub proxy: Option<String>,          // TS: string | null
+    pub create_restore_point: bool,
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PlanSummary {
+    pub total: u32,
+    pub success: u32,
+    pub failed: u32,
+    pub skipped: u32,
+    pub cancelled: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct InstallPlan {
+    /// TS 字面量 1；其他值反序列化报错（规则 9）
+    pub schema_version: u8,
+    pub plan_id: String,
+    pub created_at: String,
+    pub devkit_version: String,
+    pub manifest_revision: String,
+    pub options: PlanOptions,
+    pub items: Vec<PlanItem>,
+    pub summary: PlanSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanSelection {
+    pub tool_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// TS 三态 tagged union：{status:'none'} \| {status:'ok',plan} \| {status:'invalid',reason}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum PendingPlanLoad {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "ok")]
+    Ok { plan: InstallPlan },
+    #[serde(rename = "invalid")]
+    Invalid { reason: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartInstallResult {
+    pub started: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,          // TS 可选字段
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallProgressDetail {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub received: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<Option<u64>>,     // TS: number | null | undefined —— 双层 Option
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallProgressEvent {
+    pub plan: InstallPlan,
+    pub current_item_id: Option<String>, // TS: string | null 恒在
+    pub detail: Option<InstallProgressDetail>,
+}
+```
+
+注意 `Option<Option<u64>>`：TS `total?: number \| null` 的三态（缺省/有值/null）。serde 对外层 Option 加 skip 后：缺省省键、`Some(None)` 写出 `null`、`Some(Some(n))` 写出数字，逐一对齐。
+
+---
+
+## 附录 C：错误模型与日志规格
+
+### C.1 错误模型（三层）
+
+```text
+1. IPC 边界（对 renderer 可见）
+   └─ 域错误：响应结构体里的 error 字段（zh-CN 文案，UI 直接展示）——永远不抛
+   └─ 基础设施故障：command 返回 Err(String) → 适配层转 Promise reject（频率极低）
+
+2. crate 内部（跨模块）
+   └─ thiserror enum DevkitError { Io, Registry, Junction, Http, Sha, Validation, Elevation, Cancelled, ... }
+   └─ Display 实现输出 zh-CN 文案；由 app 层在边界处 map 进响应结构体
+
+3. 日志
+   └─ 全链路记录（含 thiserror #[source] 链）；不上传、不遥测（硬规矩 5）
+```
+
+**取消不是错误**：`cancel_install` 触发后，进行中项 `state=cancelled`，其余 `skipped`，响应 `ok`。对应现有语义。
+
+**文案冻结**：现有 zh-CN 错误文案（`install:prepare` 的“没有待执行的安装计划”、`install:resume` 的计划失效文案、`revertSystemConfig` 的无备份拒绝文案、`activate:apply` 的 junction 拒覆盖文案）是测试锁定的契约，port 时逐字保留（R4/R5 验收项）。
+
+### C.2 日志规格（与现状 1:1）
+
+| 项 | 规格 | 现状来源 |
+| --- | --- | --- |
+| 落盘 | `%APPDATA%\devkit\logs\<timestampSlug>.log`，UTF-8，append | `report/logger.ts` |
+| 行格式 | `[{ISO ts}] [{LEVEL:5}] [{scope}] {message}\n`（LEVEL 右填充空格至 5 列：`INFO` 后跟一个空格再接 scope） | 同上 |
+| 内存环形缓冲 | 3000 条，`tail_log(count)` 只读缓冲（不读文件） | 同上 MAX_BUFFER |
+| 实时推送 | 每条 `log()` → `log-line` 事件（`LogEntry{ts,level,scope,message}`） | 同上 |
+| 启动时序 | 日志目录由 `devkit-app` 启动时注入 logger（不依赖 Tauri） | 设计对齐 |
+| 实现选型 | **手写 `Logger` 结构体（~80 行）**，不用 tracing——现有行为是“无过滤/无 span/固定格式”，tracing 只会引入多余配置面 | **决策 D5** |
+
+日志器放 `devkit-core::logging`，通过 `log-line` 广播通道解耦 app 层（测试可直接喂缓冲）。
+
+---
+
+## 附录 D：测试迁移映射（44 文件 / 541 用例，逐文件）
+
+### D.1 主进程 37 文件 → cargo
+
+| TS 测试文件 | Rust 目标位置 | 策略 |
+| --- | --- | --- |
+| `core/activate/paths.test.ts` | `devkit-sys/src/path_edit.rs` tests | 直译（纯逻辑） |
+| `core/activate/junction.test.ts` | `devkit-sys/src/junction.rs` tests | 直译 + 真机 `#[ignore]` 用例 |
+| `core/activate/machine-path.test.ts` | `devkit-sys/src/machine_path.rs` tests | 直译（拒绝规则先行） |
+| `core/config/mirrors.test.ts` | `devkit-core/src/mirrors.rs` tests + `devkit-types::mirror` 测试 | 直译（URL 白名单正则逐用例） |
+| `core/detect/registry-parse.test.ts` | `devkit-core/src/detect/parse.rs` tests | **保留语义，不保留代码**：直读注册表后解析层删除，仅保留“版本字段提取”与“WOW6432Node 差异”用例（决策 D6） |
+| `core/doctor/fix.test.ts` | `devkit-sys/src/doctor_fix.rs` tests | 直译（备份先行断言） |
+| `core/doctor/paths.test.ts` | `devkit-core/src/doctor/paths.rs` tests | 直译（PATH 脏数据 5 类判定） |
+| `core/downloader/index.test.ts` | `devkit-core/src/downloader/` tests | 直译；HTTP 层用 mockito/wiremock 等价物（R2 选型） |
+| `core/elevation/helper-script.test.ts` | `devkit-sys/src/elevation/job.rs` tests | 直译（job 序列化/分片/内联断言） |
+| `core/elevation/run-job.test.ts` | `devkit-sys/src/elevation/run.rs` tests | 直译（nonce 校验/复验路径） |
+| `core/hotupdate/whitelist.test.ts` | `devkit-cli`/`devkit-manifest` whitelist tests | 直译（字段白名单逐项） |
+| `core/installer/placeholders.test.ts` | `devkit-core/src/templates/placeholders.rs` tests | 直译（占位符注入拒绝） |
+| `core/installer/zip.test.ts` | `devkit-core/src/installer/zip.rs` tests | 直译（zip crate 行为差异处补用例） |
+| `core/manifest/ai-manifests.test.ts` | `devkit-manifest/src/ai.rs` tests | 直译 |
+| `core/manifest/prerequisites.test.ts` | `devkit-manifest/src/prereq.rs` tests | 直译 |
+| `core/manifest/validate.test.ts` | `devkit-manifest/src/validate.rs` tests | 直译（拒绝规则最多的一份，逐断言） |
+| `core/manifest/versions.test.ts` | `devkit-manifest/src/versions.rs` tests | 直译 |
+| `core/offline/index.test.ts` | `devkit-core/src/offline.rs` tests | 直译（硬规矩 1 事故点，先读原实现再写） |
+| `core/plan/index.test.ts` | `devkit-core/src/plan.rs` tests | 直译（pending.json 双向） |
+| `core/preflight/index.test.ts` | `devkit-core/src/preflight/` tests | 直译 |
+| `core/preflight/prerequisite-probe.test.ts` | `devkit-core/src/preflight/probe.rs` tests | 直译（CommandRunner mock） |
+| `core/preflight/prerequisites.test.ts` | `devkit-core/src/preflight/prereq.rs` tests | 直译 |
+| `core/presets/index.test.ts` | `devkit-core/src/presets.rs` tests | 直译 |
+| `core/profile/index.test.ts` | `devkit-core/src/profile.rs` tests | 直译 |
+| `core/providers/path-guard.test.ts` | `devkit-core/src/providers/guard.rs` tests | 直译（路径穿越拒绝） |
+| `core/report/markdown.test.ts` | `devkit-core/src/report/markdown.rs` tests | 直译（golden 文本比对） |
+| `core/security-regression.test.ts` | **拆散**：注入→templates、穿越→providers、提权→elevation | 三条安全用例各归其位，R5 验收逐条勾销 |
+| `core/systemconfig/backup.test.ts` | `devkit-sys/src/systemconfig/backup.rs` tests | 直译（备份格式冻结） |
+| `core/systemconfig/index.test.ts` | `devkit-sys/src/systemconfig/` tests | 直译 |
+| `core/systemconfig/registry.test.ts` | `devkit-sys/src/registry.rs` tests | 直译（HKCU/HKLM 读写语义；真机用例 `#[ignore]`） |
+| `core/templates/index.test.ts` | `devkit-core/src/templates/registry.rs` tests | 直译（命令拼装逐模板） |
+| `core/templates/new-templates.test.ts` | 同上 | 直译 |
+| `core/uninstall/registry.test.ts` | `devkit-sys/src/uninstall.rs` tests | 直译 |
+| `core/updater/index.test.ts` | `devkit-core/src/updater.rs` tests | 直译（latest.json 解析/版本比较） |
+| `utils/app-paths.test.ts` | `devkit-app/src/paths.rs` tests | 直译（dataRoot 优先级 env→config→default） |
+| `utils/env-vars.test.ts` | `devkit-sys/src/env_vars.rs` tests | 直译（禁 setx 语义、REG_EXPAND_SZ） |
+| `utils/exec.test.ts` | `devkit-sys/src/exec.rs` tests | **逐用例直译（含 GB18030 解码链与 cmd 回退白名单）**——最不能丢的一份，见附录 F.1 |
+
+### D.2 shared 4 文件 → devkit-types
+
+| TS | Rust | 策略 |
+| --- | --- | --- |
+| `shared/version.test.ts` | `devkit-types/src/version.rs` | 直译（semver 比较含预发布） |
+| `shared/manifest.test.ts` | `devkit-types/src/manifest_index.rs` | 直译（indexById 等纯函数） |
+| `shared/localized.test.ts` | `devkit-types/src/localized.rs` | 直译（回退链） |
+| `shared/download-name.test.ts` | `devkit-types/src/download_name.rs` | 直译（文件名规则 = 缓存键，跨版本共享） |
+
+### D.3 renderer 3 文件 → 留 vitest
+
+`i18n/i18n.test.ts`、`store/app-store.test.ts`、`store/install-store.test.ts` 继续用 vitest：store 逻辑不变，`window.devkit` 由适配层注入（R0 起适配层可在 vitest 里 mock）。
+
+### D.4 新增测试（Rust 侧，不计入 541）
+
+| 测试 | 位置 | 作用 |
+| --- | --- | --- |
+| 契约 fixture 双向 | `src-tauri/tests/contract/` | 10 份 fixture（InstallPlan/pending/profile/preset/manifest 变体/LogEntry/InstallProgressEvent/UserConfig/MirrorSetting/ActivationRecord）→ serde 往返相等；TS 侧 vitest 读同一 fixture 校验 |
+| 提权静态检查 | `devkit-sys/tests/elevation_static.rs` | 源码扫描：elevation 模块不得出现打开 job 文件的路径（不变式 1 机器化） |
+| 零遥测依赖树 | CI workflow | `cargo tree` 断言无 telemetry crate；reqwest 仅限 downloader/updater/hotupdate 三模块（`cargo deny` 或脚本） |
+| 适配层类型测试 | `src/renderer/src/api/tauri-adapter.ts` | `tsc --noEmit` 保证 `DevkitApi` 实现完整（46 方法全实现，缺一个编译报错） |
+
+---
+
+## 附录 E：R0 具体落地物（照抄即可开工）
+
+### E.1 `src-tauri/Cargo.toml`（workspace 根）
+
+```toml
+[workspace]
+members = [
+  "crates/devkit-types",
+  "crates/devkit-manifest",
+  "crates/devkit-core",
+  "crates/devkit-sys",
+  "crates/devkit-app",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "process"] }
+tokio-util = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+sha2 = "0.10"
+hex = "0.4"
+zip = "2"
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Registry", "Win32_Storage_FileSystem"] }
+windows-registry = "0.4"
+junction = "0.3"
+tauri = { version = "2", features = [] }
+tauri-build = "2"
+```
+
+版本以 R0 当日 `cargo add` 稳定版为准；本条锁定的是"选哪个 crate"而不是"哪个版本"。
+
+### E.2 `src-tauri/tauri.conf.json`（v2 最小骨架）
+
+```json
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "devkit",
+  "version": "1.0.0",
+  "identifier": "<R0 时查 package.json build.appId 对齐>",
+  "build": {
+    "beforeDevCommand": "pnpm dev:renderer",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm build:renderer",
+    "frontendDist": "../dist/renderer"
+  },
+  "app": {
+    "windows": [{ "title": "devkit", "width": 1200, "height": 800, "minWidth": 960, "minHeight": 640 }],
+    "security": { "csp": null }
+  },
+  "bundle": { "targets": ["nsis"], "icon": ["icons/icon.ico"] }
+}
+```
+
+窗口尺寸/标题 R0 时从 `src/main/index.ts` 的 BrowserWindow 选项照抄（含 minWidth/minHeight）；CSP 保持现状（null）。
+
+### E.3 `src-tauri/capabilities/default.json`
+
+```json
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "windows": ["main"],
+  "permissions": ["core:default", "core:event:default"]
+}
+```
+
+原 preload 白名单（46 通道）由"只注册这些 command"天然实现——Tauri 只暴露 `invoke_handler` 里列出的命令，比 preload 白名单更硬。
+
+### E.4 renderer 侧拆分（electron-vite → 纯 vite + tauri）
+
+1. 新建 `vite.config.ts`：`root: 'src/renderer'`、`plugins: [react()]`、`base: './'`、alias `@shared` → `src/shared`、`@renderer` → `src/renderer/src`、`build.outDir: '../../dist/renderer'`
+2. `package.json` 新增：`"dev:renderer": "vite"`、`"build:renderer": "vite build"`、`"dev:tauri": "tauri dev"`、`"build:tauri": "tauri build"`（`@tauri-apps/cli` 为 devDependency）
+3. electron-vite 配置**保留不动**（TS 版可构建性承诺）；R7 统一删除
+4. `src/renderer/src/main.tsx`：加一行 `installTauriBridge()`（仅当 `window.devkit` 不存在时安装，兼容 electron 模式调试）
+
+### E.5 `devkit-app` 最小骨架（R0 验收物）
+
+```rust
+// src-tauri/crates/devkit-app/src/main.rs
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![get_app_info, ping])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn ping() -> &'static str { "pong" }
+
+#[tauri::command]
+fn get_app_info(app: tauri::AppHandle) -> devkit_types::AppInfo {
+    // runtime 字段语义见附录 F.4
+    devkit_app::app_info(&app)
+}
+```
+
+### E.6 `devkit-types` 骨架断言（R0 即建立漂移防线）
+
+```rust
+// devkit-types/src/lib.rs —— 48 通道成员清单，一处定义，适配层与命令注册共用
+pub const IPC_METHOD_COUNT: usize = 46;
+pub const IPC_PUSH_COUNT: usize = 2;
+```
+
+R0 时把附录 A 的 46 个通道名做成 `export const IPC` 的 Rust 镜像常量（`pub const IPC: IpcChannels`），并在 `tests/ipc_parity.rs` 里断言与 TS 侧逐字一致（R1 接入）。
+
+---
+
+## 附录 F：运行时语义规格
+
+### F.1 CommandRunner（对齐 `src/main/utils/exec.ts`，逐条不可丢）
+
+```rust
+pub struct RunResult {
+    pub code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+    pub timed_out: bool,
+    pub spawn_error: Option<String>,
+    pub duration_ms: u64,
+}
+```
+
+铁律（每条都有现有测试锁定）：
+
+1. **不带 shell** 启动（`Command::new`）；默认超时 10s；超时 kill 并置 `timed_out`
+2. **取消信号**触发时 kill 子进程（对应 AbortSignal）
+3. **GB18030 解码链**：stdout/stderr 字节先试严格 UTF-8 → 失败退 GB18030（GBK 超集）→ 最后 latin1 兜底。中文 Windows 的 cmd 报错是 GBK，直接 `from_utf8_lossy` 会出乱码（现有实现有针对性注释与用例）
+4. **cmd.exe 回退**：仅当 spawn 报 ENOENT 或（EINVAL 且目标 `.cmd`/`.bat`）时，改用 `cmd.exe /d /c <cmd> <args...>`（**不带 `/s`**——`/s` 会剥掉首尾引号，带空格路径直接失败，原注释有实测记录）
+5. **回退前白名单校验**（正则逐字搬）：
+   - 命令路径：`^[^"&|<>^%!\r\n\t]+$`（只禁 cmd 元字符与引号，**不禁空格与中文**）
+   - 参数：`^[^\s"&|<>^%!()*?\r\n\t]+$`（禁空白与元字符；中文路径必须放行——`C:\Users\张三\.devkit\...` 是常态）
+   - 不满足 → 拒绝执行并附明确原因（绝不“尽力而为”地拼命令）
+6. `duration_ms` 从调用开始计（含回退重试耗时）
+
+### F.2 安装执行器（`core/executor/` 语义）
+
+| 语义 | 现状 | Rust 版 |
+| --- | --- | --- |
+| 单飞 | `controller !== null` ⇒ `isInstalling()` | `AppState.install: Mutex<Option<InstallRun>>`；第二次 start 返回“已有安装任务正在进行中” |
+| 计划归属 | 计划存主进程，renderer 只持有 planId（防篡改） | 同名结构体 `InstallRun { plan, cancel: CancellationToken, progressed: AtomicU64 }` |
+| 取消 | `AbortController.abort()` → 各阶段检查 | `tokio_util::sync::CancellationToken`；下载循环/等待子进程处 select |
+| 进度节流 | 下载 detail 高频、状态变化逐条 | 保持：download 阶段 ~200ms 合并；状态迁移即时发 |
+| 并发 | `concurrency` 1..=3 | `futures::stream::buffer_unordered`，上限断言 |
+| 续跑 | 启动写 pending.json，成功删除 | 同 |
+| 状态机 | pending→downloading→verifying→installing→checking→success/failed/skipped/cancelled | 枚举同名，迁移边沿测试逐条 |
+
+### F.3 单实例与窗口
+
+- `tauri-plugin-single-instance`：第二次启动聚焦既有窗口（对应 `requestSingleInstanceLock`），插件在 `main.rs` 最先注册
+- 窗口选项（size/minSize/title/背景色）R0 时从 `src/main/index.ts` BrowserWindow 配置照抄
+- `signal_ready` 保留：renderer 挂载后回执，主进程记一次日志（对齐现状三端链路自检）
+
+### F.4 AppInfo runtime 字段（决策 D16）
+
+| 字段 | TS 现状 | Rust 版取值 |
+| --- | --- | --- |
+| `electronVersion` | Electron 版本 | `tauri <version>`（键名保留，值如实） |
+| `nodeVersion` | Node 版本 | `rustc <version>` |
+| `chromeVersion` | Chrome 版本 | WebView2 运行时版本（注册表 `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}\pv`） |
+| `isPackaged` | `app.isPackaged` | `!cfg!(debug_assertions)` |
+| `manifestDir` | resourcesPath/manifest | 用户 override 目录或内置（附录 G） |
+
+---
+
+## 附录 G：数据文件兼容清单（双向读取，fixture 锁定）
+
+| 文件 | 路径 | 形状 | 兼容规则 |
+| --- | --- | --- | --- |
+| `config.json` | `%APPDATA%\devkit\` | `UserConfig` 13 字段：locale / autoUpdate / manifestHotUpdate / manifestHotUpdateUrl / updateFeedUrl / concurrency / createRestorePoint / mirrorPreference / proxy / activateAfterInstall / configureMirrors / mirrors / dataRoot | 全字段 serde default；新增字段必须带 default（旧 TS 版也能读新文件） |
+| `pending.json` | `%APPDATA%\devkit\` | **裸 `InstallPlan`**（无包装层） | schemaVersion==1 + planId + items[].id/state 结构嗅探（对齐 `looksLikePlan`）；不合规则返回 `invalid` 不删除 |
+| `activated.json` | `%APPDATA%\devkit\` | 激活记录（形状以 `activate` 模块 `readActivationState` 为准，R1 fixture 采样） | 字段级向后兼容；不认识的记录保留不删 |
+| `backup\env-*.json` | `%APPDATA%\devkit\backup\` | systemconfig 备份（形状以 `systemconfig/backup.ts` 为准） | **格式冻结**：还原必须能读 TS 版写的备份 |
+| `presets\*.json` | `%APPDATA%\devkit\presets\` | `Preset`（builtin=false） | 内置预设 builtin=true 不可删 |
+| `manifest\` | `%APPDATA%\devkit\manifest\` | 热更新后的 `ToolManifest` 文件集 | 优先级：用户 override > 内置（决策 D10） |
+| `logs\*.log` | `%APPDATA%\devkit\logs\` | 行文本（附录 C.2） | 只追加；`tail_log` 不读文件 |
+| `versions\<tool>\<version>\` | `<dataRoot>` | 目录布局 | **冻结**：装过的机器升级后直接可用 |
+| `downloads\` / `current\` / `updates\` / `bin\` | `<dataRoot>` | 缓存 / junction 根 / 更新包 / 预留 shim | 文件名规则 = `download-name`（单测移植） |
+| `offline\` | `%APPDATA%\devkit\offline\` | 保存对话框默认位置 | — |
+
+dataRoot 解析优先级（对齐 `app-paths.ts`）：`DEVKIT_DATA_ROOT` 环境变量 → `config.json` 的 `dataRoot` → `%USERPROFILE%\.devkit`。`UserConfigView.effectiveDataRoot`/`dataRootSource` 必须如实反映来源。
+
+---
+
+## 附录 H：scripts 处置（敲定 §13 第 3 条）
+
+现状 6 个 TS 脚本，全部 Rust 化，不做双维护：
+
+| 脚本 | 去向 | 阶段 |
+| --- | --- | --- |
+| `scripts/check-manifest.ts` | `devkit-manifest` 的 bin `manifest-check`（CI 调用点改为 cargo run） | R1 |
+| `scripts/refresh-manifests.ts` | `devkit-cli refresh-manifests`（发版流程用） | R2 |
+| `scripts/install-tool.ts` | `devkit-cli install <tool>@<version>`（顺带补上 SPEC FR-11 欠的 CLI） | R2 |
+| `scripts/detect-report.ts` | `devkit-cli detect-report` | R3 |
+| `scripts/make-update-index.ts` | `devkit-cli make-update-index` | R6 |
+| `scripts/verify-update.ts` | `devkit-cli verify-update` | R6 |
+
+`package.json` 的 `manifest:check` 等条目逐阶段改指向；TS 脚本在 R7 删除。缓与下载必须与 GUI 共用同一 downloader 规则（现 `install-tool.ts` 已有此教训：曾与 GUI 各下一份）。
+
+---
+
+## 附录 I：决策记录（ADR 摘要，迁移期有异议先看这里）
+
+| # | 决策 | 理由 | 替代方案与否决原因 |
+| --- | --- | --- | --- |
+| D1 | renderer（React 19 + antd 6）零重写 | 无 Electron 专有 API，纯 Web 标准 | 纯 Rust GUI 需重写 4.1k 行 + 丢掉 antd 生态 |
+| D2 | 46+2 通道全映射，零删减 | 每个通道都有 UI 调用点，删任一即功能缺失 | 合并通道 → 适配层变复杂，收益为零 |
+| D3 | serde 强类型替代 `validate.ts` | 类型即校验；三处 `unknown` 入参（savePreset/saveSettings/importPreset）类型化为 PresetInput/UserConfigPatch | 保留手写校验 = 两份知识（违反硬规矩 1） |
+| D4 | 域错误走结构体 `error` 字段，不走 `Err` | renderer 现有处理全部基于 `{ok,error}` 形状 | 改成 throw 需动 40+ 调用点，且丢错误分类 |
+| D5 | 手写 Logger，不用 tracing | 行为固定（缓冲 3000/固定格式/广播），tracing 增配置面无收益 | tracing 后期可随可观测性需求引入 |
+| D6 | 注册表直读（windows-registry），删 reg.exe 解析层 | 消灭子进程 + 文本解析一半代码 | 保留 reg.exe = 保留 GBK 解析与引号陷阱 |
+| D7 | “禁 setx” = HKCU\Environment 直写 REG_EXPAND_SZ | 保留“追加去重、绝不整体覆盖”语义 | setx 会截断/膨胀变量（现有硬规矩 2 的起因） |
+| D8 | 提权 = 同 exe `--elevated-worker` + 内联 job | 不变式 1（不落盘）天然满足；单次 UAC | 拆 helper exe → 多一个可被替换的二进制面 |
+| D9 | 更新协议 latest.json 不变，**不引 tauri-plugin-updater** | 静默替换二进制违背“不静默”与零遥测；旧版→新版升级路径因此打通 | 插件版会绕过确认提示 |
+| D10 | manifest 内嵌（include_dir）+ 用户 override 优先 | 单 exe 便携；热更新语义不变 | 外置资源 = 多一份丢失风险（R6 验证后备选） |
+| D11 | portable 口径 R6 实测定案（§13-1） | Tauri 无官方 portable target | — |
+| D12 | 6 个脚本全部 Rust 化（附录 H） | 单一知识源；顺带补 CLI | 双维护 = 规则第二次漂移的入口 |
+| D13 | 不引入 E2E（Playwright/WebDriver） | 验收以真机清单 + VERIFICATION.md 为准 | 新基建成本 > 收益（现状本就未启用） |
+| D14 | 默认内置 WebView2 bootstrapper | Win10 22H2 已内置但旧镜像可能缺；体积增量 R6 记录 | 不内置 → 部分机器启动即挂 |
+| D15 | GB18030 解码链原样保留 | 中文 Windows cmd 报错是 GBK，lossy UTF-8 出乱码 | 强制命令侧 UTF-8 需改所有调用点，超范围 |
+| D16 | AppInfo 三个 runtime 字段保留键名、值如实（附录 F.4） | renderer 直接展示，不改 UI | 改键名 = 动 renderer（违背 D1） |
