@@ -389,11 +389,11 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ## 13. 未决问题（1/3/4 已在附录 H/I 敲定；2/5 留待 R6 实测定案）
 
-1. **portable 产物口径**（R6）：Tauri 无官方 portable target；「单 exe 无外置资源」是否满足原 portable 用户预期，需实测后决定是否保留该 target
-2. **manifest 内嵌 vs 外置**（R6）：倾向内嵌 + override，但首发保留外置方案作为 fallback 更稳
-3. **`scripts/` 下 5 个 TS 工具脚本**（manifest:refresh/detect-report/install-tool 等）是否一并 Rust 化：建议随 R1/R2 用同一套 crate 实现为 `devkit-admin` bin（顺带补上 SPEC FR-11 欠的 CLI）
-4. **E2E（Playwright）**：现状未启用；Tauri 有 WebDriver 方案，但建议 R7 验收以「真机手工清单 + VERIFICATION.md」为准，不引入新 E2E 基建
-5. **WebView2 bootstrapper**（R6）：按 tauri 官方 NSIS 集成方式评估体积增量
+1. **portable 产物口径**（R6，未决）：Tauri 无官方 portable target；「单 exe 无外置资源」是否满足原 portable 用户预期，需实测后决定是否保留该 target
+2. **manifest 内嵌 vs 外置**（R6，未决）：倾向内嵌 + override（决策 D10），但首发保留外置方案作为 fallback 更稳
+3. **scripts/ 6 个 TS 工具脚本**：**已敲定全部 Rust 化**，逐个去向与阶段见附录 H（`devkit-cli` 各子命令）
+4. **E2E（Playwright）**：**已敲定不引入**（决策 D13）；R7 验收以「真机手工清单 + VERIFICATION.md」为准
+5. **WebView2 bootstrapper**（R6，未决）：默认内置（决策 D14），体积增量 R6 实测记录
 
 ---
 
