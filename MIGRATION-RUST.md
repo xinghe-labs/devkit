@@ -333,6 +333,8 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ### R4 — 系统写入面
 
+> **✅ R4 已完成**：devkit-core 新增 6 个模块（activate/{mod,paths,index,machine_path,verify,window_env} + app_paths + elevation 接口 + systemconfig/{mod,registry,backup} + uninstall/{mod,registry} + doctor/{mod,paths}）与 devkit-sys 新增 3 个模块（registry/user_env/junction），297 测试全绿，clippy -D warnings 0 错。真机验收：① 体检探针（`cargo test -p devkit-core --test real_doctor -- --ignored`）在本机捕获真实脏 PATH（KingbaseES 残留条目 → Error）、npm 双路径歧义（→ Warn）、PowerShell 策略读不到（如实报“读不到”，不猜值）；② reg.exe HKCU 自建键 add→read→delete→read 往返；③ 机器 PATH 真实读取（reg query HKLM）+ 同步算法纯逻辑覆盖；④ junction 创建/切换/删除真机验证（R4 activate 生命周期测试，DEVKIT_APP_DATA/DEVKIT_DATA_ROOT 沙箱）。实现与偏离见附录 E.9。
+
 - activate（PATH/Junction/快照）、systemconfig（env 备份/还原）、doctor（诊断+修复）、uninstall
 - 拒绝规则测试先于实现（硬规矩 2/6）
 - **验收**：PATH 追加去重、备份还原、junction 切换、卸载 4 条真机路径；对应 TS 版行为回放对比
@@ -980,6 +982,42 @@ R0 时把附录 A 的 46 个通道名做成 `export const IPC` 的 Rust 镜像�
 5. 自检：解压出的 `node.exe --version` → `v24.21.0`（安装≠激活：绝对路径，不碰 PATH）
 
 偏离：`MirrorPreference` 是固定枚举（official/huaweicloud/aliyun/tuna/ustc），TS 是 string union —— serde kebab-case 双向一致，语义无差；executor 的 panic 重试语义：TS 无对应（任务级 panic 在 JS 里是进程级），Rust 用内层 spawn 捕获并标记该项失败，不中断整体。
+
+### E.8 R3 落地物（检测与报告）
+
+| 模块 | 对齐 TS | 要点 |
+| --- | --- | --- |
+| `detect.rs` | `detect/*` | 注册表 4 组扫描结果 + 版本语义化比较 + match 规则（`(?i)` 大小写不敏感）；programs 由调用方传入（扫一次共用） |
+| `preflight.rs` | `preflight/*` | 6 项系统预检（磁盘/OS 版本/长路径/开发者模式…），severity 序号 = TS SEVERITY_ORDER |
+| `report.rs` | `report/*` | markdown 报告生成 + timeutil（`iso8601_now`/`iso8601_from_unix`/`timestamp_slug_from_unix`） |
+| `settings.rs` | `settings/*` | UserConfig 读写（附录 G 13 字段全 default） |
+| `logging.rs` | `report/logger.ts` | 手写 Logger（决策 D5：tokio tracing 不满足行级 tail 订阅），日志文件 + broadcast 订阅 |
+| `devkit-sys/registry.rs` | `detect/registry.ts` | Windows API 直读 4 组卸载键（HKLM/HKCU × 32/64 视图），实证 `/reg:32` 对字面 WOW6432Node 路径不做二次重定向 |
+| `tests/real_machine.rs` | — | #[ignore] 真机断言：git/node 版本比较、本机预检全 Ok |
+
+### E.9 R4 落地物（系统写入面）
+
+新增模块：
+
+| 模块 | 对齐 TS | 要点 |
+| --- | --- | --- |
+| `app_paths.rs` | `utils/app-paths.ts` | dataRoot 三级优先级（env → override → `%USERPROFILE%\.devkit`）、current/versions/downloads/backup 等全部路径函数；ENV_TEST_LOCK 防测试间环境变量竞争 |
+| `activate/paths.rs` | `activate/paths.ts` | `%DEVKIT_HOME%` 变量展开、PATH 条目归类 |
+| `activate/index.rs` | `activate/index.ts` | activated.json 读写（TS 双向兼容）、activate_version（junction 拒覆盖 + PATH 备份 `user-path-<ts>.txt`）、deactivate、prune；4 场景生命周期测试（默认/激活后切换/自激活冲突/用户自定义 DEVKIT_HOME） |
+| `activate/machine_path.rs` | `activate/machine-path.ts` | 机器 PATH 同步（add/remove 计划 → 提权写入注入 → 复验失败中止）、`%DEVKIT_HOME%` 归类、reg query 读原文 |
+| `activate/verify.rs` | `activate/verify.ts` | where.exe 解析 + junction 目标核对 |
+| `activate/window_env.rs` | `activate/windows.ts` 用户面 | HKCU 环境读写注入（devkit-sys user_env） |
+| `elevation.rs` | `elevation/*` 接口 | ElevatedStep/ElevatedRunner trait + NoElevation 如实报错占位（R5 接真提权助手） |
+| `systemconfig/registry.rs` | `systemconfig/registry.ts` | toRegPath/toPsPath、parse_reg_dword（非 DWORD 不猜）、is_missing_value_error；HKCU 真机往返测试 |
+| `systemconfig/backup.rs` | `systemconfig/backup.ts` | system-config.json 账本（首写胜出、existed 区分、损坏按空）、serde tag=kind 与 TS camelCase 双向兼容 |
+| `systemconfig/mod.rs` | `systemconfig/index.ts` | 状态 6 项 + apply（git 身份/执行策略/ssh-key/machine-path/long-paths/developer-mode）+ revert（三条硬规矩：无备份不动手/复验/成功后销账）|
+| `uninstall/registry.rs` | `uninstall/registry.ts` | split_windows_command、find_uninstall_entry（与检测同规则）、plan_uninstall（MSI GUID 键名 → msiexec /x）、复验记录消失 |
+| `uninstall/mod.rs` | `uninstall/index.ts` | list_installed（VERSION_DIR 白名单）、uninstall_version（registry 型先卸 MSI 再删目录，失败中止）、prune_dangling_links |
+| `doctor/paths.rs` | `doctor/paths.ts` | PATH 纯分析：expand_with_report（unresolved 优先于结构判定）、classify_structural_problem（D:\go 合法）、looks_truncated 只作补充提示、保守 suggested |
+| `doctor/mod.rs` | `doctor/index.ts` + `fix.ts` | run_doctor（7 组只读检查、evidence 逐条人话）+ 三个修复（先备份/复验/空值拒绝） |
+| `devkit-sys/user_env.rs`、`junction.rs` | — | HKCU 环境读写、junction 创建/删除 |
+
+偏离与决策：① 测试环境变量竞争——同进程并行测试会互相改写 DEVKIT_APP_DATA，曾把测试状态写进真实 %APPDATA%，修复为 `app_paths::ENV_TEST_LOCK` 串行化 + 测试保存/恢复原值（教训已写入注释）；② sync_machine_path 只算不写，提权与激活记录由调用方注入（对齐文档注入原则，R5 接真助手后由应用层组装）；③ `%DEVKIT_HOME%` 展开为真实数据根（激活记录与 PATH 里都不写绝对路径，对齐 TS 现行为）；④ 机器 PATH 读原文用 reg.exe query（类型可能是 REG_EXPAND_SZ，值含空格不能按空白切）；⑤ 体检的系统项复用 systemconfig 只读状态，本机 PowerShell Security 模块不完整时如实显示“读不到”而不是猜值。
 
 ---
 

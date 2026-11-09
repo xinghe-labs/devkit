@@ -5,4 +5,6 @@
 //! uninstall / vscode / elevation（提权四条安全不变式见 MIGRATION-RUST.md §6.5）。
 
 pub mod disk;
+pub mod junction;
 pub mod registry;
+pub mod user_env;

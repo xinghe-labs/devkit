@@ -38,7 +38,7 @@ log = "0.4"
 encoding_rs = "0.8"
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Registry", "Win32_Storage_FileSystem"] }
 windows-registry = "0.4"
-junction = "0.3"
+junction = "1.4"
 tauri = { version = "2", features = [] }
 tauri-build = "2"
 
