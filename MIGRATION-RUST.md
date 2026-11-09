@@ -315,6 +315,8 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ### R2 — 下载与安装（零风险闭环）
 
+> **✅ R2 已完成（含真实安装验收）**：devkit-core 新增 11 个模块（checksum/direct/downloader/exec/executor/http/manifest_fns/placeholders/plan/templates/zip_extract），166 测试全绿，`cargo clippy --workspace --all-targets -- -D warnings` 0 错。验收逐项达成：① dry-run（zip 模板无安装器命令、不落盘，对齐 TS `buildCommand ?? null` 语义）；② 真实装一次 Node v24.21.0 ZIP（npmmirror 直连 37.6MB → sha256 校验 → 解压 1994 文件/107MB → 解压出的 `node.exe --version` 输出 v24.21.0；复跑命中幂等缓存 612ms）；③ pending.json 读写与 TS 版双向兼容（R2 plan.rs 阶段的 fixtures）。真实安装测试保留为 `#[ignore]` e2e（`cargo test -p devkit-core --test real_node_install -- --ignored`）。实现与偏离见附录 E.7。
+
 - downloader（断点续传/镜像回退/代理/SHA-256）+ providers(Direct) + installer(zip) + plan + executor 状态机
 - 对应 vitest 断言迁移（这四块测试量最大）
 - **验收**：dry-run + 真实装一次 Node ZIP（对齐 M1a 验收路径）；pending.json 读写与 TS 版双向兼容
@@ -844,7 +846,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.80" // std::sync::LazyLock（静态正则）需要 1.80
 license = "MIT"
 
 [workspace.dependencies]
@@ -948,6 +950,34 @@ pub const IPC_PUSH_COUNT: usize = 2;
 ```
 
 R0 时把附录 A 的 46 个通道名做成 `export const IPC` 的 Rust 镜像常量（`pub const IPC: IpcChannels`），并在 `tests/ipc_parity.rs` 里断言与 TS 侧逐字一致（R1 接入）。
+
+### E.7 R2 落地物（devkit-core 全量核心，166 测试）
+
+新增模块（`crates/devkit-core/src/`）：
+
+| 模块 | 对齐 TS | 要点 |
+| --- | --- | --- |
+| `http.rs` | `downloader/http.ts` | reqwest 直连/代理；`shouldFollowRedirect` 跨源白名单 |
+| `downloader.rs` | `downloader/index.ts` | 断点续传（`.part` + `.part.json`）、镜像回退、SHA-256、速度哨兵（32KB/s + 15s 宽限）、idle timeout、幂等复用；`PipeCtx` 打包流式写入参数 |
+| `checksum.rs` | `downloader/checksum.ts` | sha256 流式（sha2） |
+| `exec.rs` | `utils/exec.ts` | GB18030 解码链、cmd `/d /c` 回退 + 白名单、超时 kill、CancellationToken；`.cmd/.bat` 主动走回退（不先试后错，与 TS 行为一致） |
+| `templates.rs` | `installer/templates.ts` | 12 模板 + 参数校验（deny 未知键 + 正则值）+ `build_command` / `build_extract_plan`；`ResolvedTemplate.extract` 装 zip 类计划 |
+| `zip_extract.rs` | `installer/zip.ts` | strip 解压、防路径逃逸（`..` 与绝对路径）、符号链接逃逸判定（`unix_mode << 16`）、overwrite 语义对齐 |
+| `placeholders.rs` | `installer/placeholders.ts` | `{installDir}/{version}/{toolId}` + 未知占位符报错 |
+| `direct.rs` | `providers/direct.ts` | `install_version` 全分支（exe-inno/nsis/sfx7z/msi/zip/zip-single/npm）、dry-run（zip 模板无预览、`log_file: None`，对齐 TS `buildCommand ?? null`）、`remove_install_dir` 逃逸防护、`resolve_npm_cmd`（激活根最新版本优先 → npm.cmd 回退）、`UserPathHooks`（R4 接实现） |
+| `plan.rs` | `plan/*.ts` | `build_plan`（检测归零/concurrency clamp/dry_run 继承）、pending.json 读写与 TS 双向兼容（fixtures 互验） |
+| `executor.rs` | `executor/index.ts` | 状态机：单项失败不中断/依赖跳过（计划外依赖视为已满足）/机器级串行（`admin_lock`）/安装≠激活回调/幂等跳过/取消/依赖环检测/emit 快照；双层 `tokio::spawn` 捕 panic 保证单项失败可控 |
+| `manifest_fns.rs` | `shared/manifest.ts` | `order_download_sources`（枚举偏好置首）/`pick_recommended_version`/`index_by_id` |
+
+验收（`cargo test -p devkit-core --test real_node_install -- --ignored --nocapture`，npmmirror 国内直连）：
+
+1. SHASUMS256.txt 拿官方 sha256（downloader 的 sha256 为空会校验失败，不能跳过）
+2. 下载 node-v24.21.0-win-x64.zip（37.6MB，复跑命中幂等缓存 612ms）
+3. dry-run：zip 模板不落盘、无预览命令
+4. 解压 1994 文件 / 107MB（strip=1）
+5. 自检：解压出的 `node.exe --version` → `v24.21.0`（安装≠激活：绝对路径，不碰 PATH）
+
+偏离：`MirrorPreference` 是固定枚举（official/huaweicloud/aliyun/tuna/ustc），TS 是 string union —— serde kebab-case 双向一致，语义无差；executor 的 panic 重试语义：TS 无对应（任务级 panic 在 JS 里是进程级），Rust 用内层 spawn 捕获并标记该项失败，不中断整体。
 
 ---
 
