@@ -6,7 +6,15 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default tseslint.config(
   {
-    ignores: ['out/**', 'release/**', 'dist/**', 'node_modules/**', 'coverage/**']
+    ignores: [
+      'out/**',
+      'release/**',
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      // Rust 侧构建产物（tauri-build 生成的临时 JS）不归 TS lint 管
+      'src-tauri/**'
+    ]
   },
 
   js.configs.recommended,

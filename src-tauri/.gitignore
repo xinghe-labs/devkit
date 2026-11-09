@@ -1,0 +1,5 @@
+# Rust 构建产物
+/target/
+
+# tauri-build 生成的权限 schema（build.rs 产物）
+/gen/schemas/

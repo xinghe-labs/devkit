@@ -1,0 +1,53 @@
+[package]
+name = "devkit-app"
+version = "0.6.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "devkit Tauri 壳：commands + events + AppState"
+build = "build.rs"
+
+[workspace]
+members = [
+  "crates/devkit-types",
+  "crates/devkit-manifest",
+  "crates/devkit-core",
+  "crates/devkit-sys",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "process"] }
+tokio-util = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+sha2 = "0.10"
+hex = "0.4"
+zip = "2"
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Registry", "Win32_Storage_FileSystem"] }
+windows-registry = "0.4"
+junction = "0.3"
+tauri = { version = "2", features = [] }
+tauri-build = "2"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+devkit-types = { path = "crates/devkit-types" }
+tauri = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+windows-registry = { workspace = true }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

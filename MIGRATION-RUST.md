@@ -294,6 +294,8 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ### R0 — 骨架（本次会话之后第一件事）
 
+> **✅ R0 已完成（含端到端冒烟）**：`pnpm dev:tauri` 起窗 → vite 5173 → WebView2 加载 renderer → 适配层安装 → `get_app_info`/`signal_ready` IPC 往返成功（主进程打印 `[devkit] renderer ready`，该日志在 `render(<App/>)` 之后才会出现，证实 React 树挂载成功）。偏离与实测取值见附录 E.1/E.2/E.4 注记。
+
 - 新建 `src-tauri/` workspace（5 个 crate 空壳 + `tauri.conf.json` + capabilities）
 - renderer 从 electron-vite 迁出：拆出纯 vite 配置（`vite.renderer.config.ts`），dev 模式 `tauri dev` 挂载现有 renderer
 - 1 个 `ping` command + `get_app_info`（真实实现）打通 dev 环境
@@ -862,6 +864,8 @@ tauri-build = "2"
 
 版本以 R0 当日 `cargo add` 稳定版为准；本条锁定的是"选哪个 crate"而不是"哪个版本"。
 
+> **R0 实际落地偏离（已验证）**：`devkit-app` 不是 `crates/devkit-app`，而是 workspace 根包（`src-tauri/Cargo.toml` 同时是 `[package]` 与 `[workspace]`，四个子 crate 在 `crates/` 下）。原因：`tauri_build::build()` 在 `CARGO_MANIFEST_DIR` 找 `tauri.conf.json`，app crate 必须与 `tauri.conf.json`/`build.rs` 同目录。workspace 依赖集中声明不变；`[profile.release]` 也收在根包里。
+
 ### E.2 `src-tauri/tauri.conf.json`（v2 最小骨架）
 
 ```json
@@ -886,6 +890,8 @@ tauri-build = "2"
 
 窗口尺寸/标题 R0 时从 `src/main/index.ts` 的 BrowserWindow 选项照抄（含 minWidth/minHeight）；CSP 保持现状（null）。
 
+> **R0 实际取值（已验证）**：`identifier: "io.github.devkit"`（对齐 package.json `build.appId`）；`version: "0.6.2"`（与 package.json 同步，Rust 版首版 v1.0.0 在 R6 发布时改）；窗口 `1280×880 / min 1024×700`（src/main/index.ts:19-26）。`bundle.icon` R0 用 System.Drawing 生成的 32×32 占位 `icons/icon.ico`（tauri-build 生成 Windows 资源文件必需），**R6 换正式图标**。
+
 ### E.3 `src-tauri/capabilities/default.json`
 
 ```json
@@ -905,6 +911,8 @@ tauri-build = "2"
 2. `package.json` 新增：`"dev:renderer": "vite"`、`"build:renderer": "vite build"`、`"dev:tauri": "tauri dev"`、`"build:tauri": "tauri build"`（`@tauri-apps/cli` 为 devDependency）
 3. electron-vite 配置**保留不动**（TS 版可构建性承诺）；R7 统一删除
 4. `src/renderer/src/main.tsx`：加一行 `installTauriBridge()`（仅当 `window.devkit` 不存在时安装，兼容 electron 模式调试）
+5. `main.tsx` 与 `api/tauri-adapter.ts` 顶部需 `/// <reference path="…/preload/index.d.ts" />`（配 `@typescript-eslint/triple-slash-reference` 的行级豁免）：`import type {}` 形式无法让按文件分析的工具程序并入 `window.devkit` 全局声明，实测只有显式文件引用有效；项目 tsc 配置本就 include 了该声明文件，此处是工具兼容，非编译必需
+6. `eslint.config.mjs` 的 `ignores` 加 `src-tauri/**`（tauri-build 会在 target/ 里生成临时 JS，TS lint 不该扫它）
 
 ### E.5 `devkit-app` 最小骨架（R0 验收物）
 

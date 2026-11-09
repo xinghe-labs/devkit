@@ -43,6 +43,30 @@ jobs:
       - name: 单元测试
         run: pnpm test
 
+  rust:
+    name: rust（fmt / clippy / test）
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # windows-latest 镜像自带 rustup，锁定 stable 保证与本地一致
+      - name: 确保 Rust stable
+        shell: pwsh
+        run: rustup default stable
+
+      - name: cargo fmt --check
+        working-directory: src-tauri
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+
   smoke:
     name: 界面冒烟（渲染进程不得报错）
     runs-on: windows-latest
@@ -73,11 +97,13 @@ jobs:
           $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
           if (-not (Test-Path $exe)) {
             Write-Host "electron 二进制缺失，手动触发下载（用官方源，CI runner 在海外）"
-            $env:ELECTRON_MIRROR = 'https://github.com/electron/electron/releases/download/'
+            $mirror = 'https://github.com/electron/electron'
+            $env:ELECTRON_MIRROR = "$mirror/electron/releases/download/"
             node node_modules/electron/install.js
           }
           if (-not (Test-Path $exe)) {
-            Get-ChildItem node_modules/electron -Recurse -Depth 1 | Select-Object FullName
+            Get-ChildItem node_modules/electron -Recurse -Depth 1 |
+              Select-Object FullName
             throw "Electron 运行时仍然缺失：$exe"
           }
           Write-Host "electron.exe 就绪：$exe"
@@ -90,8 +116,11 @@ jobs:
           $env:DEVKIT_SMOKE = '1'
           $env:DEVKIT_SMOKE_DELAY_MS = '20000'
           $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
-          $process = Start-Process -FilePath $exe -ArgumentList '.' -WorkingDirectory $PWD -PassThru -Wait
-          if ($process.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($process.ExitCode)" }
+          $process = Start-Process -FilePath $exe -ArgumentList '.' `
+            -WorkingDirectory $PWD -PassThru -Wait
+          if ($process.ExitCode -ne 0) {
+            throw "冒烟测试失败，退出码 $($process.ExitCode)"
+          }
           Write-Host "冒烟测试通过"
 
       - name: 上传日志（失败时排查用）

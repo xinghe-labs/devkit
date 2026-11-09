@@ -1,9 +1,15 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- import 形式无法让单文件分析的程序并入声明，此处必须用文件引用（见 MIGRATION-RUST.md 附录 E.4）
+/// <reference path="../../preload/index.d.ts" />
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { installTauriBridge } from './api/tauri-adapter'
 import { initI18n } from './i18n'
 import { useAppStore } from './store/app-store'
 import './styles/global.css'
+
+// Tauri 环境下 window.devkit 不存在，安装适配层；Electron 调试模式 preload 已注入，不覆盖（附录 E.4）
+installTauriBridge()
 
 async function bootstrap(): Promise<void> {
   try {
