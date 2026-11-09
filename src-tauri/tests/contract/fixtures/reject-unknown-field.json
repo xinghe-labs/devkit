@@ -1,0 +1,11 @@
+{
+  "id": "demo-unknown",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "detect-only",
+  "name": { "zh-CN": "未知字段" },
+  "description": { "zh-CN": "描述" },
+  "detect": { "commands": [ { "cmd": "demo" } ] },
+  "versions": [],
+  "sneakyField": true
+}

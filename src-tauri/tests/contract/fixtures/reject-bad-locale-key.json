@@ -1,0 +1,10 @@
+{
+  "id": "demo-badlocale",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "detect-only",
+  "name": { "chinese": "非法语言键" },
+  "description": { "zh-CN": "描述" },
+  "detect": { "commands": [ { "cmd": "demo" } ] },
+  "versions": []
+}

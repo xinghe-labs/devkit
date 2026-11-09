@@ -2,11 +2,7 @@
 name = "devkit-manifest"
 version = "0.6.2"
 edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
 
 [dependencies]
 devkit-types = { path = "../devkit-types" }
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
+serde_json.workspace = true

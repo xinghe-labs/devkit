@@ -1,0 +1,21 @@
+{
+  "id": "demo-tool",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "ready",
+  "name": { "zh-CN": "演示工具", "en-US": "Demo Tool" },
+  "description": { "zh-CN": "描述" },
+  "detect": { "commands": [ { "cmd": "demo", "args": ["--version"] } ] },
+  "versions": [ {
+    "version": "1.0.0",
+    "channel": "stable",
+    "recommended": true,
+    "arch": "x64",
+    "installScope": "user",
+    "source": {
+      "url": "https://example.com/demo-1.0.0.zip",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "install": { "type": "zip", "template": "zip-extract" }
+  } ]
+}

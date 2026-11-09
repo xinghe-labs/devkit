@@ -31,8 +31,8 @@ fn data_root() -> std::path::PathBuf {
 pub fn app_info() -> AppInfo {
     AppInfo {
         version: env!("CARGO_PKG_VERSION").into(),
-        // TODO(R1)：从 UserConfig 读 locale；R0 固定默认值
-        locale: "zh-CN".into(),
+        // TODO(R3)：从 UserConfig 读 locale（settings 读取在 devkit-core::settings）；R1 固定默认值
+        locale: devkit_types::Locale::ZhCn,
         platform: "windows".into(),
         arch: std::env::consts::ARCH.into(),
         is_packaged: !cfg!(debug_assertions),

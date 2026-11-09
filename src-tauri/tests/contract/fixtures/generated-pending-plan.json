@@ -1,0 +1,60 @@
+{
+  "createdAt": "2026-02-14T08:30:00.000Z",
+  "devkitVersion": "0.6.2",
+  "items": [
+    {
+      "archivePath": "D:\\AgentWork\\cache\\devkit\\nodejs-24.21.0-node-v24.21.0-win-x64.zip",
+      "attempts": 1,
+      "dependsOn": [],
+      "downloadAttempts": [
+        {
+          "error": "",
+          "source": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/nodejs/v24.21.0/node-v24.21.0-win-x64.zip"
+        },
+        {
+          "error": "ETIMEDOUT",
+          "source": "official",
+          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip"
+        }
+      ],
+      "finishedAt": "2026-02-14T08:31:20.000Z",
+      "id": "nodejs",
+      "installDir": "%USERPROFILE%\\.devkit\\versions\\nodejs\\24.21.0",
+      "installScope": "user",
+      "requiresAdmin": false,
+      "requiresReboot": false,
+      "startedAt": "2026-02-14T08:30:01.000Z",
+      "state": "success",
+      "tier": "L1",
+      "version": "24.21.0"
+    },
+    {
+      "attempts": 0,
+      "dependsOn": [],
+      "id": "git",
+      "installScope": "user",
+      "requiresAdmin": false,
+      "requiresReboot": false,
+      "state": "pending",
+      "tier": "L1",
+      "version": "2.51.0"
+    }
+  ],
+  "manifestRevision": "builtin-2026-02-01",
+  "options": {
+    "concurrency": 3,
+    "createRestorePoint": true,
+    "dryRun": false,
+    "mirrorPreference": "huaweicloud"
+  },
+  "planId": "plan-8f3c1d2e",
+  "schemaVersion": 1,
+  "summary": {
+    "cancelled": 0,
+    "failed": 0,
+    "skipped": 0,
+    "success": 1,
+    "total": 2
+  }
+}

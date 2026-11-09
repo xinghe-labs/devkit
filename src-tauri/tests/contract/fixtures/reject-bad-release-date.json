@@ -1,0 +1,18 @@
+{
+  "id": "demo-baddate",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "ready",
+  "name": { "zh-CN": "坏日期" },
+  "description": { "zh-CN": "描述" },
+  "detect": { "commands": [ { "cmd": "demo" } ] },
+  "versions": [ {
+    "version": "1.0.0",
+    "channel": "stable",
+    "arch": "x64",
+    "installScope": "user",
+    "releaseDate": "2026/01/01",
+    "source": { "url": "https://example.com/a.zip", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "install": { "type": "zip", "template": "zip-extract" }
+  } ]
+}

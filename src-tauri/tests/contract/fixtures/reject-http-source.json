@@ -1,0 +1,17 @@
+{
+  "id": "demo-http",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "ready",
+  "name": { "zh-CN": "http 源" },
+  "description": { "zh-CN": "描述" },
+  "detect": { "commands": [ { "cmd": "demo" } ] },
+  "versions": [ {
+    "version": "1.0.0",
+    "channel": "stable",
+    "arch": "x64",
+    "installScope": "user",
+    "source": { "url": "http://example.com/a.exe", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "install": { "type": "zip", "template": "zip-extract" }
+  } ]
+}

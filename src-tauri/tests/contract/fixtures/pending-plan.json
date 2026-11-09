@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "planId": "plan-8f3c1d2e",
+  "createdAt": "2026-02-14T08:30:00.000Z",
+  "devkitVersion": "0.6.2",
+  "manifestRevision": "builtin-2026-02-01",
+  "options": {
+    "concurrency": 3,
+    "mirrorPreference": "huaweicloud",
+    "proxy": null,
+    "createRestorePoint": true,
+    "dryRun": false
+  },
+  "items": [
+    {
+      "id": "nodejs",
+      "version": "24.21.0",
+      "tier": "L1",
+      "installScope": "user",
+      "requiresAdmin": false,
+      "requiresReboot": false,
+      "dependsOn": [],
+      "state": "success",
+      "attempts": 1,
+      "error": null,
+      "note": null,
+      "startedAt": "2026-02-14T08:30:01.000Z",
+      "finishedAt": "2026-02-14T08:31:20.000Z",
+      "installDir": "%USERPROFILE%\\.devkit\\versions\\nodejs\\24.21.0",
+      "archivePath": "D:\\AgentWork\\cache\\devkit\\nodejs-24.21.0-node-v24.21.0-win-x64.zip",
+      "downloadAttempts": [
+        {
+          "source": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/nodejs/v24.21.0/node-v24.21.0-win-x64.zip",
+          "error": ""
+        },
+        {
+          "source": "official",
+          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip",
+          "error": "ETIMEDOUT"
+        }
+      ]
+    },
+    {
+      "id": "git",
+      "version": "2.51.0",
+      "tier": "L1",
+      "installScope": "user",
+      "requiresAdmin": false,
+      "requiresReboot": false,
+      "dependsOn": [],
+      "state": "pending",
+      "attempts": 0,
+      "error": null,
+      "note": null,
+      "startedAt": null,
+      "finishedAt": null,
+      "installDir": null,
+      "archivePath": null
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "success": 1,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0
+  }
+}

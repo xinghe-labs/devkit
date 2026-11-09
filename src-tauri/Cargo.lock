@@ -533,6 +533,7 @@ dependencies = [
 name = "devkit-app"
 version = "0.6.2"
 dependencies = [
+ "devkit-manifest",
  "devkit-types",
  "serde",
  "serde_json",
@@ -559,9 +560,7 @@ name = "devkit-manifest"
 version = "0.6.2"
 dependencies = [
  "devkit-types",
- "serde",
  "serde_json",
- "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -579,7 +578,9 @@ dependencies = [
 name = "devkit-types"
 version = "0.6.2"
 dependencies = [
+ "regex",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

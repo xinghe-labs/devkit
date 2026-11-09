@@ -1,0 +1,10 @@
+{
+  "id": "Demo Tool",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "detect-only",
+  "name": { "zh-CN": "坏 id" },
+  "description": { "zh-CN": "描述" },
+  "detect": { "commands": [ { "cmd": "demo" } ] },
+  "versions": []
+}

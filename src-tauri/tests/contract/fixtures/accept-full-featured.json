@@ -1,0 +1,88 @@
+{
+  "id": "demo-full",
+  "category": "build",
+  "tier": "L1",
+  "status": "ready",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "全功能",
+    "en-US": "Full"
+  },
+  "description": {
+    "zh-CN": "描述"
+  },
+  "detect": {
+    "commands": [
+      {
+        "cmd": "demo",
+        "expectRegex": "demo \\d"
+      }
+    ],
+    "files": [
+      "%ProgramFiles%\\demo"
+    ],
+    "registry": [
+      {
+        "hive": "HKLM",
+        "view": "64",
+        "path": "SOFTWARE\\demo",
+        "match": {
+          "Version": "1"
+        },
+        "versionFrom": "Version"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "2.1.0+build.4",
+      "channel": "lts",
+      "recommended": true,
+      "arch": "x64",
+      "releaseDate": "2025-06-01",
+      "sizeBytes": 10485760,
+      "installScope": "machine",
+      "requiresReboot": true,
+      "source": {
+        "url": "https://dl.example.com/demo/2.1.0/demo.msi",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "mirrors": [
+        {
+          "name": "huaweicloud",
+          "url": "https://mirrors.huaweicloud.com/demo/2.1.0/demo.msi"
+        }
+      ],
+      "install": {
+        "type": "msi",
+        "template": "msi-silent",
+        "params": {
+          "log": "install.log"
+        }
+      },
+      "uninstall": {
+        "type": "registry",
+        "template": "msi-uninstall"
+      },
+      "activate": {
+        "pathEntries": [
+          "{installDir}\\bin"
+        ],
+        "env": {
+          "DEMO_HOME": "{installDir}"
+        },
+        "linkName": "demo"
+      },
+      "configure": [
+        "demo config set ci on"
+      ],
+      "verify": {
+        "cmd": "demo",
+        "args": [
+          "--version"
+        ],
+        "expectRegex": "2\\.1"
+      }
+    }
+  ]
+}

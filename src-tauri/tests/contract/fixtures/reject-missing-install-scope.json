@@ -1,0 +1,16 @@
+{
+  "id": "demo-noscope",
+  "category": "runtime",
+  "tier": "L1",
+  "status": "ready",
+  "name": { "zh-CN": "缺范围" },
+  "description": { "zh-CN": "描述" },
+  "detect": { "commands": [ { "cmd": "demo" } ] },
+  "versions": [ {
+    "version": "1.0.0",
+    "channel": "stable",
+    "arch": "x64",
+    "source": { "url": "https://example.com/a.zip", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "install": { "type": "zip", "template": "zip-extract" }
+  } ]
+}

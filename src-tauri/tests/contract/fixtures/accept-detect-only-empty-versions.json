@@ -1,0 +1,27 @@
+{
+  "id": "demo-observe",
+  "category": "tool",
+  "tier": "L3",
+  "status": "detect-only",
+  "provider": "direct",
+  "name": {
+    "zh-CN": "只检测"
+  },
+  "description": {
+    "zh-CN": "描述"
+  },
+  "notes": {
+    "zh-CN": "备注"
+  },
+  "homepage": "https://example.com/",
+  "license": {
+    "spdx": "MIT",
+    "redistributable": true
+  },
+  "detect": {
+    "files": [
+      "%ProgramFiles%\\demo\\demo.exe"
+    ]
+  },
+  "versions": []
+}
