@@ -324,6 +324,8 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ### R3 — 检测与报告
 
+> **✅ R3 已完成**：devkit-core 新增 4 模块（detect/preflight/report + devkit-sys registry），204 测试全绿，clippy -D warnings 0 错。真机验收（`cargo test -p devkit-core --test real_machine -- --ignored`）：git→VersionMismatch(2.47.1.windows.2)、node→VersionMismatch(22.23.2)、不存在工具→NotInstalled、本机预检 6 项全 Ok（build 26300 直读注册表）。偏离与决策见附录 E.8。
+
 - detect（注册表直读）、preflight、report（markdown）、日志流
 - 前端 `getAppInfo`/`runDetection`/`listManifests`/`tailLog` 等只读命令接通 → **UI 第一次「完全可用」（只读面）**
 - **验收**：本机检测结果与 TS 版逐项一致（同一台机器，diff 两份报告）

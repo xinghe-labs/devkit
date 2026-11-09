@@ -104,6 +104,79 @@ pub struct DetectRequest {
     pub tool_ids: Option<Vec<String>>,
 }
 
+/// 已安装程序（Uninstall 项扫描结果）。
+///
+/// 对应 TS `registry-parse.ts` 的 `InstalledProgram`：原 TS 用 reg.exe 子进程 + 文本解析，
+/// Rust 侧直读注册表（决策 D6），解析层删除，仅保留数据结构。
+/// devkit-sys 产出，devkit-core 的 detect 消费；FR-16 卸载也复用（UninstallString 在 fields 里）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledProgram {
+    pub hive: RegistryHive,
+    pub view: RegistryView,
+    /// 完整键路径，含 hive（例如 `HKEY_LOCAL_MACHINE\SOFTWARE\...\Uninstall\{GUID}`）
+    pub key_path: String,
+    /// 该键下的所有值，字段名原样保留（字符串化：SZ 原文，DWORD `0x%x (n)` 对齐 reg.exe 输出）
+    pub fields: HashMap<String, String>,
+}
+
+/// 系统预检问题严重度。derive 序号 = 同一处问题多条时的去重优先级（对齐 TS SEVERITY_ORDER）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PreflightSeverity {
+    /// 严重：阻断安装
+    Critical,
+    /// 警告：建议关注但不阻断
+    Warn,
+}
+
+/// 系统预检问题（对齐 TS `preflight/types.ts` 的 `PreflightIssue`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemPreflightIssue {
+    pub tool_id: Option<String>,
+    pub severity: PreflightSeverity,
+    /// 中文消息（预检报告直接展示）
+    pub message: String,
+}
+
+/// 系统预检已执行的检查项（报告里逐条展示）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemPreflightCheck {
+    /// Windows 版本 / 磁盘空间 / 工具冲突 / PATH 配置
+    pub label: String,
+    /// 通过与否
+    pub ok: bool,
+    pub detail: String,
+}
+
+/// 系统预检结果（对齐 TS `PreflightReport`：issues + checks）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemPreflight {
+    pub issues: Vec<SystemPreflightIssue>,
+    pub checks: Vec<SystemPreflightCheck>,
+}
+
+/// 预检输入快照（对齐 TS `checkSystem({ tools, programs, system })` 的 system 参数）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemSnapshot {
+    pub windows_build: u32,
+    pub disks: Vec<DiskInfo>,
+    pub path_env: String,
+}
+
+/// 磁盘信息（盘符 + 剩余空间）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskInfo {
+    /// 盘符，如 "D"
+    pub drive: String,
+    pub free_bytes: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

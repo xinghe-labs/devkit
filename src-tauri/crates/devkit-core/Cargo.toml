@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 devkit-types = { path = "../devkit-types" }
 devkit-manifest = { path = "../devkit-manifest" }
+devkit-sys = { path = "../devkit-sys" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

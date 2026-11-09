@@ -17,6 +17,7 @@ pub mod ipc;
 pub mod locale;
 pub mod manifest;
 pub mod plan;
+pub mod preflight;
 pub mod profile;
 pub mod settings;
 pub mod system;
