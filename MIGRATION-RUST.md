@@ -97,9 +97,9 @@ devkit-types ◄── devkit-manifest ◄── devkit-core ◄── devkit-sy
 | --- | --- | --- | --- |
 | `devkit-types` | 全部 serde 类型（InstallPlan、Manifest、Profile、Preset、Settings、ProgressEvent…）+ 错误类型（thiserror）+ 常量 | serde, serde_json, thiserror | `src/shared/types.ts` `ipc.ts` `version.ts` |
 | `devkit-manifest` | 清单加载、JSON Schema 校验、热更新字段白名单、版本比较 | jsonschema（或自写校验）, serde_json | `core/manifest/` |
-| `devkit-core` | plan/preflight（规则部分）/executor/downloader/providers/installer/providers/templates/presets/profile/offline/hotupdate/updater/settings/config/report/vscode | reqwest(rustls), sha2, hex, zip, tokio, futures, tracing | 对应 13 个模块 |
+| `devkit-core` | plan/preflight（规则部分）/executor/downloader/providers/installer/providers/templates/presets/profile/offline/hotupdate/updater/settings/config/report/vscode | reqwest(rustls), sha2, hex, zip, tokio, futures | 对应 13 个模块 |
 | `devkit-sys` | 注册表、PATH/环境变量、Junction、UAC 提权、进程探测、WM_SETTINGCHANGE、还原点、卸载登记 | windows, windows-registry, junction | `activate/` `detect/` `doctor/` `systemconfig/` `uninstall/` `elevation/` |
-| `devkit-app` | Tauri commands（46 个）、事件转发（2 个）、AppState、窗口/托盘/single-instance | tauri 2, tokio, tracing-subscriber | `index.ts` `ipc/` |
+| `devkit-app` | Tauri commands（46 个）、事件转发（2 个）、AppState、窗口/托盘/single-instance | tauri 2, tokio | `index.ts` `ipc/`；日志为手写 Logger（D5） |
 
 > 备选：把 manifest 并进 core 省一个 crate。**建议保留独立 crate**——manifest 的 schema 校验与热更新白名单是安全关键，独立 crate 让 CI 可以单独跑它的测试矩阵（含 schema fixture）。
 
