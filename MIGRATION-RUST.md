@@ -305,11 +305,13 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ### R1 — 类型与清单
 
+> **✅ R1 已完成**：验收逐项达成：① 25 份随包清单全部通过 Rust 校验器（`cargo test --test manifest_contract`，含 8+3 份双向契约 fixture）；② TS 侧 `vitest` 契约测试读取同一批 fixtures + Rust 回写产物（`src/main/core/manifest/contract.test.ts`，4 用例）；③ `cargo fmt/clippy/test` + `tsc×3` + `eslint` + 全量 vitest 722 通过全绿。实现与偏离见附录 E.5。
+
 - `devkit-types` 全量 serde 类型 + 契约 fixture 建立（§8）
 - `devkit-manifest` 迁移（schema 校验 + 热更新白名单 + 版本比较）
 - `scripts/check-manifest.ts` 的 Rust 等价版（`devkit-manifest` 附带 bin）
 - **验收**：25 个清单 JSON 全部通过 Rust 校验，与 TS 版 `manifest:check` 结果一致；契约测试全绿
-- **tag**：`rust-r1`
+- **tag**：`rust-r1`（已打）
 
 ### R2 — 下载与安装（零风险闭环）
 
@@ -1062,3 +1064,31 @@ dataRoot 解析优先级（对齐 `app-paths.ts`）：`DEVKIT_DATA_ROOT` 环境�
 | D14 | 默认内置 WebView2 bootstrapper | Win10 22H2 已内置但旧镜像可能缺；体积增量 R6 记录 | 不内置 → 部分机器启动即挂 |
 | D15 | GB18030 解码链原样保留 | 中文 Windows cmd 报错是 GBK，lossy UTF-8 出乱码 | 强制命令侧 UTF-8 需改所有调用点，超范围 |
 | D16 | AppInfo 三个 runtime 字段保留键名、值如实（附录 F.4） | renderer 直接展示，不改 UI | 改键名 = 动 renderer（违背 D1） |
+| D17 | 清单 schema 仅镜像 `tool.schema.json`；`test/*`、`tiers/*` 不进 Rust | Rust 校验器只需发布路径验收集；layers/tiers 校验规则已在 TS 侧 runValidation 内复刻 | 全量镜像 = 维护两份同义 schema |
+| D18 | 契约 fixture 用 Python/Node 结构化生成，不手写反斜杠 JSON | 手写 `\\bin` 反复变控制字符（\b）导致 serde 拒收 | 手写转义 = 不可靠；重建脚本一次性验证回读 |
+
+## 附录 E.5：R1 具体落地物（已完成）
+
+### 新增 crate 实现
+
+| 模块 | 内容 |
+| --- | --- |
+| `crates/devkit-types/src/` | `lib.rs`（AppInfo/Preset + re-export）、`locale.rs`（LocalizedText 回退链）、`ipc.rs`（46+2 通道常量）、`jsonrpc.rs`（IpcError/JsonRpcError/ErrorCodes）、`plan.rs`（InstallPlan/PlanItem/PlanOptions/Preflight 等，SchemaVersion 数字 1 自定义 Serialize+Deserialize）、`timeutil.rs`（iso8601_now/from_unix，civil 算法，无 chrono） |
+| `crates/devkit-manifest/src/` | `lib.rs`（deserializer with deny_unknown_fields + manifest-path 白名单入口）、`schema.rs`（结构化 SchemaError→domainError 25xx 映射）、`validate.rs`（serde 规则 + 4 项语义检查：ready-sha256/url-http/template/locateDepth≤2）、`locate.rs`（{var}/{key}/{key.path} 嵌套展开，anchor 冲突同 TS）、`compare.rs`（SemVer 预发布字典序）、`order.rs`（channel/locale/mirror 优先级） |
+
+### 契约 fixtures（§8 双向，两侧共用同一批文件）
+
+- 位置 `src-tauri/tests/contract/fixtures/`；`accept-*` ×3 / `reject-*` ×10：两侧校验器必须一致接受/拒绝
+- `pending-plan.json`（TS 形态，含 null）→ Rust 读入回写 → `generated-pending-plan.json`（测试运行时生成）
+- Rust：`tests/manifest_contract.rs`（真实清单 25 份过校验器 + fixtures 方向一致 + pending 双向 roundtrip null 归一化比对）
+- TS：`src/main/core/manifest/contract.test.ts`（同 fixtures 过 Ajv validateManifests + 读 Rust 回写产物 looksLikePlan）
+
+**验收证据**：`cargo fmt/clippy/test` 全绿（manifest_contract 4 用例）；`tsc×3 + eslint` 全绿；vitest 722/722（新增 4 契约用例）；25/25 真实清单过 Rust 校验器。
+
+### 偏离记录（与正文/附录 A 的差异）
+
+1. schema 镜像范围：只迁移 `resources/manifest/schema/tool.schema.json` 对应的结构规则；`schema/test/*`（阶段子 schema）与 `tiers/*` 不进 Rust（D17）——TS 侧 runValidation 的 tier/layer 规则已在 `devkit-manifest::validate` 语义检查内复刻。
+2. `SchemaVersion` 自定义 Serialize 输出数字 `1`（derive 默认会写成字符串 `"One"`，已修）。
+3. fixture 编写教训（D18）：手写含 `\bin` 的 JSON 反斜杠会被部分工具转成退格控制字符，改用 Python `json.dump` 结构化重建（`D:/AgentWork/tmp/rebuild_fixture*.py`，一次性）。
+4. 附录 A「manifest.schema.json」实际文件名为 `tool.schema.json`（本附录为准）。
+5. bin `manifest-check`（附录 H 行）顺延到 R2 起（本阶段以 cargo test 承担 CI 校验职责，`scripts/check-manifest.ts` TS 版保持原状可用）。
