@@ -133,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: unsigned-installer
-          path: src-tauri/target/release/bundle/nsis/devkit-*-setup.exe
+          path: src-tauri/target/release/bundle/nsis/devkit_*-setup.exe
           if-no-files-found: error
 
       - name: 提交 SignPath 签名请求
@@ -153,7 +153,7 @@ jobs:
         if: env.SIGNPATH_API_TOKEN != ''
         shell: pwsh
         run: |
-          $signed = Get-ChildItem signed -Recurse -Filter 'devkit-*-setup.exe' | Select-Object -First 1
+          $signed = Get-ChildItem signed -Recurse -Filter 'devkit_*-setup.exe' | Select-Object -First 1
           if (-not $signed) { throw '签名输出目录里没有找到 setup.exe' }
           $target = Join-Path $PWD ('src-tauri/target/release/bundle/nsis/' + $signed.Name)
           Copy-Item $signed.FullName $target -Force
@@ -169,7 +169,7 @@ jobs:
         run: |
           # 用 .NET 直接读签名，不依赖 Get-AuthenticodeSignature
           # （实测有些机器的 PowerShell 缺 Microsoft.PowerShell.Security 模块）
-          $exe = (Get-ChildItem src-tauri/target/release/bundle/nsis -Filter 'devkit-*-setup.exe' | Select-Object -First 1).FullName
+          $exe = (Get-ChildItem src-tauri/target/release/bundle/nsis -Filter 'devkit_*-setup.exe' | Select-Object -First 1).FullName
           try {
             $cert = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($exe)
             Write-Host "签名者：$($cert.Subject)"
@@ -192,5 +192,5 @@ jobs:
           body_path: .github/release-notice.md
           generate_release_notes: true
           files: |
-            src-tauri/target/release/bundle/nsis/devkit-*-setup.exe
+            src-tauri/target/release/bundle/nsis/devkit_*-setup.exe
             src-tauri/target/release/bundle/nsis/latest.json
