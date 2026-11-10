@@ -154,7 +154,8 @@ fn extract_zip_sync(options: ExtractOptions) -> Result<ExtractResult, ZipExtract
         }
 
         let mut entry = archive.by_index(index)?;
-        let name = entry.name().to_string();
+        // zip 9 起 name() 返回 Result<Cow<str>>（可能因非法 UTF-8/尾随反斜杠报错）
+        let name = entry.name()?.into_owned();
 
         // zip crate 的 unix_mode() = externalFileAttributes 高 16 位，与 TS 的判定等价
         let unix_mode = entry.unix_mode().unwrap_or(0);
