@@ -32,7 +32,10 @@ pub fn is_version_dir(name: &str) -> bool {
     }
     let first = bytes[0];
     let valid_first = first.is_ascii_digit() || first.is_ascii_alphabetic();
-    valid_first && bytes[1..].iter().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'+' | b'-'))
+    valid_first
+        && bytes[1..]
+            .iter()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'+' | b'-'))
 }
 
 /// 列出一个工具目录下的版本目录；不是目录或读不到就返回 None
@@ -54,9 +57,7 @@ fn list_version_dirs(tool_dir: &Path) -> Option<Vec<String>> {
 fn birth_time_iso(dir: &Path) -> Option<String> {
     let meta = fs::metadata(dir).ok()?;
     let created = meta.created().ok()?;
-    let unix = created
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?;
+    let unix = created.duration_since(std::time::UNIX_EPOCH).ok()?;
     Some(devkit_types::timeutil::iso8601_from_unix(
         unix.as_secs() as i64,
         unix.subsec_millis(),
@@ -88,8 +89,8 @@ pub fn list_installed(
 
         for version in versions {
             let install_dir = tool_dir.join(&version);
-            let spec = tool
-                .and_then(|tool| tool.versions.iter().find(|item| item.version == version));
+            let spec =
+                tool.and_then(|tool| tool.versions.iter().find(|item| item.version == version));
             let meta_created = birth_time_iso(&install_dir);
             result.push(InstalledTool {
                 tool_id: tool_id.clone(),
@@ -115,8 +116,7 @@ pub async fn list_installed_with_size(
 ) -> Vec<InstalledTool> {
     let mut items = list_installed(tools, versions_root, activated_versions);
     for item in &mut items {
-        item.size_bytes =
-            crate::direct::directory_size(Path::new(&item.install_dir)).await;
+        item.size_bytes = crate::direct::directory_size(Path::new(&item.install_dir)).await;
     }
     items
 }
@@ -141,13 +141,23 @@ pub async fn uninstall_version(
         !bytes.is_empty()
             && bytes.len() <= 40
             && bytes[0].is_ascii_lowercase()
-            && bytes.iter().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
+            && bytes
+                .iter()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
     };
     if !id_ok {
-        return UninstallResult { ok: false, removed, error: Some(format!("工具 id 不合法：{tool_id}")) };
+        return UninstallResult {
+            ok: false,
+            removed,
+            error: Some(format!("工具 id 不合法：{tool_id}")),
+        };
     }
     if !is_version_dir(version) {
-        return UninstallResult { ok: false, removed, error: Some(format!("版本号不合法：{version}")) };
+        return UninstallResult {
+            ok: false,
+            removed,
+            error: Some(format!("版本号不合法：{version}")),
+        };
     }
 
     let install_dir = versions_root.join(tool_id).join(version);
@@ -163,7 +173,11 @@ pub async fn uninstall_version(
     // 必须在删目录**之前**做 —— 卸载程序可能依赖目录里还在的东西。
     let spec = tool.and_then(|tool| tool.versions.iter().find(|item| item.version == version));
     if let Some(spec) = spec {
-        if spec.uninstall.as_ref().is_some_and(|u| u.uninstall_type == devkit_types::manifest::UninstallType::Registry) {
+        if spec
+            .uninstall
+            .as_ref()
+            .is_some_and(|u| u.uninstall_type == devkit_types::manifest::UninstallType::Registry)
+        {
             if let Some(tool) = tool {
                 let by_registry = registry::uninstall_by_registry(tool, elevated);
                 if let Some(detail) = by_registry.detail {
@@ -174,12 +188,17 @@ pub async fn uninstall_version(
                     // （卸载程序找不到文件，用户既装不上也卸不掉）
                     logging::global().warn(
                         "uninstall",
-                        &format!("注册表卸载失败，已中止：{}", by_registry.error.as_deref().unwrap_or("")),
+                        &format!(
+                            "注册表卸载失败，已中止：{}",
+                            by_registry.error.as_deref().unwrap_or("")
+                        ),
                     );
                     return UninstallResult {
                         ok: false,
                         removed,
-                        error: by_registry.error.or_else(|| Some("注册表卸载失败".to_string())),
+                        error: by_registry
+                            .error
+                            .or_else(|| Some("注册表卸载失败".to_string())),
                     };
                 }
             }
@@ -193,28 +212,44 @@ pub async fn uninstall_version(
                 removed.append(&mut deactivated);
             }
             Err(error) => {
-                logging::global().warn("uninstall", &format!("取消激活失败（继续删除文件）：{error}"));
+                logging::global().warn(
+                    "uninstall",
+                    &format!("取消激活失败（继续删除文件）：{error}"),
+                );
             }
         }
     }
 
     if let Err(error) = remove_install_dir(&install_dir, versions_root).await {
-        logging::global().error("uninstall", &format!("卸载 {tool_id}@{version} 失败：{error:?}"));
-        return UninstallResult { ok: false, removed, error: Some(format!("{error:?}")) };
+        logging::global().error(
+            "uninstall",
+            &format!("卸载 {tool_id}@{version} 失败：{error:?}"),
+        );
+        return UninstallResult {
+            ok: false,
+            removed,
+            error: Some(format!("{error:?}")),
+        };
     }
     removed.push(format!("安装目录 {}", install_dir.display()));
 
     // 版本目录空了就把工具目录一起收掉，避免留下空壳
     if let Ok(mut entries) = fs::read_dir(versions_root.join(tool_id)) {
-        if entries.next().is_none()
-            && fs::remove_dir(versions_root.join(tool_id)).is_ok() {
-                removed.push(format!("空目录 {}", versions_root.join(tool_id).display()));
-            }
-            // 收尾失败不影响卸载结论
+        if entries.next().is_none() && fs::remove_dir(versions_root.join(tool_id)).is_ok() {
+            removed.push(format!("空目录 {}", versions_root.join(tool_id).display()));
+        }
+        // 收尾失败不影响卸载结论
     }
 
-    logging::global().info("uninstall", &format!("已卸载 {tool_id}@{version}：{}", removed.join("；")));
-    UninstallResult { ok: true, removed, error: None }
+    logging::global().info(
+        "uninstall",
+        &format!("已卸载 {tool_id}@{version}：{}", removed.join("；")),
+    );
+    UninstallResult {
+        ok: true,
+        removed,
+        error: None,
+    }
 }
 
 /// 清掉指向不存在目录的 junction（诊断/修复用）
@@ -238,7 +273,8 @@ mod tests {
     use std::path::PathBuf;
 
     fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("devkit-uninstall-{tag}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("devkit-uninstall-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -287,7 +323,11 @@ mod tests {
 
     #[test]
     fn list_installed_missing_root_returns_empty() {
-        let items = list_installed(&[], Path::new(r"D:\definitely-not-exists-xyz"), &HashMap::new());
+        let items = list_installed(
+            &[],
+            Path::new(r"D:\definitely-not-exists-xyz"),
+            &HashMap::new(),
+        );
         assert!(items.is_empty());
     }
 
@@ -295,20 +335,41 @@ mod tests {
     fn uninstall_rejects_bad_ids() {
         let root = temp_root("badids");
         let io = FakeUserIo;
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         let elevated = crate::elevation::NoElevation;
 
-        let result = rt.block_on(uninstall_version(&io, &elevated, "Bad_ID", "1.0", &root, None));
+        let result = rt.block_on(uninstall_version(
+            &io, &elevated, "Bad_ID", "1.0", &root, None,
+        ));
         assert!(!result.ok);
-        assert!(result.error.as_deref().unwrap_or_default().contains("工具 id 不合法"));
+        assert!(result
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("工具 id 不合法"));
 
-        let result = rt.block_on(uninstall_version(&io, &elevated, "nodejs", ".bad", &root, None));
+        let result = rt.block_on(uninstall_version(
+            &io, &elevated, "nodejs", ".bad", &root, None,
+        ));
         assert!(!result.ok);
-        assert!(result.error.as_deref().unwrap_or_default().contains("版本号不合法"));
+        assert!(result
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("版本号不合法"));
 
-        let result = rt.block_on(uninstall_version(&io, &elevated, "nodejs", "1.0", &root, None));
+        let result = rt.block_on(uninstall_version(
+            &io, &elevated, "nodejs", "1.0", &root, None,
+        ));
         assert!(!result.ok);
-        assert!(result.error.as_deref().unwrap_or_default().contains("没有找到已安装的"));
+        assert!(result
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("没有找到已安装的"));
     }
 
     #[test]
@@ -319,10 +380,15 @@ mod tests {
         fs::write(install_dir.join("node.exe"), "fake").unwrap();
 
         let io = FakeUserIo;
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         let elevated = crate::elevation::NoElevation;
 
-        let result = rt.block_on(uninstall_version(&io, &elevated, "nodejs", "20.11.1", &root, None));
+        let result = rt.block_on(uninstall_version(
+            &io, &elevated, "nodejs", "20.11.1", &root, None,
+        ));
         assert!(result.ok, "error: {:?}", result.error);
         assert!(result.removed.iter().any(|item| item.contains("安装目录")));
         // 工具目录空了 → 一并收掉

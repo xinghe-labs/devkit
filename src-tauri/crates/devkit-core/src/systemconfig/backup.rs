@@ -68,7 +68,10 @@ pub struct SystemConfigBackup {
 
 impl SystemConfigBackup {
     pub fn empty() -> Self {
-        Self { schema_version: SCHEMA_VERSION, entries: Vec::new() }
+        Self {
+            schema_version: SCHEMA_VERSION,
+            entries: Vec::new(),
+        }
     }
 }
 
@@ -121,11 +124,12 @@ pub fn read_system_config_backup() -> SystemConfigBackup {
                 let entries = parsed
                     .get("entries")
                     .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter().filter_map(entry_from_json).collect::<Vec<_>>()
-                    })
+                    .map(|arr| arr.iter().filter_map(entry_from_json).collect::<Vec<_>>())
                     .unwrap_or_default();
-                SystemConfigBackup { schema_version: SCHEMA_VERSION, entries }
+                SystemConfigBackup {
+                    schema_version: SCHEMA_VERSION,
+                    entries,
+                }
             }
             Err(error) => {
                 // 账本坏了不能让程序起不来；当空的处理，并在日志里留痕
@@ -147,7 +151,10 @@ pub fn read_system_config_backup() -> SystemConfigBackup {
 }
 
 pub fn get_backup_entry(id: SystemConfigId) -> Option<SystemConfigBackupEntry> {
-    read_system_config_backup().entries.into_iter().find(|entry| entry_id(entry) == id)
+    read_system_config_backup()
+        .entries
+        .into_iter()
+        .find(|entry| entry_id(entry) == id)
 }
 
 fn write_backup(backup: &SystemConfigBackup) {
@@ -155,8 +162,7 @@ fn write_backup(backup: &SystemConfigBackup) {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    let json: Vec<serde_json::Value> =
-        backup.entries.iter().map(entry_to_json).collect();
+    let json: Vec<serde_json::Value> = backup.entries.iter().map(entry_to_json).collect();
     let payload = serde_json::json!({ "schemaVersion": backup.schema_version, "entries": json });
     let text = serde_json::to_string_pretty(&payload).expect("backup serialize");
     fs::write(&path, format!("{text}\n")).expect("write backup ledger");
@@ -175,14 +181,22 @@ fn entry_id(entry: &SystemConfigBackupEntry) -> SystemConfigId {
 /// 返回真正生效的记录（可能是之前那条）。
 pub fn record_backup(entry: SystemConfigBackupEntry) -> SystemConfigBackupEntry {
     let mut backup = read_system_config_backup();
-    if let Some(existing) = backup.entries.iter().find(|item| entry_id(item) == entry_id(&entry)) {
+    if let Some(existing) = backup
+        .entries
+        .iter()
+        .find(|item| entry_id(item) == entry_id(&entry))
+    {
         return existing.clone();
     }
     backup.entries.push(entry.clone());
     write_backup(&backup);
     logging::global().info(
         "system",
-        &format!("已备份系统配置原值：{:?}（还原点 {}）", entry_id(&entry), backup_file_path().display()),
+        &format!(
+            "已备份系统配置原值：{:?}（还原点 {}）",
+            entry_id(&entry),
+            backup_file_path().display()
+        ),
     );
     entry
 }
@@ -190,11 +204,19 @@ pub fn record_backup(entry: SystemConfigBackupEntry) -> SystemConfigBackupEntry 
 /// 还原成功后销账 —— 留着会让界面一直显示"已由 devkit 修改"
 pub fn clear_backup_entry(id: SystemConfigId) {
     let backup = read_system_config_backup();
-    let next: Vec<_> = backup.entries.iter().filter(|entry| entry_id(entry) != id).cloned().collect();
+    let next: Vec<_> = backup
+        .entries
+        .iter()
+        .filter(|entry| entry_id(entry) != id)
+        .cloned()
+        .collect();
     if next.len() == backup.entries.len() {
         return;
     }
-    write_backup(&SystemConfigBackup { schema_version: SCHEMA_VERSION, entries: next });
+    write_backup(&SystemConfigBackup {
+        schema_version: SCHEMA_VERSION,
+        entries: next,
+    });
     logging::global().info("system", &format!("已清除系统配置备份记录：{id:?}"));
 }
 
@@ -209,8 +231,11 @@ mod tests {
 
     /// 沙箱环境：把 DEVKIT_APP_DATA 指到临时目录（与其它环境变量测试互斥）。
     fn sandbox(tag: &str) -> (std::sync::MutexGuard<'static, ()>, PathBuf) {
-        let guard = ENV_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let dir = std::env::temp_dir().join(format!("devkit-syscfg-test-{tag}-{}", std::process::id()));
+        let guard = ENV_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir =
+            std::env::temp_dir().join(format!("devkit-syscfg-test-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         std::env::set_var("DEVKIT_APP_DATA", &dir);
         (guard, dir)
@@ -238,11 +263,17 @@ mod tests {
 
         // 记一条「原本为 0」
         let recorded = record_backup(registry_entry(SystemConfigId::LongPaths, Some(0)));
-        assert!(matches!(recorded, SystemConfigBackupEntry::Registry { value: Some(0), .. }));
+        assert!(matches!(
+            recorded,
+            SystemConfigBackupEntry::Registry { value: Some(0), .. }
+        ));
 
         // 再记一条不同值 → 首写胜出，仍是 0
         let second = record_backup(registry_entry(SystemConfigId::LongPaths, Some(1)));
-        assert!(matches!(second, SystemConfigBackupEntry::Registry { value: Some(0), .. }));
+        assert!(matches!(
+            second,
+            SystemConfigBackupEntry::Registry { value: Some(0), .. }
+        ));
 
         // 重新读文件验证持久化
         let entries = read_system_config_backup().entries;

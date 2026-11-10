@@ -601,7 +601,6 @@ mod tests {
             link_name: None,
         };
 
-
         // —— 场景 1：首次激活。PATH 收敛到 %DEVKIT_HOME%，junction 落在 dataRoot\current ——
         let result = activate_version(
             &io,

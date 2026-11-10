@@ -6,5 +6,6 @@
 
 pub mod disk;
 pub mod junction;
+pub mod random;
 pub mod registry;
 pub mod user_env;

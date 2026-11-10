@@ -54,17 +54,8 @@ import { listen } from '@tauri-apps/api/event'
  * - `window.devkit` 不存在（即 tauri dev / tauri 产物）时由 main.tsx 安装本适配层；
  *   Electron 调试模式下 preload 已注入原实现，适配层不覆盖。
  * - 契约不变：改 `src/shared/api.ts` 编译器会同时报错两边。
- * - R0 只接入 get_app_info / signal_ready；其余命令在对应 R 阶段接入后把
- *   notImplemented 换成 `invoke(...)`。未接入的命令把入参拼进错误信息，
- *   便于排查"UI 为什么点不动"，绝不静默假装成功。
+ * - R5 已全量接入：每个方法对应一个 Rust `#[tauri::command]`（src-tauri/src/main.rs）。
  */
-function notImplemented(command: string, args?: unknown[]): never {
-  const shown = args?.filter((a) => a !== undefined && typeof a !== 'function')
-  const detail = shown && shown.length > 0 ? `：${JSON.stringify(shown)}` : ''
-  throw new Error(
-    `devkit: 命令 ${command} 尚未接入（Rust 迁移中，见 MIGRATION-RUST.md §10）${detail}`
-  )
-}
 
 /** 同步订阅推送通道：listen 是异步的，返回的取消函数兜住竞态（先订阅后取消也不泄漏）。 */
 function subscribe<T>(event: string, listener: (payload: T) => void): () => void {
@@ -86,27 +77,27 @@ export const tauriAdapter: DevkitApi = {
   },
 
   listManifests(): Promise<ManifestLoadResult> {
-    return notImplemented('list_manifests')
+    return invoke('list_manifests')
   },
 
   runDetection(request?: DetectRequest): Promise<DetectionResult[]> {
-    return notImplemented('run_detection', [request])
+    return invoke('run_detection', { request: request ?? null })
   },
 
   getLocale(): Promise<Locale> {
-    return notImplemented('get_locale')
+    return invoke('get_locale')
   },
 
   setLocale(locale: Locale): Promise<Locale> {
-    return notImplemented('set_locale', [locale])
+    return invoke('set_locale', { value: locale })
   },
 
   tailLog(count?: number): Promise<LogEntry[]> {
-    return notImplemented('tail_log', [count])
+    return invoke('tail_log', { count: count ?? null })
   },
 
   openLogDir(): Promise<boolean> {
-    return notImplemented('open_log_dir')
+    return invoke('open_log_dir')
   },
 
   async signalReady(): Promise<boolean> {
@@ -117,156 +108,152 @@ export const tauriAdapter: DevkitApi = {
     return subscribe<LogEntry>('log-line', listener)
   },
 
-  prepareInstall(
-    selections: PlanSelection[],
-    dryRun?: boolean,
-    availableToolIds?: string[]
-  ): Promise<PlanPreparation> {
-    return notImplemented('prepare_install', [selections, dryRun, availableToolIds])
+  prepareInstall(selections: PlanSelection[], dryRun?: boolean): Promise<PlanPreparation> {
+    return invoke('prepare_install', { selections, dryRun: dryRun ?? null })
   },
 
   startInstall(planId: string): Promise<StartInstallResult> {
-    return notImplemented('start_install', [planId])
+    return invoke('start_install', { planId })
   },
 
   cancelInstall(): Promise<boolean> {
-    return notImplemented('cancel_install')
+    return invoke('cancel_install')
   },
 
   getPendingPlan(): Promise<PendingPlanLoad> {
-    return notImplemented('get_pending_plan')
+    return invoke('get_pending_plan')
   },
 
   discardPendingPlan(): Promise<boolean> {
-    return notImplemented('discard_pending_plan')
+    return invoke('discard_pending_plan')
   },
 
   resumeInstall(): Promise<StartInstallResult> {
-    return notImplemented('resume_install')
+    return invoke('resume_install')
   },
 
   exportInstallReport(): Promise<string | null> {
-    return notImplemented('export_install_report')
+    return invoke('export_install_report')
   },
 
   listPresets(): Promise<Preset[]> {
-    return notImplemented('list_presets')
+    return invoke('list_presets')
   },
 
   savePreset(preset: unknown): Promise<Preset> {
-    return notImplemented('save_preset', [preset])
+    return invoke('save_preset', { preset: preset ?? null })
   },
 
   deletePreset(id: string): Promise<boolean> {
-    return notImplemented('delete_preset', [id])
+    return invoke('delete_preset', { id })
   },
 
   importPreset(raw: unknown): Promise<Preset> {
-    return notImplemented('import_preset', [raw])
+    return invoke('import_preset', { raw: raw ?? null })
   },
 
   getActivationSnapshot(): Promise<ActivationSnapshot> {
-    return notImplemented('get_activation_snapshot')
+    return invoke('get_activation_snapshot')
   },
 
   activateVersion(request: ActivateRequest): Promise<ActivateResult> {
-    return notImplemented('activate_version', [request])
+    return invoke('activate_version', { request })
   },
 
   deactivateTool(toolId: string): Promise<{ removed: string[]; error: string | null }> {
-    return notImplemented('deactivate_tool', [toolId])
+    return invoke('deactivate_tool', { toolId })
   },
 
   listInstalled(): Promise<InstalledTool[]> {
-    return notImplemented('list_installed')
+    return invoke('list_installed')
   },
 
   uninstallTool(request: UninstallRequest): Promise<UninstallResult> {
-    return notImplemented('uninstall_tool', [request])
+    return invoke('uninstall_tool', { request })
   },
 
   getSettings(): Promise<UserConfigView> {
-    return notImplemented('get_settings')
+    return invoke('get_settings')
   },
 
   saveSettings(patch: unknown): Promise<UserConfigView> {
-    return notImplemented('save_settings', [patch])
+    return invoke('save_settings', { patch: patch ?? null })
   },
 
   applyMirrors(settings: MirrorSetting[]): Promise<MirrorApplyResult> {
-    return notImplemented('apply_mirrors', [settings])
+    return invoke('apply_mirrors', { settings })
   },
 
   openExternal(url: string): Promise<boolean> {
-    return notImplemented('open_external', [url])
+    return invoke('open_external', { url })
   },
 
   getVscodeStatus(): Promise<VscodeStatus> {
-    return notImplemented('get_vscode_status')
+    return invoke('get_vscode_status')
   },
 
   listVscodeExtensions(): Promise<VscodeExtension[]> {
-    return notImplemented('list_vscode_extensions')
+    return invoke('list_vscode_extensions')
   },
 
   installVscodeExtensions(ids: string[]): Promise<VscodeInstallResult> {
-    return notImplemented('install_vscode_extensions', [ids])
+    return invoke('install_vscode_extensions', { ids })
   },
 
   checkForUpdate(): Promise<UpdateInfo> {
-    return notImplemented('check_for_update')
+    return invoke('check_for_update')
   },
 
   downloadUpdate(): Promise<DownloadUpdateResult> {
-    return notImplemented('download_update')
+    return invoke('download_update')
   },
 
   installUpdate(filePath: string): Promise<boolean> {
-    return notImplemented('install_update', [filePath])
+    return invoke('install_update', { filePath })
   },
 
   exportProfile(request: ExportProfileRequest): Promise<ExportProfileResult> {
-    return notImplemented('export_profile', [request])
+    return invoke('export_profile', { request: request ?? null })
   },
 
   importProfile(): Promise<ImportProfileResult> {
-    return notImplemented('import_profile')
+    return invoke('import_profile')
   },
 
   applyProfile(profile: EnvProfile, options: ApplyProfileOptions): Promise<ApplyProfileResult> {
-    return notImplemented('apply_profile', [profile, options])
+    return invoke('apply_profile_command', { profile, options })
   },
 
   runDoctor(): Promise<DoctorReport> {
-    return notImplemented('run_doctor')
+    return invoke('run_doctor')
   },
 
   applyDoctorFix(fixId: DoctorFixId): Promise<DoctorFixResult> {
-    return notImplemented('apply_doctor_fix', [fixId])
+    return invoke('apply_doctor_fix', { fixId })
   },
 
   getSystemConfig(): Promise<SystemConfigItem[]> {
-    return notImplemented('get_system_config')
+    return invoke('get_system_config')
   },
 
   applySystemConfig(request: SystemConfigRequest): Promise<SystemConfigResult> {
-    return notImplemented('apply_system_config', [request])
+    return invoke('apply_system_config', { request })
   },
 
   revertSystemConfig(request: SystemConfigRevertRequest): Promise<SystemConfigResult> {
-    return notImplemented('revert_system_config', [request])
+    return invoke('revert_system_config', { request })
   },
 
   runHotUpdate(url: string): Promise<HotUpdateResultView> {
-    return notImplemented('run_hot_update', [url])
+    return invoke('run_hot_update', { url })
   },
 
   clearManifestOverride(): Promise<number> {
-    return notImplemented('clear_manifest_override')
+    return invoke('clear_manifest_override')
   },
 
   packOffline(request: OfflinePackRequest): Promise<OfflinePackResult> {
-    return notImplemented('pack_offline', [request])
+    return invoke('pack_offline', { request: request ?? null })
   },
 
   importOfflinePack(packDir?: string): Promise<{
@@ -276,7 +263,7 @@ export const tauriAdapter: DevkitApi = {
     entries: { toolId: string; version: string; fileName: string; sha256: string }[]
     error: string | null
   }> {
-    return notImplemented('import_offline_pack', [packDir])
+    return invoke('import_offline_pack', { packDir: packDir ?? null })
   },
 
   onInstallProgress(listener: (event: InstallProgressEvent) => void): () => void {

@@ -342,6 +342,8 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ### R5 — 提权与全命令面收口
 
+> **✅ R5 已完成**：devkit-core 新增 9 个模块（settings、config、presets、profile、vscode、hotupdate、updater、offline、elevation/{mod,helper_script,run_job}）+ devkit-sys 新增 random，347 测试全绿（Rust）+ vitest 545 全绿，clippy/fmt/tsc×3/eslint 全绿。全命令面 46 命令 + 2 事件接入（src-tauri/src/main.rs），渲染端 tauri-adapter.ts 全量 invoke 化（`notImplemented` 清零）。UAC/SHA-256 复验/nonce 三条虚拟机实测顺延 R7（本机开发环境无法完整弹 UAC，提权规则已在单元层覆盖，见 E.10）。实现与偏离见附录 E.10。
+
 - elevation（§6.5 不变式逐条验收）、offline、hotupdate、updater、presets、profile、vscode、settings、config(mirrors)
 - 46 个 command + 2 个 event 全部实现（逐条对照附录 A 勾销）；适配层完成，renderer 全部调用点无感切换
 - **验收**：UAC 单次弹窗、SHA-256 复验、nonce 校验三条实测（虚拟机）；`security-regression` 三条全部在 Rust 侧重建立并通过
@@ -1162,3 +1164,39 @@ dataRoot 解析优先级（对齐 `app-paths.ts`）：`DEVKIT_DATA_ROOT` 环境�
 3. fixture 编写教训（D18）：手写含 `\bin` 的 JSON 反斜杠会被部分工具转成退格控制字符，改用 Python `json.dump` 结构化重建（`D:/AgentWork/tmp/rebuild_fixture*.py`，一次性）。
 4. 附录 A「manifest.schema.json」实际文件名为 `tool.schema.json`（本附录为准）。
 5. bin `manifest-check`（附录 H 行）顺延到 R2 起（本阶段以 cargo test 承担 CI 校验职责，`scripts/check-manifest.ts` TS 版保持原状可用）。
+
+## 附录 E.10：R5 落地物（全命令面 + 系统写入面收口，已完成）
+
+### 新增模块
+
+| 模块 | 对应 TS | 内容 |
+| --- | --- | --- |
+| `devkit-core/src/settings.rs` | `settings/*` | config.json 读写（camelCase serde + deny_unknown_fields + 未知键保留回写）、locale 回退链、concurrency 夹取 1..=3 |
+| `devkit-core/src/config.rs` | `config/mirrors.ts` | apply_mirrors（npm/git/pip 三处写入 + 回读验证），写成功才回 true |
+| `devkit-core/src/presets.rs` | `presets/*` | 内置 9 预设 + 用户预设 CRUD（dataRoot/presets/）、导入（rejects 未知 schemaVersion） |
+| `devkit-core/src/profile.rs` | `profile/*` | collect/sanitize/describe/apply 四件套；`%DEVKIT_HOME%` 归一化；PATH 还原先备份；git 身份默认不导出 |
+| `devkit-core/src/vscode.rs` | `vscode/*` | 状态探测（code.cmd 存在性）、扩展列表（--list-extensions）、批量安装（--install-extension 逐个） |
+| `devkit-core/src/hotupdate.rs` | `hotupdate/*` | 远端清单拉取 → 逐份校验（复用 devkit-manifest）→ 用户清单目录原子写入；拒绝项逐条列原因 |
+| `devkit-core/src/updater.rs` | `updater/*` | latest.json 拉取 → SemVer 比较 → 下载 + sha256 复验 + 原子落盘（update/ 目录） |
+| `devkit-core/src/offline.rs` | `offline/*` | pack（按 selections 复制下载缓存 + 生成 pack.json）与 import（校验 sha256 → 拷回 download 目录） |
+| `devkit-core/src/elevation/{mod,helper_script,run_job}.rs` | `elevation/*` | 真提权：PowerShell Start-Process -Verb RunAs 单次弹窗、helper 脚本（SHA-256 白名单 + nonce 回执文件）、run_job 编排；不变式四条逐一单测（nonce 不匹配拒绝 / sha256 不匹配拒绝 / 步骤非空 / 输出文件限 temp） |
+| `devkit-sys/src/random.rs` | — | 随机 nonce（BCryptGenRandom） |
+
+### 应用层（devkit-app）
+
+- `src-tauri/src/main.rs`：46 命令 + 2 事件全部实现（附录 A 逐条勾销）；AppState 持有 CancellationToken 单飞闸（同时只允许一个安装任务）；`install-progress`/`log-line` 事件推送（broadcast → app.emit）。
+- 渲染端 `src/renderer/src/api/tauri-adapter.ts`：44 个方法从 `notImplemented` 全量换成 `invoke(...)`，参数名与 Rust 端逐一对照（camelCase 自动映射 snake_case）；`notImplemented` 助手删除；`window.devkit` 存在时仍不覆盖（Electron 调试模式兼容）。
+
+### 验收证据
+
+- `cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo test --workspace`：347 通过 0 失败（修复 `registry_apply_with_fake_elevation` 并行争用下的断言分支：真实 reg.exe 查询偶发失败走「读不到就不改」是设计行为，断言已容忍）。
+- `tsc×3 + eslint` 全绿；`vitest` 545/545。
+- 修复 devkit-app `items_after_test_module` clippy 错误（`fn main` 移到 `mod tests` 之前）。
+
+### 偏离与决策
+
+1. **UAC 单次弹窗、SHA-256 复验、nonce 校验三条虚拟机实测顺延 R7**：本机开发环境无法完整走 UAC 弹窗流程；提权三条不变式已在单元层全覆盖（FakeElevation 注入），`tests/real_elevation.rs` 保留 `#[ignore]` 真机用例，R7 虚拟机端到端时一并执行。
+2. `prepare_install` 的 `available_toolIds` 第三参删除：Tauri 参数名匹配对下划线前缀参数不可靠，且该参在 TS 版里仅用于 UI 过滤（由 renderer 自行过滤）。
+3. `apply_profile` 命令名注册为 `apply_profile_command`：避免与 Tauri 内部宏展开的 `apply_profile` 符号冲突。
+4. `export_profile`/`import_profile` 暂无文件对话框（tauri-plugin-dialog 未接入）：先用 dataRoot 固定路径 + 渲染端传参兜底，R6 接插件后换真实对话框。
+5. `run_doctor` 读机器 PATH 在阻塞上下文里用独立线程 + 单线程 runtime 包 `machine_path::read_machine_path_raw()`（reg.exe 是阻塞进程调用，不能在 tokio worker 里同步等）。

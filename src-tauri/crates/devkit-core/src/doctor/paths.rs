@@ -115,8 +115,12 @@ pub fn classify_structural_problem(entry: &str) -> Option<String> {
         static ABSOLUTE: OnceLock<regex::Regex> = OnceLock::new();
         static VERSION: OnceLock<regex::Regex> = OnceLock::new();
         match pattern {
-            "drive_only" => Some(DRIVE_ONLY.get_or_init(|| regex::Regex::new(r"^[a-zA-Z]:[\\/]?$").unwrap())),
-            "absolute" => Some(ABSOLUTE.get_or_init(|| regex::Regex::new(r"^[a-zA-Z]:[\\/]").unwrap())),
+            "drive_only" => {
+                Some(DRIVE_ONLY.get_or_init(|| regex::Regex::new(r"^[a-zA-Z]:[\\/]?$").unwrap()))
+            }
+            "absolute" => {
+                Some(ABSOLUTE.get_or_init(|| regex::Regex::new(r"^[a-zA-Z]:[\\/]").unwrap()))
+            }
             _ => Some(VERSION.get_or_init(|| regex::Regex::new(r"^v?\d+(\.\d+)+$").unwrap())),
         }
         .unwrap()
@@ -228,7 +232,9 @@ pub fn analyze_path(
                 if let Some(previous) = seen.get(&key).copied() {
                     kind = PathEntryKind::Duplicate;
                     duplicate_of = Some(previous);
-                    reason = Some(format!("与第 {previous} 条是同一个目录（写法不同，实际重复）"));
+                    reason = Some(format!(
+                        "与第 {previous} 条是同一个目录（写法不同，实际重复）"
+                    ));
                 } else {
                     seen.insert(key, index);
                 }
@@ -242,7 +248,14 @@ pub fn analyze_path(
         }
 
         *counts.entry(kind).or_insert(0) += 1;
-        entries.push(PathEntryAnalysis { index, raw: raw.to_string(), expanded, kind, reason, duplicate_of });
+        entries.push(PathEntryAnalysis {
+            index,
+            raw: raw.to_string(),
+            expanded,
+            kind,
+            reason,
+            duplicate_of,
+        });
     }
 
     let suggested = entries
@@ -296,7 +309,10 @@ mod tests {
     use super::*;
 
     fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
@@ -319,7 +335,10 @@ mod tests {
 
     #[test]
     fn normalize_entry_folds_separators_and_case() {
-        assert_eq!(normalize_entry(r"D:\MySQL\bin"), normalize_entry(r"D:/MySQL//bin\"));
+        assert_eq!(
+            normalize_entry(r"D:\MySQL\bin"),
+            normalize_entry(r"D:/MySQL//bin\")
+        );
         assert_eq!(normalize_entry(r"D:\MySQL\bin"), r"d:\mysql\bin");
         assert_eq!(normalize_entry(r"D:\MySQL\bin\\"), r"d:\mysql\bin");
     }
@@ -327,13 +346,24 @@ mod tests {
     #[test]
     fn structural_problem_classification() {
         assert!(classify_structural_problem("").is_some());
-        assert!(classify_structural_problem("C:").unwrap().contains("只有盘符"));
-        assert!(classify_structural_problem(r"C:\").unwrap().contains("只有盘符"));
-        assert!(classify_structural_problem("v16.13.1").unwrap().contains("版本号"));
-        assert!(classify_structural_problem("node_global").unwrap().contains("不是绝对路径"));
+        assert!(classify_structural_problem("C:")
+            .unwrap()
+            .contains("只有盘符"));
+        assert!(classify_structural_problem(r"C:\")
+            .unwrap()
+            .contains("只有盘符"));
+        assert!(classify_structural_problem("v16.13.1")
+            .unwrap()
+            .contains("版本号"));
+        assert!(classify_structural_problem("node_global")
+            .unwrap()
+            .contains("不是绝对路径"));
         // 合法绝对路径 → None（D:\go 是合法目录名！）
         assert_eq!(classify_structural_problem(r"D:\go"), None);
-        assert_eq!(classify_structural_problem(r"C:\Program Files\Git\cmd"), None);
+        assert_eq!(
+            classify_structural_problem(r"C:\Program Files\Git\cmd"),
+            None
+        );
         assert_eq!(classify_structural_problem(r"\\server\share"), None);
     }
 
@@ -365,7 +395,11 @@ mod tests {
         // 逐条判定
         assert_eq!(analysis.entries[0].kind, PathEntryKind::Ok);
         assert_eq!(analysis.entries[1].kind, PathEntryKind::Missing); // C:\P，短得可疑
-        assert!(analysis.entries[1].reason.as_deref().unwrap_or_default().contains("截断"));
+        assert!(analysis.entries[1]
+            .reason
+            .as_deref()
+            .unwrap_or_default()
+            .contains("截断"));
         assert_eq!(analysis.entries[2].kind, PathEntryKind::Malformed); // ogram Files\...
         assert_eq!(analysis.entries[3].kind, PathEntryKind::Malformed); // v16.13.1
         assert_eq!(analysis.entries[4].kind, PathEntryKind::Malformed); // node_global

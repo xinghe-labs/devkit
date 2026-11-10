@@ -82,7 +82,11 @@ pub fn find_uninstall_entry(
             if program.hive != rule.hive || program.view != rule.view {
                 continue;
             }
-            if !program.key_path.to_ascii_lowercase().contains(&rule.path.to_ascii_lowercase()) {
+            if !program
+                .key_path
+                .to_ascii_lowercase()
+                .contains(&rule.path.to_ascii_lowercase())
+            {
                 continue;
             }
 
@@ -123,7 +127,12 @@ pub fn plan_uninstall(program: &InstalledProgram) -> Option<RegistryUninstallTar
         return Some(RegistryUninstallTarget {
             display_name,
             cmd: "msiexec.exe".to_string(),
-            args: vec!["/x".to_string(), last_segment.to_string(), "/qn".to_string(), "/norestart".to_string()],
+            args: vec![
+                "/x".to_string(),
+                last_segment.to_string(),
+                "/qn".to_string(),
+                "/norestart".to_string(),
+            ],
             kind: "msi".to_string(),
             key_path: program.key_path.clone(),
         });
@@ -176,7 +185,12 @@ pub fn uninstall_by_registry(
 
     let Some(entry) = entry else {
         // 没有记录不算失败：可能本来就不是走注册表装的（比如用户手工解压的）
-        return RegistryUninstallOutcome { ok: true, target: None, detail: None, error: None };
+        return RegistryUninstallOutcome {
+            ok: true,
+            target: None,
+            detail: None,
+            error: None,
+        };
     };
 
     let Some(target) = plan_uninstall(&entry) else {
@@ -186,16 +200,20 @@ pub fn uninstall_by_registry(
             detail: None,
             error: Some(format!(
                 "「{}」有卸载记录，但既不是 MSI 也没有可用的 UninstallString，无法自动卸载",
-                entry.fields.get("DisplayName").cloned().unwrap_or_else(|| entry.key_path.clone())
+                entry
+                    .fields
+                    .get("DisplayName")
+                    .cloned()
+                    .unwrap_or_else(|| entry.key_path.clone())
             )),
         };
     };
 
-    let outcome = elevated.run(vec![ElevatedStep::Exec {
-        label: format!("卸载 {}", target.display_name),
-        cmd: target.cmd.clone(),
-        args: target.args.clone(),
-    }]);
+    let outcome = elevated.run(vec![ElevatedStep::exec(
+        format!("卸载 {}", target.display_name),
+        target.cmd.clone(),
+        target.args.clone(),
+    )]);
     if !outcome.ok {
         return RegistryUninstallOutcome {
             ok: false,
@@ -235,12 +253,19 @@ pub fn uninstall_by_registry(
 
     logging::global().info(
         "uninstall",
-        &format!("已通过注册表卸载 {}（{}）", target.display_name, target.kind),
+        &format!(
+            "已通过注册表卸载 {}（{}）",
+            target.display_name, target.kind
+        ),
     );
     let detail = format!(
         "已卸载「{}」（{}）",
         target.display_name,
-        if target.kind == "msi" { "MSI" } else { "自带卸载程序" }
+        if target.kind == "msi" {
+            "MSI"
+        } else {
+            "自带卸载程序"
+        }
     );
     RegistryUninstallOutcome {
         ok: true,
@@ -253,7 +278,7 @@ pub fn uninstall_by_registry(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use devkit_types::detection::{RegistryHive, RegistryDetectRule, RegistryView};
+    use devkit_types::detection::{RegistryDetectRule, RegistryHive, RegistryView};
     use std::collections::HashMap;
 
     fn program(key_path: &str, fields: &[(&str, &str)]) -> InstalledProgram {
@@ -261,7 +286,10 @@ mod tests {
             hive: RegistryHive::Hklm,
             view: RegistryView::View64,
             key_path: key_path.to_string(),
-            fields: fields.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            fields: fields
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
         }
     }
 
@@ -293,7 +321,10 @@ mod tests {
     fn split_windows_command_preserves_quoted_spaces() {
         assert_eq!(
             split_windows_command(r#""C:\Program Files\Foo\uninst.exe" /S"#),
-            vec![r"C:\Program Files\Foo\uninst.exe".to_string(), "/S".to_string()]
+            vec![
+                r"C:\Program Files\Foo\uninst.exe".to_string(),
+                "/S".to_string()
+            ]
         );
         assert_eq!(
             split_windows_command("MsiExec.exe /I{90160000-0000-0000-0000-000000000000}"),
@@ -338,8 +369,12 @@ mod tests {
         assert_eq!(target.cmd, "msiexec.exe");
         assert_eq!(
             target.args,
-            vec!["/x".to_string(), "{23170F69-40C1-2702-0000-000000000000}".to_string(),
-                 "/qn".to_string(), "/norestart".to_string()]
+            vec![
+                "/x".to_string(),
+                "{23170F69-40C1-2702-0000-000000000000}".to_string(),
+                "/qn".to_string(),
+                "/norestart".to_string()
+            ]
         );
         assert_eq!(target.kind, "msi");
     }
@@ -351,7 +386,10 @@ mod tests {
             &[
                 ("DisplayName", "Foo"),
                 ("UninstallString", r#""C:\Program Files\Foo\uninst.exe" /S"#),
-                ("QuietUninstallString", r#""C:\Program Files\Foo\uninst.exe" /S /silent"#),
+                (
+                    "QuietUninstallString",
+                    r#""C:\Program Files\Foo\uninst.exe" /S /silent"#,
+                ),
             ],
         );
         let target = plan_uninstall(&entry).expect("exe plan");

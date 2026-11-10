@@ -16,7 +16,8 @@ use crate::activate::index::{read_activation_state, DEVKIT_HOME_VAR};
 use crate::exec::{run_command, RunOptions};
 
 /// 机器级 PATH 所在的注册表键（reg.exe 风格，只读不需要管理员）
-const MACHINE_PATH_REG_KEY: &str = r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
+const MACHINE_PATH_REG_KEY: &str =
+    r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
 
 /// 展开用（含 `%DEVKIT_HOME%` 全部大小写变体）。
 fn expand_devkit_home(entry: &str, data_root: &str) -> String {

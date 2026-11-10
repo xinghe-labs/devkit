@@ -36,7 +36,7 @@ futures = "0.3"
 bytes = "1"
 log = "0.4"
 encoding_rs = "0.8"
-windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Registry", "Win32_Storage_FileSystem"] }
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Registry", "Win32_Storage_FileSystem", "Win32_Security_Cryptography"] }
 windows-registry = "0.4"
 junction = "1.4"
 tauri = { version = "2", features = [] }
@@ -53,10 +53,9 @@ devkit-sys = { path = "crates/devkit-sys" }
 tauri = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-windows-registry = { workspace = true }
-
-[dev-dependencies]
 tokio = { workspace = true }
+tokio-util = { workspace = true }
+windows-registry = { workspace = true }
 
 [profile.release]
 strip = true

@@ -31,34 +31,47 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 /// 每个工具在 PATH 上解析到几个目标（多于一个就说明"跑的不是你以为的那个"）
-pub type CommandResolver<'a> = &'a dyn Fn(&str) -> Vec<String>;
+pub type CommandResolver<'a> = &'a (dyn Fn(&str) -> Vec<String> + Send + Sync);
 
 /// 体检的读入（应用层注入真实实现；测试注入内存值）
 pub struct DoctorInputs<'a> {
-    pub read_user_path: &'a dyn Fn() -> Result<String, String>,
-    pub read_machine_path: &'a dyn Fn() -> Result<String, String>,
+    pub read_user_path: &'a (dyn Fn() -> Result<String, String> + Send + Sync),
+    pub read_machine_path: &'a (dyn Fn() -> Result<String, String> + Send + Sync),
     pub resolve_command: CommandResolver<'a>,
     /// 环境变量快照（大小写不敏感查找由 paths 负责）
     pub env: HashMap<String, String>,
     /// 目录是否存在（默认 std::path::Path::exists；测试可注入）
-    pub exists: &'a dyn Fn(&str) -> bool,
+    pub exists: &'a (dyn Fn(&str) -> bool + Send + Sync),
 }
 
-const COMMANDS_TO_PROBE: &[&str] =
-    &["node", "npm", "python", "java", "git", "code", "go", "docker"];
+const COMMANDS_TO_PROBE: &[&str] = &[
+    "node", "npm", "python", "java", "git", "code", "go", "docker",
+];
 
 /// 关键环境变量：值指向的目录必须存在
-const ENV_VARS_TO_CHECK: &[&str] =
-    &["JAVA_HOME", "GOROOT", "CARGO_HOME", "RUSTUP_HOME", "MAVEN_HOME", "PYTHONHOME"];
+const ENV_VARS_TO_CHECK: &[&str] = &[
+    "JAVA_HOME",
+    "GOROOT",
+    "CARGO_HOME",
+    "RUSTUP_HOME",
+    "MAVEN_HOME",
+    "PYTHONHOME",
+];
 
 fn lt(zh: &str, en: &str) -> LocalizedText {
-    [("zh-CN".to_string(), zh.to_string()), ("en-US".to_string(), en.to_string())]
-        .into_iter()
-        .collect()
+    [
+        ("zh-CN".to_string(), zh.to_string()),
+        ("en-US".to_string(), en.to_string()),
+    ]
+    .into_iter()
+    .collect()
 }
 
 fn judge(kind: PathEntryKind) -> bool {
-    matches!(kind, PathEntryKind::Malformed | PathEntryKind::Missing | PathEntryKind::UnexpandedVar)
+    matches!(
+        kind,
+        PathEntryKind::Malformed | PathEntryKind::Missing | PathEntryKind::UnexpandedVar
+    )
 }
 
 pub async fn run_doctor(inputs: &DoctorInputs<'_>) -> DoctorReport {
@@ -106,7 +119,10 @@ pub async fn run_doctor(inputs: &DoctorInputs<'_>) -> DoctorReport {
             category: DoctorCategory::Path,
             title: lt("用户 PATH 正常", "User PATH is healthy"),
             detail: lt(
-                &format!("共 {} 条，全部指向存在的目录，没有重复。", user_analysis.entries.len()),
+                &format!(
+                    "共 {} 条，全部指向存在的目录，没有重复。",
+                    user_analysis.entries.len()
+                ),
                 &format!(
                     "{} entries, all pointing at existing directories, no duplicates.",
                     user_analysis.entries.len()
@@ -152,7 +168,10 @@ pub async fn run_doctor(inputs: &DoctorInputs<'_>) -> DoctorReport {
             title: lt("机器级 PATH 正常", "Machine PATH is healthy"),
             detail: lt(
                 &format!("共 {} 条，没有发现问题。", machine_analysis.entries.len()),
-                &format!("{} entries, nothing wrong found.", machine_analysis.entries.len()),
+                &format!(
+                    "{} entries, nothing wrong found.",
+                    machine_analysis.entries.len()
+                ),
             ),
             evidence: Vec::new(),
             fix: None,
@@ -208,10 +227,14 @@ pub async fn run_doctor(inputs: &DoctorInputs<'_>) -> DoctorReport {
         .iter()
         .map(|cmd| ((*cmd).to_string(), (inputs.resolve_command)(cmd)))
         .collect();
-    let ambiguous: Vec<&(String, Vec<String>)> =
-        resolved.iter().filter(|(_, paths)| paths.len() > 1).collect();
-    let found: Vec<&(String, Vec<String>)> =
-        resolved.iter().filter(|(_, paths)| !paths.is_empty()).collect();
+    let ambiguous: Vec<&(String, Vec<String>)> = resolved
+        .iter()
+        .filter(|(_, paths)| paths.len() > 1)
+        .collect();
+    let found: Vec<&(String, Vec<String>)> = resolved
+        .iter()
+        .filter(|(_, paths)| !paths.is_empty())
+        .collect();
 
     if !ambiguous.is_empty() {
         let mut evidence: Vec<String> = Vec::new();
@@ -379,7 +402,11 @@ pub async fn run_doctor(inputs: &DoctorInputs<'_>) -> DoctorReport {
             &format!(
                 "Data root: {}\nActivated: {}",
                 get_data_root().display(),
-                if activated.is_empty() { "(nothing activated)".to_string() } else { activated.join(", ") }
+                if activated.is_empty() {
+                    "(nothing activated)".to_string()
+                } else {
+                    activated.join(", ")
+                }
             ),
         ),
         evidence: vec![
@@ -397,7 +424,10 @@ pub async fn run_doctor(inputs: &DoctorInputs<'_>) -> DoctorReport {
 
     /* ---------------- 7. 系统项（复用 systemconfig 的只读检测） ---------------- */
     let system_items = get_system_config_status().await;
-    let not_configured: Vec<_> = system_items.iter().filter(|item| !item.configured).collect();
+    let not_configured: Vec<_> = system_items
+        .iter()
+        .filter(|item| !item.configured)
+        .collect();
     if !not_configured.is_empty() {
         findings.push(DoctorFinding {
             id: "system-items".to_string(),
@@ -424,9 +454,18 @@ pub async fn run_doctor(inputs: &DoctorInputs<'_>) -> DoctorReport {
     }
 
     let summary = DoctorSummary {
-        ok: findings.iter().filter(|item| item.level == DoctorLevel::Ok).count() as u32,
-        warn: findings.iter().filter(|item| item.level == DoctorLevel::Warn).count() as u32,
-        error: findings.iter().filter(|item| item.level == DoctorLevel::Error).count() as u32,
+        ok: findings
+            .iter()
+            .filter(|item| item.level == DoctorLevel::Ok)
+            .count() as u32,
+        warn: findings
+            .iter()
+            .filter(|item| item.level == DoctorLevel::Warn)
+            .count() as u32,
+        error: findings
+            .iter()
+            .filter(|item| item.level == DoctorLevel::Error)
+            .count() as u32,
     };
 
     logging::global().info(
@@ -462,33 +501,54 @@ pub fn clean_user_path(io: &dyn UserEnvIo) -> DoctorFixResult {
     let raw = match io.read_path() {
         Ok(raw) => raw,
         Err(error) => {
-            return DoctorFixResult { ok: false, changed: vec![], backup_file: None, error: Some(error) }
+            return DoctorFixResult {
+                ok: false,
+                changed: vec![],
+                backup_file: None,
+                error: Some(error),
+            }
         }
     };
-    let env: HashMap<String, String> =
-        std::env::vars().collect();
+    let env: HashMap<String, String> = std::env::vars().collect();
     let analysis = analyze_path(&raw, &|path| PathBuf::from(path).exists(), &env);
 
     if !analysis.changed {
-        return DoctorFixResult { ok: true, changed: vec![], backup_file: None, error: None };
+        return DoctorFixResult {
+            ok: true,
+            changed: vec![],
+            backup_file: None,
+            error: None,
+        };
     }
     if analysis.suggested.trim().is_empty() {
         return DoctorFixResult {
             ok: false,
             changed: vec![],
             backup_file: None,
-            error: Some("清理后用户 PATH 会变成空值，已拒绝执行。请手工检查（原文已保留）".to_string()),
+            error: Some(
+                "清理后用户 PATH 会变成空值，已拒绝执行。请手工检查（原文已保留）".to_string(),
+            ),
         };
     }
 
     let file = match backup_file("user-path", &raw) {
         Ok(file) => file,
         Err(error) => {
-            return DoctorFixResult { ok: false, changed: vec![], backup_file: None, error: Some(error) }
+            return DoctorFixResult {
+                ok: false,
+                changed: vec![],
+                backup_file: None,
+                error: Some(error),
+            }
         }
     };
     if let Err(error) = io.write_path(&analysis.suggested) {
-        return DoctorFixResult { ok: false, changed: vec![], backup_file: Some(file), error: Some(error) };
+        return DoctorFixResult {
+            ok: false,
+            changed: vec![],
+            backup_file: Some(file),
+            error: Some(error),
+        };
     }
 
     // 复验：重新读一遍，确认真的写进去了
@@ -499,21 +559,43 @@ pub fn clean_user_path(io: &dyn UserEnvIo) -> DoctorFixResult {
                 ok: false,
                 changed: vec![],
                 backup_file: Some(file),
-                error: Some("写入后复验不一致，可能被其它程序改回去了。原文已备份，请手工确认".to_string()),
+                error: Some(
+                    "写入后复验不一致，可能被其它程序改回去了。原文已备份，请手工确认".to_string(),
+                ),
             }
         }
         Err(error) => {
-            return DoctorFixResult { ok: false, changed: vec![], backup_file: Some(file), error: Some(error) }
+            return DoctorFixResult {
+                ok: false,
+                changed: vec![],
+                backup_file: Some(file),
+                error: Some(error),
+            }
         }
     }
 
     let removed: Vec<String> = analysis
         .problems
         .iter()
-        .map(|entry| format!("第 {} 条：{} —— {}", entry.index, entry.raw, entry.reason.clone().unwrap_or_default()))
+        .map(|entry| {
+            format!(
+                "第 {} 条：{} —— {}",
+                entry.index,
+                entry.raw,
+                entry.reason.clone().unwrap_or_default()
+            )
+        })
         .collect();
-    logging::global().info("doctor", &format!("用户 PATH 已清理：移除 {} 条", removed.len()));
-    DoctorFixResult { ok: true, changed: removed, backup_file: Some(file), error: None }
+    logging::global().info(
+        "doctor",
+        &format!("用户 PATH 已清理：移除 {} 条", removed.len()),
+    );
+    DoctorFixResult {
+        ok: true,
+        changed: removed,
+        backup_file: Some(file),
+        error: None,
+    }
 }
 
 /// 清理机器级 PATH（需要管理员）
@@ -521,15 +603,24 @@ pub fn clean_machine_path(elevated: &dyn ElevatedRunner) -> DoctorFixResult {
     let raw = match read_machine_path_raw_blocking() {
         Ok(raw) => raw,
         Err(error) => {
-            return DoctorFixResult { ok: false, changed: vec![], backup_file: None, error: Some(error) }
+            return DoctorFixResult {
+                ok: false,
+                changed: vec![],
+                backup_file: None,
+                error: Some(error),
+            }
         }
     };
-    let env: HashMap<String, String> =
-        std::env::vars().collect();
+    let env: HashMap<String, String> = std::env::vars().collect();
     let analysis = analyze_path(&raw, &|path| PathBuf::from(path).exists(), &env);
 
     if !analysis.changed {
-        return DoctorFixResult { ok: true, changed: vec![], backup_file: None, error: None };
+        return DoctorFixResult {
+            ok: true,
+            changed: vec![],
+            backup_file: None,
+            error: None,
+        };
     }
     if analysis.suggested.trim().is_empty() {
         return DoctorFixResult {
@@ -543,11 +634,19 @@ pub fn clean_machine_path(elevated: &dyn ElevatedRunner) -> DoctorFixResult {
     let file = match backup_file("machine-path", &raw) {
         Ok(file) => file,
         Err(error) => {
-            return DoctorFixResult { ok: false, changed: vec![], backup_file: None, error: Some(error) }
+            return DoctorFixResult {
+                ok: false,
+                changed: vec![],
+                backup_file: None,
+                error: Some(error),
+            }
         }
     };
     let outcome = elevated.run(vec![ElevatedStep::SetMachinePath {
-        label: format!("清理机器级 PATH（移除 {} 条无效条目）", analysis.problems.len()),
+        label: format!(
+            "清理机器级 PATH（移除 {} 条无效条目）",
+            analysis.problems.len()
+        ),
         value: analysis.suggested.clone(),
     }]);
     if !outcome.ok {
@@ -558,7 +657,9 @@ pub fn clean_machine_path(elevated: &dyn ElevatedRunner) -> DoctorFixResult {
             error: Some(if outcome.cancelled {
                 "用户取消了管理员授权".to_string()
             } else {
-                outcome.error.unwrap_or_else(|| "写入机器级 PATH 失败".to_string())
+                outcome
+                    .error
+                    .unwrap_or_else(|| "写入机器级 PATH 失败".to_string())
             }),
         };
     }
@@ -574,17 +675,37 @@ pub fn clean_machine_path(elevated: &dyn ElevatedRunner) -> DoctorFixResult {
             }
         }
         Err(error) => {
-            return DoctorFixResult { ok: false, changed: vec![], backup_file: Some(file), error: Some(error) }
+            return DoctorFixResult {
+                ok: false,
+                changed: vec![],
+                backup_file: Some(file),
+                error: Some(error),
+            }
         }
     }
 
     let removed: Vec<String> = analysis
         .problems
         .iter()
-        .map(|entry| format!("第 {} 条：{} —— {}", entry.index, entry.raw, entry.reason.clone().unwrap_or_default()))
+        .map(|entry| {
+            format!(
+                "第 {} 条：{} —— {}",
+                entry.index,
+                entry.raw,
+                entry.reason.clone().unwrap_or_default()
+            )
+        })
         .collect();
-    logging::global().info("doctor", &format!("机器级 PATH 已清理：移除 {} 条", removed.len()));
-    DoctorFixResult { ok: true, changed: removed, backup_file: Some(file), error: None }
+    logging::global().info(
+        "doctor",
+        &format!("机器级 PATH 已清理：移除 {} 条", removed.len()),
+    );
+    DoctorFixResult {
+        ok: true,
+        changed: removed,
+        backup_file: Some(file),
+        error: None,
+    }
 }
 
 /// 同步阻塞读机器 PATH（修复入口在同步上下文里调用）
@@ -635,11 +756,15 @@ pub fn prune_devkit_state(io: &dyn UserEnvIo) -> DoctorFixResult {
     let raw = match io.read_path() {
         Ok(raw) => raw,
         Err(error) => {
-            return DoctorFixResult { ok: false, changed, backup_file: None, error: Some(error) }
+            return DoctorFixResult {
+                ok: false,
+                changed,
+                backup_file: None,
+                error: Some(error),
+            }
         }
     };
-    let env: HashMap<String, String> =
-        std::env::vars().collect();
+    let env: HashMap<String, String> = std::env::vars().collect();
     let analysis = analyze_path(&raw, &|path| PathBuf::from(path).exists(), &env);
     let orphans: Vec<_> = analysis
         .entries
@@ -655,7 +780,12 @@ pub fn prune_devkit_state(io: &dyn UserEnvIo) -> DoctorFixResult {
         match backup_file("user-path", &raw) {
             Ok(file) => backup = Some(file),
             Err(error) => {
-                return DoctorFixResult { ok: false, changed, backup_file: None, error: Some(error) }
+                return DoctorFixResult {
+                    ok: false,
+                    changed,
+                    backup_file: None,
+                    error: Some(error),
+                }
             }
         }
         let cleaned = analysis
@@ -676,7 +806,12 @@ pub fn prune_devkit_state(io: &dyn UserEnvIo) -> DoctorFixResult {
         }
 
         if let Err(error) = io.write_path(&cleaned) {
-            return DoctorFixResult { ok: false, changed, backup_file: backup, error: Some(error) };
+            return DoctorFixResult {
+                ok: false,
+                changed,
+                backup_file: backup,
+                error: Some(error),
+            };
         }
         for orphan in &orphans {
             changed.push(format!("移除无人认领的 devkit PATH 条目：{}", orphan.raw));
@@ -686,17 +821,32 @@ pub fn prune_devkit_state(io: &dyn UserEnvIo) -> DoctorFixResult {
     // 切换链接目录里如果有指向不存在目标的链接，一并清掉
     for record in &still_state.records {
         let link_path = get_link_path(&record.link_name);
-        if link_path.exists() && !PathBuf::from(&record.target).exists()
-            && remove_junction(&link_path).unwrap_or(false) {
-                changed.push(format!("移除悬空切换链接：{}", link_path.display()));
-            }
+        if link_path.exists()
+            && !PathBuf::from(&record.target).exists()
+            && remove_junction(&link_path).unwrap_or(false)
+        {
+            changed.push(format!("移除悬空切换链接：{}", link_path.display()));
+        }
     }
 
     if changed.is_empty() {
-        return DoctorFixResult { ok: true, changed: vec![], backup_file: None, error: None };
+        return DoctorFixResult {
+            ok: true,
+            changed: vec![],
+            backup_file: None,
+            error: None,
+        };
     }
-    logging::global().info("doctor", &format!("devkit 残留已清理：{} 项", changed.len()));
-    DoctorFixResult { ok: true, changed, backup_file: backup, error: None }
+    logging::global().info(
+        "doctor",
+        &format!("devkit 残留已清理：{} 项", changed.len()),
+    );
+    DoctorFixResult {
+        ok: true,
+        changed,
+        backup_file: backup,
+        error: None,
+    }
 }
 
 pub fn apply_doctor_fix(
@@ -712,7 +862,10 @@ pub fn apply_doctor_fix(
     if !result.ok {
         logging::global().error(
             "doctor",
-            &format!("修复 {fix_id:?} 失败：{}", result.error.clone().unwrap_or_default()),
+            &format!(
+                "修复 {fix_id:?} 失败：{}",
+                result.error.clone().unwrap_or_default()
+            ),
         );
     }
     result
@@ -752,15 +905,25 @@ mod tests {
     impl ElevatedRunner for FakeElevation {
         fn run(&self, _steps: Vec<ElevatedStep>) -> ElevatedOutcome {
             if self.cancel {
-                ElevatedOutcome { ok: false, cancelled: true, error: None }
+                ElevatedOutcome {
+                    ok: false,
+                    cancelled: true,
+                    error: None,
+                }
             } else {
-                ElevatedOutcome { ok: true, cancelled: false, error: None }
+                ElevatedOutcome {
+                    ok: true,
+                    cancelled: false,
+                    error: None,
+                }
             }
         }
     }
 
     fn sandbox(tag: &str) -> MutexGuard<'static, ()> {
-        let guard = ENV_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let guard = ENV_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = std::env::temp_dir().join(format!("devkit-doctor-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::env::set_var("DEVKIT_APP_DATA", &dir);
@@ -775,7 +938,9 @@ mod tests {
     #[test]
     fn doctor_reports_dirty_paths_with_evidence() {
         let _guard = sandbox("report");
-        let io = FakeIo { path: std::sync::Mutex::new(String::new()) };
+        let io = FakeIo {
+            path: std::sync::Mutex::new(String::new()),
+        };
         let elevated = FakeElevation { cancel: false };
 
         // 用户 PATH 脏、机器 PATH 干净；命令解析模拟 node 两个路径
@@ -786,7 +951,10 @@ mod tests {
         let read_machine = || Ok(machine_raw.lock().unwrap().clone());
         let resolve = |cmd: &str| -> Vec<String> {
             if cmd == "node" {
-                vec![r"C:\nodejs\node.exe".to_string(), r"D:\old\node.exe".to_string()]
+                vec![
+                    r"C:\nodejs\node.exe".to_string(),
+                    r"D:\old\node.exe".to_string(),
+                ]
             } else {
                 Vec::new()
             }
@@ -801,7 +969,10 @@ mod tests {
             exists: &exists,
         };
 
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         let report = rt.block_on(run_doctor(&inputs));
 
         // 用户 PATH 有 3 个问题（C:\P missing、%NOODE_PATH% unexpanded、v16.13.1 malformed）
@@ -816,7 +987,10 @@ mod tests {
         assert!(finding.fix.is_some());
 
         // 机器 PATH 干净
-        assert!(report.findings.iter().any(|item| item.id == "machine-path-ok"));
+        assert!(report
+            .findings
+            .iter()
+            .any(|item| item.id == "machine-path-ok"));
 
         // 命令歧义
         let ambiguous = report
@@ -825,12 +999,19 @@ mod tests {
             .find(|item| item.id == "command-ambiguous")
             .expect("command-ambiguous 应存在");
         assert_eq!(ambiguous.level, DoctorLevel::Warn);
-        assert!(ambiguous.evidence.iter().any(|line| line.contains("（实际生效）")));
+        assert!(ambiguous
+            .evidence
+            .iter()
+            .any(|line| line.contains("（实际生效）")));
 
         // summary 计数与 findings 一致
         assert_eq!(
             report.summary.ok as usize,
-            report.findings.iter().filter(|item| item.level == DoctorLevel::Ok).count()
+            report
+                .findings
+                .iter()
+                .filter(|item| item.level == DoctorLevel::Ok)
+                .count()
         );
         assert!(report.user_path.changed);
         assert!(!report.machine_path.changed);
@@ -841,7 +1022,9 @@ mod tests {
     fn clean_user_path_backs_up_and_verifies() {
         let _guard = sandbox("clean-user");
         let raw = r"C:\Windows;C:\P;C:\Windows";
-        let io = FakeIo { path: std::sync::Mutex::new(raw.to_string()) };
+        let io = FakeIo {
+            path: std::sync::Mutex::new(raw.to_string()),
+        };
 
         let result = clean_user_path(&io);
         assert!(result.ok, "error: {:?}", result.error);
@@ -856,10 +1039,16 @@ mod tests {
     #[test]
     fn clean_user_path_refuses_empty_result() {
         let _guard = sandbox("clean-user-empty");
-        let io = FakeIo { path: std::sync::Mutex::new(r"C:\P".to_string()) };
+        let io = FakeIo {
+            path: std::sync::Mutex::new(r"C:\P".to_string()),
+        };
         let result = clean_user_path(&io);
         assert!(!result.ok);
-        assert!(result.error.as_deref().unwrap_or_default().contains("拒绝执行"));
+        assert!(result
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("拒绝执行"));
         // 没写
         assert_eq!(io.read_path().unwrap(), r"C:\P");
     }
@@ -867,7 +1056,9 @@ mod tests {
     #[test]
     fn clean_user_path_noop_when_clean() {
         let _guard = sandbox("clean-user-noop");
-        let io = FakeIo { path: std::sync::Mutex::new(r"C:\Windows".to_string()) };
+        let io = FakeIo {
+            path: std::sync::Mutex::new(r"C:\Windows".to_string()),
+        };
         let result = clean_user_path(&io);
         assert!(result.ok);
         assert!(result.changed.is_empty());
@@ -877,7 +1068,9 @@ mod tests {
     #[test]
     fn apply_unknown_fix_is_reported() {
         let _guard = sandbox("apply");
-        let io = FakeIo { path: std::sync::Mutex::new(String::new()) };
+        let io = FakeIo {
+            path: std::sync::Mutex::new(String::new()),
+        };
         let elevated = FakeElevation { cancel: true };
         // prune 在干净环境下是无操作
         let result = apply_doctor_fix(&io, &elevated, DoctorFixId::PruneDevkitState);

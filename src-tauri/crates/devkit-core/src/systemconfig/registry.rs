@@ -49,7 +49,9 @@ pub fn parse_reg_dword(name: &str, stdout: &str) -> Option<u32> {
     // 形如 `    LongPathsEnabled    REG_DWORD    0x1`
     for line in stdout.lines() {
         let mut parts = line.split_whitespace();
-        let Some(value_name) = parts.next() else { continue };
+        let Some(value_name) = parts.next() else {
+            continue;
+        };
         if !value_name.eq_ignore_ascii_case(name) {
             continue;
         }
@@ -59,7 +61,9 @@ pub fn parse_reg_dword(name: &str, stdout: &str) -> Option<u32> {
             return None;
         }
         let data = parts.next().unwrap_or("");
-        let hex = data.strip_prefix("0x").or_else(|| data.strip_prefix("0X"))?;
+        let hex = data
+            .strip_prefix("0x")
+            .or_else(|| data.strip_prefix("0X"))?;
         return u32::from_str_radix(hex, 16).ok();
     }
     None
@@ -73,23 +77,45 @@ pub fn parse_reg_dword(name: &str, stdout: &str) -> Option<u32> {
 pub async fn read_reg_dword(path: &str, name: &str) -> RegistryRead {
     let reg_path = to_reg_path(path);
 
-    let key = run_command("reg.exe", &["query".to_string(), reg_path.clone()], &RunOptions::default()).await;
+    let key = run_command(
+        "reg.exe",
+        &["query".to_string(), reg_path.clone()],
+        &RunOptions::default(),
+    )
+    .await;
     let key_exists = key.code == Some(0);
 
     let entry = run_command(
         "reg.exe",
-        &["query".to_string(), reg_path, "/v".to_string(), name.to_string()],
+        &[
+            "query".to_string(),
+            reg_path,
+            "/v".to_string(),
+            name.to_string(),
+        ],
         &RunOptions::default(),
     )
     .await;
     if entry.code != Some(0) {
-        return RegistryRead { key_exists, value_exists: false, value: None };
+        return RegistryRead {
+            key_exists,
+            value_exists: false,
+            value: None,
+        };
     }
 
     match parse_reg_dword(name, &entry.stdout) {
-        Some(value) => RegistryRead { key_exists, value_exists: true, value: Some(value) },
+        Some(value) => RegistryRead {
+            key_exists,
+            value_exists: true,
+            value: Some(value),
+        },
         // stdout 匹配不上但退出码为 0：值存在但类型不是 DWORD
-        None => RegistryRead { key_exists, value_exists: true, value: None },
+        None => RegistryRead {
+            key_exists,
+            value_exists: true,
+            value: None,
+        },
     }
 }
 
@@ -110,7 +136,13 @@ pub fn reg_dword_add_args(path: &str, name: &str, value: u32) -> Vec<String> {
 
 /// 删除一个值（需要管理员）。用 /f 避免交互式确认
 pub fn reg_delete_args(path: &str, name: &str) -> Vec<String> {
-    vec!["delete".into(), to_reg_path(path), "/v".into(), name.to_string(), "/f".into()]
+    vec![
+        "delete".into(),
+        to_reg_path(path),
+        "/v".into(),
+        name.to_string(),
+        "/f".into(),
+    ]
 }
 
 /// 键不存在时 `reg delete` 会失败。
@@ -137,7 +169,10 @@ mod tests {
 
     #[test]
     fn to_reg_path_strips_ps_colon() {
-        assert_eq!(to_reg_path(r"HKLM:\SYSTEM\Control\FileSystem"), r"HKLM\SYSTEM\Control\FileSystem");
+        assert_eq!(
+            to_reg_path(r"HKLM:\SYSTEM\Control\FileSystem"),
+            r"HKLM\SYSTEM\Control\FileSystem"
+        );
         assert_eq!(to_reg_path(r"HKCU:\Software\X"), r"HKCU\Software\X");
         assert_eq!(to_reg_path(r"HKLM\Already\Fine"), r"HKLM\Already\Fine");
     }
@@ -198,8 +233,12 @@ mod tests {
 
     #[test]
     fn missing_value_error_detection() {
-        assert!(is_missing_value_error("错误: 系统找不到指定的注册表项或值。"));
-        assert!(is_missing_value_error("ERROR: The system was unable to find the specified registry key or value."));
+        assert!(is_missing_value_error(
+            "错误: 系统找不到指定的注册表项或值。"
+        ));
+        assert!(is_missing_value_error(
+            "ERROR: The system was unable to find the specified registry key or value."
+        ));
         assert!(!is_missing_value_error("access denied 拒绝访问"));
     }
 

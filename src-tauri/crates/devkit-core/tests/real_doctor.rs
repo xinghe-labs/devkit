@@ -45,16 +45,22 @@ async fn real_doctor_probe() {
     let report = run_doctor(&inputs).await;
 
     // 基本形状：体检报告必须有 devkit-state 条目，且 user/machine 视图非空
-    assert!(report
-        .findings
-        .iter()
-        .any(|item| item.id == "devkit-state"));
+    assert!(report.findings.iter().any(|item| item.id == "devkit-state"));
     assert!(
         !report.user_path.entries.is_empty() || !report.machine_path.entries.is_empty(),
         "至少一个 PATH 视图应有条目"
     );
-    println!("体检摘要：{:?}（findings={} 条）", report.summary, report.findings.len());
+    println!(
+        "体检摘要：{:?}（findings={} 条）",
+        report.summary,
+        report.findings.len()
+    );
     for finding in &report.findings {
-        println!("[{:?}] {} —— {}", finding.level, finding.id, finding.evidence.first().cloned().unwrap_or_default());
+        println!(
+            "[{:?}] {} —— {}",
+            finding.level,
+            finding.id,
+            finding.evidence.first().cloned().unwrap_or_default()
+        );
     }
 }

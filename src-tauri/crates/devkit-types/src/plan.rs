@@ -173,33 +173,7 @@ pub struct PlanBuildError {
     pub reason: String,
 }
 
-/// 预检等级（FR-18）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum PreflightLevel {
-    Ok,
-    Warn,
-    Error,
-}
-
-/// 预检结果（FR-18）
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PreflightCheck {
-    pub id: String,
-    pub level: PreflightLevel,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PreflightResult {
-    /// 无 error 级问题则为 true
-    pub ok: bool,
-    pub checks: Vec<PreflightCheck>,
-    pub total_download_bytes: u64,
-    pub requires_admin: bool,
-}
+pub use super::preflight::{PreflightCheck, PreflightLevel, PreflightResult};
 
 /// install:prepare 的返回：计划 + 预检 + 构建期发现的问题
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
