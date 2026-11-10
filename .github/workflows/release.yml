@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 # Tauri 单形态发布（R6 改造）：
-# - 产物来自 `pnpm build:tauri`（tauri bundler → NSIS），不再有 electron-builder 的 portable 包；
+# - 产物来自 `pnpm build`（tauri build → NSIS；R7 起 build 即 tauri，不再有 build:tauri 别名与 electron-builder portable 包）；
 # - 清单经 devkit-manifest 的 include_dir 编译期内嵌进 exe（决策 D10），manifest-check 在 Rust 门禁里跑；
 # - latest.json 由 devkit-cli make-update-index 生成（协议与 TS 版一致，额外带 runtime: "tauri"）；
 # - 冒烟对象换成打包出来的 devkit-app.exe（DEVKIT_SMOKE 看门狗，退出码判定）。
@@ -90,7 +90,7 @@ jobs:
       # tauri build：渲染端 beforeBuildCommand + cargo build --release + NSIS 打包。
       # webviewInstallMode=embedBootstrapper，安装包自带 WebView2 bootstrapper。
       - name: 构建并打包（Tauri + NSIS）
-        run: pnpm build:tauri
+        run: pnpm build
 
       - name: 生成更新索引 latest.json
         working-directory: src-tauri
