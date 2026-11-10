@@ -582,6 +582,8 @@ export interface ApplyProfileResult {
 
 export interface ExportProfileRequest {
   includeGitIdentity: boolean
+  /** 直写路径（脚本化迁移用）：传了就跳过保存对话框，必须是绝对路径 */
+  filePath?: string
 }
 
 export interface ExportProfileResult {

@@ -6,3 +6,4 @@ edition.workspace = true
 [dependencies]
 devkit-types = { path = "../devkit-types" }
 serde_json.workspace = true
+include_dir.workspace = true

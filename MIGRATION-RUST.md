@@ -356,6 +356,8 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 - **验收**：安装包体积记录（目标 ≤15MB）；旧版升级路径实测
 - **tag**：`rust-r6`
 
+> **✅ R6 已完成**：tauri bundler NSIS 产物实测 6.12 MiB（含内嵌 WebView2 bootstrapper + 图标，≤15MB 目标达成）；manifest 编译期内嵌（D10）+ 打包态启动实测（signal_ready 到达、退出码 0）；NSIS 静默安装实测（HKCU Uninstall 注册项 + 安装目录正确）；`manifest-check` bin 与 `make-update-index` 子命令落地并实测（latest.json 含 sha256/size/runtime:"tauri"）；release.yml 改造为 Tauri 单形态（签名链路对准 bundle/nsis 产物，签名后自动重算索引）；docs/CODE-SIGNING.md 增加 Tauri 产物 hash 提交章节；tauri-plugin-dialog 接入（E.10 偏离 4 已解决）。旧版升级路径实测顺延 R7 虚拟机端到端（见附录 E.11）。实现与偏离见附录 E.11。
+
 ### R7 — 切换与验收
 
 - 干净虚拟机端到端（顺带清 VERIFICATION §5 全部欠账）
@@ -1198,5 +1200,52 @@ dataRoot 解析优先级（对齐 `app-paths.ts`）：`DEVKIT_DATA_ROOT` 环境�
 1. **UAC 单次弹窗、SHA-256 复验、nonce 校验三条虚拟机实测顺延 R7**：本机开发环境无法完整走 UAC 弹窗流程；提权三条不变式已在单元层全覆盖（FakeElevation 注入），`tests/real_elevation.rs` 保留 `#[ignore]` 真机用例，R7 虚拟机端到端时一并执行。
 2. `prepare_install` 的 `available_toolIds` 第三参删除：Tauri 参数名匹配对下划线前缀参数不可靠，且该参在 TS 版里仅用于 UI 过滤（由 renderer 自行过滤）。
 3. `apply_profile` 命令名注册为 `apply_profile_command`：避免与 Tauri 内部宏展开的 `apply_profile` 符号冲突。
-4. `export_profile`/`import_profile` 暂无文件对话框（tauri-plugin-dialog 未接入）：先用 dataRoot 固定路径 + 渲染端传参兜底，R6 接插件后换真实对话框。
+4. `export_profile`/`import_profile` 暂无文件对话框（tauri-plugin-dialog 未接入）：先用 dataRoot 固定路径 + 渲染端传参兜底，R6 接插件后换真实对话框。【已解决：R6 已接入 tauri-plugin-dialog，export_profile/import_profile 走原生保存/打开对话框（src-tauri/src/main.rs:1008、1043）】
 5. `run_doctor` 读机器 PATH 在阻塞上下文里用独立线程 + 单线程 runtime 包 `machine_path::read_machine_path_raw()`（reg.exe 是阻塞进程调用，不能在 tokio worker 里同步等）。
+
+---
+
+## 附录 E.11：R6 落地物（打包与发布，已完成）
+
+### 构建产物
+
+- `pnpm build:tauri`（tauri bundler，targets=nsis）→ `src-tauri/target/release/bundle/nsis/devkit_1.0.0_x64-setup.exe`，实测 **6.12 MiB**（含内嵌 WebView2 bootstrapper 与应用图标；≤15MB 目标达成）。TS 版 electron-builder NSIS 产物约 80MB+，体积缩减一个数量级。
+- `tauri.conf.json` 补齐两处：`bundle.icon = ["icons/icon.ico"]`（R0 占位图标本为空数组未生效）；`bundle.windows.webviewInstallMode = { type: "embedBootstrapper" }`（§11 风险 #6 的缓解项：安装包自带 WebView2 bootstrapper，旧镜像缺 WebView2 也能装）。
+- 注意：embedBootstrapper 首次构建会从 go.microsoft.com 下载 bootstrapper（约 1.7MB，境外源），本机需走代理；CI runner 在海外直连即可。
+
+### 清单内嵌与校验（决策 D10）
+
+- `devkit-manifest` 用 include_dir 编译期内嵌 `resources/manifest` 全目录；`devkit_app::manifest_builtin_dir()` 内嵌优先、`resources/manifest` 兜底。打包态冒烟确认 21 个内嵌清单全部加载。
+- 新增 `devkit-manifest` bin：`manifest-check`（src/bin/manifest-check.rs），规则与 TS `manifest:check` 一致（JSON Schema + 语义约束 + ID 唯一性），manifest_dir 逐级上溯兼容仓库根/src-tauri/crates 三种 cwd。release.yml 里 TS/Rust 两侧都跑。
+
+### CLI 新增子命令（devkit-cli）
+
+- `manifest-check`：无参，校验失败退出码 1。
+- `make-update-index [--dir D] [--version V] [--runtime R|--no-runtime] [--notes N]`：镜像 `scripts/make-update-index.ts`（FR-13），扫描目录里 `*-setup.exe`（兼容 tauri 命名）与可选 portable，生成 latest.json（version/releasedAt/url/files/checksums/sizes/notes/runtime:"tauri"）。实测生成结果与 TS 协议字段一致。版本默认取 devkit-cli 的 CARGO_PKG_VERSION（1.0.0，与 tauri.conf.json 同步）。
+
+### 打包态实测（本机开发环境）
+
+1. `DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=2000 target/release/devkit-app.exe` → `[devkit] renderer ready` + `[devkit] 冒烟通过` + 退出码 0（看门狗机制对齐 TS 版 DEVKIT_SMOKE）。
+2. NSIS 静默安装 `devkit_1.0.0_x64-setup.exe /S` → HKCU `Uninstall\devkit` 注册项正确（DisplayName/MainBinaryName=devkit-app.exe/InstallLocation=%LOCALAPPDATA%\devkit/UninstallString），安装目录落盘 `devkit-app.exe`。
+3. 安装目录下再次跑冒烟 → 通过。
+4. 修复打包态启动 panic：`start_log_forwarder` 原用 `tokio::spawn`，setup 钩子不在 tokio runtime 上下文里，打包态启动即 panic（"there is no reactor running"）→ 改 `tauri::async_runtime::spawn`。dev 态因 devUrl 热加载路径不同未触发，属打包态专属问题。
+
+### release.yml 改造（Tauri 单形态）
+
+- 门禁：TS 四项（manifest:check/typecheck/lint/test）+ Rust 三项（fmt/clippy/test）+ Rust 侧 manifest-check；`ELECTRON_SKIP_BINARY_DOWNLOAD=1` 安装依赖（不再需要 electron.exe）。
+- 版本号以 `tauri.conf.json` 为唯一来源（PowerShell ConvertFrom-Json 读取 → make-update-index --version）。
+- 构建：`pnpm build:tauri`；索引：devkit-cli make-update-index；体积门禁：>15MiB 即 fail；冒烟：DEVKIT_SMOKE=1 跑 `src-tauri/target/release/devkit-app.exe`（Start-Process -Wait 退出码判定）。
+- SignPath 签名链路：上传 `src-tauri/target/release/bundle/nsis/devkit-*-setup.exe` → 签名 → 替换 → **自动重跑 make-update-index**（签名改 PE 字节，SHA-256 必须重算，否则用户更新校验必失败）→ GitHub Release 上传 setup.exe + latest.json。便携版无对应物（tauri bundler 无 portable target），从发布文件清单移除。
+- docs/CODE-SIGNING.md 新增「Tauri 产物（v1.0.0 起）的签名与 hash 提交」章节：路径对照表 + 手工发布五步（签名后必须重算索引）。
+
+### 验收证据
+
+- `cargo fmt --check` / `clippy -D warnings` / `cargo test --workspace`：347 通过（R5 基线持平，新增 make-update-index 的 find_artifacts 单测）。
+- 本机实测：NSIS 构建 → 6.12 MiB；冒烟 exit 0；静默安装 + 注册表 + 安装目录冒烟复验全过；latest.json 生成字段齐全（sha256=10aded62…，size=6414980）。
+- release.yml 本地无法完整验证（GitHub Actions 专属）：YAML lint + 每一步的命令均在本机逐一实测过（构建/索引/冒烟/门禁命令），签名段逻辑沿用原流程仅换路径。
+
+### 偏离与顺延
+
+1. **旧版升级路径实测（TS v0.6.2 → Rust v1.0.0）顺延 R7 虚拟机端到端**：latest.json 是远端 URL 协议，本机无 TS 版安装客户端可升级；协议字段已在单元测试对齐（devkit-core updater 测试），端到端升级留给 R7 干净虚拟机清单（与 UAC/SHA-256/nonce 三条同批）。
+2. **便携版移除**：tauri bundler 无 portable target；TS 版 portable 用户改用 NSIS 安装包（卸载注册项齐全），或手动解压 NSIS（NSIS 支持静默装到自定义目录 /D=）。
+3. **CI 暂保持双形态**（TS check/smoke + rust job），release.yml 已单形态；按计划 CI 收敛在 R7（删除 src/main、src/preload、electron 依赖后）。

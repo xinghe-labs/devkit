@@ -174,10 +174,43 @@ Get-AuthenticodeSignature .\devkit-0.6.1-setup.exe | Format-List Status, SignerC
 
 ---
 
-## 顺带说明：便携版
+## 顺带说明：便携版（Electron 时代遗留，Tauri 版已移除）
 
-`devkit-<版本>-portable.exe` 是 electron-builder 打的单文件自解压包，**也可以签**，
-但需要在 SignPath 里再建一个 Artifact Configuration（它内嵌的文件层级与 NSIS 不同）。
+`devkit-<版本>-portable.exe` 是 electron-builder 打的单文件自解压包（**仅 TS 末版 v0.6.x 的历史产物**）。
+Tauri 版（v1.0.0 起）只产 NSIS 安装包，不再有便携版，也就不需要为它建 Artifact Configuration。
 
-如果只签一个，**优先签 NSIS 安装包** —— 那是绝大多数用户会下载的那个。
-README 里也建议用户优先用安装版。
+历史 Release 里已有的便携版不受影响；如需签历史产物，参考本节原说明
+（在 SignPath 里为它单独建一个 Artifact Configuration，内嵌文件层级与 NSIS 不同）。
+
+---
+
+## Tauri 产物（v1.0.0 起）的签名与 hash 提交
+
+Tauri 版的发布链路（`release.yml`，R6 改造）产物路径变了，但 SignPath 流程不变：
+
+| 项 | Electron 时代 | Tauri 时代（现行） |
+| --- | --- | --- |
+| 构建命令 | `pnpm dist`（electron-builder） | `pnpm build:tauri`（tauri bundler） |
+| 产物路径 | `release/devkit-*-setup.exe` | `src-tauri/target/release/bundle/nsis/devkit-*-setup.exe` |
+| 便携版 | 有 | 无 |
+| 更新索引 | `pnpm release:index` | `cargo run -p devkit-cli --bin devkit-cli -- make-update-index --dir src-tauri/target/release/bundle/nsis --version <tauri.conf.json 的 version>` |
+| Artifact Configuration | `nsis-installer` | 同名沿用（NSIS 结构没变，tauri bundler 的 NSIS 模板兼容） |
+
+**签名后必须重算更新索引**（release.yml 已内置）：签名会改动 PE 文件（签名字节追加），
+SHA-256 随之变化，而 `latest.json` 里的 `checksums` 是用户更新时校验的唯一凭据 ——
+`make-update-index` 会在替换签名产物后重新跑一遍，保证索引与线上文件一致。
+
+#### 本地核对签名（与上面 Electron 段相同）
+
+```powershell
+Get-AuthenticodeSignature src-tauri/target/release/bundle/nsis/devkit-1.0.0-x64-setup.exe | Format-List Status, SignerCertificate
+# Status 应该是 Valid
+```
+
+#### 手工发布时（不走 release.yml）的 hash 提交步骤
+
+1. `pnpm build:tauri` 出包
+2. `cd src-tauri && cargo run --release -p devkit-cli --bin devkit-cli -- make-update-index --dir target/release/bundle/nsis --version 1.0.0`（版本号以 `tauri.conf.json` 的 `version` 为准）
+3. 签名（SignPath 控制台或本地工具）
+4. **重跑第 2 步**（签名改变了文件内容，SHA-256 必须重算）
+5. 把 `devkit-*-setup.exe` 与 `latest.json` 一起传到 GitHub Release

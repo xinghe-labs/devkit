@@ -133,10 +133,13 @@ pub struct ApplyProfileResult {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportProfileRequest {
     pub include_git_identity: bool,
+    /// 直写路径（脚本化迁移用）：传了就跳过保存对话框，但必须是绝对路径（TS 同语义）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

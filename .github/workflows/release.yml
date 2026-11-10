@@ -13,6 +13,11 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+# Tauri 单形态发布（R6 改造）：
+# - 产物来自 `pnpm build:tauri`（tauri bundler → NSIS），不再有 electron-builder 的 portable 包；
+# - 清单经 devkit-manifest 的 include_dir 编译期内嵌进 exe（决策 D10），manifest-check 在 Rust 门禁里跑；
+# - latest.json 由 devkit-cli make-update-index 生成（协议与 TS 版一致，额外带 runtime: "tauri"）；
+# - 冒烟对象换成打包出来的 devkit-app.exe（DEVKIT_SMOKE 看门狗，退出码判定）。
 jobs:
   release:
     name: build / verify / publish
@@ -39,12 +44,15 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: 安装依赖（发布必须下载 Electron 运行时）
+      - name: 安装依赖（渲染端构建用；跳过 Electron 二进制）
+        env:
+          # release 走 Tauri 形态，不需要 electron.exe 本体，跳过 250MB 下载
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: pnpm install --frozen-lockfile
 
       # 发布前的门禁：任何一项不过都不允许出包。
       # 这里刻意重复跑一遍 CI 的内容 —— 打 tag 的人可能跳过过 PR 检查。
-      - name: 清单校验
+      - name: 清单校验（TS 侧 JSON Schema + 语义约束）
         run: pnpm manifest:check
 
       - name: 类型检查
@@ -53,43 +61,62 @@ jobs:
       - name: 代码规范
         run: pnpm lint
 
-      - name: 单元测试
+      - name: 单元测试（TS）
         run: pnpm test
 
-      - name: 确保 Electron 运行时存在
+      - name: 确保 Rust stable
+        shell: pwsh
+        run: rustup default stable
+
+      - name: Rust 门禁（fmt / clippy / test）
+        working-directory: src-tauri
+        run: |
+          cargo fmt --all --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test --workspace
+
+      - name: 清单校验（Rust 侧，编译期内嵌前的权威检查）
+        working-directory: src-tauri
+        run: cargo run --release -p devkit-manifest --bin manifest-check
+
+      - name: 读取版本号（以 tauri.conf.json 为准）
+        id: version
         shell: pwsh
         run: |
-          # pnpm store 命中缓存时 electron 的 postinstall 不会真正执行（见 CI 里的说明）
-          $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
-          if (-not (Test-Path $exe)) {
-            $env:ELECTRON_MIRROR = 'https://github.com/electron/electron/releases/download/'
-            node node_modules/electron/install.js
-          }
-          if (-not (Test-Path $exe)) { throw "Electron 运行时缺失：$exe" }
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          "version=$($conf.version)" >> $env:GITHUB_OUTPUT
+          Write-Host "版本：$($conf.version)"
 
-      - name: 构建并打包（NSIS + portable）
-        # --publish never：package.json 里有 repository 字段时，electron-builder 会
-        # 推断"要自动发布"并要求 GH_TOKEN。发布交给下面的 action-gh-release 做。
-        run: pnpm dist
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # tauri build：渲染端 beforeBuildCommand + cargo build --release + NSIS 打包。
+      # webviewInstallMode=embedBootstrapper，安装包自带 WebView2 bootstrapper。
+      - name: 构建并打包（Tauri + NSIS）
+        run: pnpm build:tauri
 
       - name: 生成更新索引 latest.json
-        run: pnpm release:index
+        working-directory: src-tauri
+        run: cargo run --release -p devkit-cli --bin devkit-cli -- make-update-index --dir target/release/bundle/nsis --version ${{ steps.version.outputs.version }}
+
+      - name: 记录安装包体积（目标 ≤ 15MB）
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem 'src-tauri/target/release/bundle/nsis' -Filter '*-setup.exe' | Select-Object -First 1
+          $mb = [math]::Round($exe.Length / 1MB, 2)
+          Write-Host "安装包：$($exe.Name) = ${mb} MiB"
+          if ($mb -gt 15) { throw "安装包 ${mb} MiB 超过 15MB 目标" }
 
       - name: 校验产物确实存在
         shell: pwsh
         run: |
-          if (-not (Test-Path 'release/latest.json')) { throw '缺少 latest.json' }
-          Get-Content release/latest.json
-          Get-ChildItem release -Filter '*.exe' | Select-Object Name, Length
+          if (-not (Test-Path 'src-tauri/target/release/bundle/nsis/latest.json')) { throw '缺少 latest.json' }
+          Get-Content src-tauri/target/release/bundle/nsis/latest.json
+          Get-ChildItem src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object Name, Length
 
-      - name: 冒烟测试打包产物（界面必须能渲染且无渲染进程报错）
+      - name: 冒烟测试打包产物（渲染必须挂载且 signal_ready 到达）
         shell: pwsh
         run: |
           $env:DEVKIT_SMOKE = '1'
           $env:DEVKIT_SMOKE_DELAY_MS = '20000'
-          $exe = Join-Path $PWD 'release/win-unpacked/devkit.exe'
+          $exe = Join-Path $PWD 'src-tauri/target/release/devkit-app.exe'
           if (-not (Test-Path $exe)) { throw "找不到 $exe" }
           $process = Start-Process -FilePath $exe -WorkingDirectory $PWD -PassThru -Wait
           if ($process.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($process.ExitCode)" }
@@ -98,7 +125,7 @@ jobs:
       # ---------------- 代码签名（SignPath，未配置时整段跳过） ----------------
       # 为什么必须签：未签名的 exe 双击会被 SmartScreen 全屏拦截，而目标用户
       # 正是「刚装完系统、第一件事就是下载这个 exe」的人 —— 到这里就流失了。
-      # 申请与配置步骤见 docs/CODE-SIGNING.md。
+      # 申请与配置步骤见 docs/CODE-SIGNING.md（含 Tauri 产物的 hash 提交步骤）。
 
       - name: 上传未签名产物（SignPath 需要先有 artifact）
         if: env.SIGNPATH_API_TOKEN != ''
@@ -106,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: unsigned-installer
-          path: release/devkit-*-setup.exe
+          path: src-tauri/target/release/bundle/nsis/devkit-*-setup.exe
           if-no-files-found: error
 
       - name: 提交 SignPath 签名请求
@@ -128,12 +155,13 @@ jobs:
         run: |
           $signed = Get-ChildItem signed -Recurse -Filter 'devkit-*-setup.exe' | Select-Object -First 1
           if (-not $signed) { throw '签名输出目录里没有找到 setup.exe' }
-          $target = Join-Path $PWD ('release/' + $signed.Name)
+          $target = Join-Path $PWD ('src-tauri/target/release/bundle/nsis/' + $signed.Name)
           Copy-Item $signed.FullName $target -Force
           Write-Host "已用签名后的产物替换：$target"
 
           # 签名后体积会变，更新索引里的 SHA-256 必须重算，否则更新检查会拿到对不上的哈希
-          pnpm release:index
+          cargo run --release -p devkit-cli --bin devkit-cli -- make-update-index --dir src-tauri/target/release/bundle/nsis --version ${{ steps.version.outputs.version }}
+        working-directory: src-tauri
 
       - name: 核对签名状态
         if: env.SIGNPATH_API_TOKEN != ''
@@ -141,7 +169,7 @@ jobs:
         run: |
           # 用 .NET 直接读签名，不依赖 Get-AuthenticodeSignature
           # （实测有些机器的 PowerShell 缺 Microsoft.PowerShell.Security 模块）
-          $exe = (Get-ChildItem release -Filter 'devkit-*-setup.exe' | Select-Object -First 1).FullName
+          $exe = (Get-ChildItem src-tauri/target/release/bundle/nsis -Filter 'devkit-*-setup.exe' | Select-Object -First 1).FullName
           try {
             $cert = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($exe)
             Write-Host "签名者：$($cert.Subject)"
@@ -164,6 +192,5 @@ jobs:
           body_path: .github/release-notice.md
           generate_release_notes: true
           files: |
-            release/devkit-*-setup.exe
-            release/devkit-*-portable.exe
-            release/latest.json
+            src-tauri/target/release/bundle/nsis/devkit-*-setup.exe
+            src-tauri/target/release/bundle/nsis/latest.json

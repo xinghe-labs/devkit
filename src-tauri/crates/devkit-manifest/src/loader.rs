@@ -8,6 +8,18 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
+use include_dir::{include_dir, Dir};
+
+/// 内嵌随包清单（决策 D10：单 exe 便携，热更新 override 落 %APPDATA% 覆盖）。
+///
+/// 加载优先级（build_manifest_load_result）：
+/// 1. `builtin_dir/tools` 存在 → 文件系统（开发期改清单免重编译；
+///    DEVKIT_MANIFEST_DIR 环境变量经 app 层也落到这里，测试/便携覆盖）
+/// 2. 否则 → 本内嵌目录（打包后的 NSIS/exe 不再依赖外置 resources/）
+/// 3. 用户覆盖（`<user>/manifest/tools/`）始终在内置之后按 id 优先，语义不变（FR-15）。
+pub static EMBEDDED_MANIFESTS: Dir<'_> =
+    include_dir!("$CARGO_MANIFEST_DIR/../../../resources/manifest");
+
 use devkit_types::iso8601_now;
 use devkit_types::manifest::{
     ManifestLoadResult, ManifestSource, ToolCategory, ToolManifest, TOOL_CATEGORY_ORDER,
@@ -81,9 +93,50 @@ fn read_manifest_inputs(
     (inputs, errors)
 }
 
+/// 内嵌清单 → 校验输入（与 read_manifest_inputs 同形状）。
+///
+/// 内嵌文件编译期已确定，同名排序 + 解析失败仅可能来自 serde（编译期文件不变）。
+fn read_manifest_inputs_embedded() -> (
+    Vec<ManifestFileInput>,
+    Vec<devkit_types::manifest::ManifestLoadError>,
+) {
+    let mut inputs = Vec::new();
+    let mut errors = Vec::new();
+    let mut files: Vec<&include_dir::File<'_>> = EMBEDDED_MANIFESTS
+        .get_dir("tools")
+        .map(|dir| dir.files().collect())
+        .unwrap_or_default();
+    files.sort_by_key(|file| file.path().to_string_lossy().to_string());
+    for file in files {
+        let name = file
+            .path()
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if !name.ends_with(".json") {
+            continue;
+        }
+        match file.contents_utf8() {
+            Some(content) => match serde_json::from_str::<serde_json::Value>(content) {
+                Ok(data) => inputs.push(ManifestFileInput { file: name, data }),
+                Err(error) => errors.push(devkit_types::manifest::ManifestLoadError {
+                    file: name,
+                    message: error.to_string(),
+                }),
+            },
+            None => errors.push(devkit_types::manifest::ManifestLoadError {
+                file: name,
+                message: "内嵌清单不是 UTF-8 文本".to_string(),
+            }),
+        }
+    }
+    (inputs, errors)
+}
+
 /// 加载并校验内置清单（镜像 `loadManifests`）。
 ///
-/// `builtin_dir`：内置清单根目录（含 `tools/` 子目录）。
+/// `builtin_dir`：内置清单根目录（含 `tools/` 子目录）。目录存在时走文件系统
+/// （开发期/测试/便携覆盖）；不存在时回退到编译期内嵌清单（决策 D10，打包态单 exe）。
 /// `user_dir`：用户数据目录（热更新覆盖放 `<user>/manifest/tools/`，FR-15）；
 /// 传 None 表示不读用户覆盖（单测场景）。
 ///
@@ -113,7 +166,13 @@ pub fn load_manifests(
 fn build_manifest_load_result(builtin_dir: &Path, user_dir: Option<&Path>) -> ManifestLoadResult {
     let mut errors: Vec<devkit_types::manifest::ManifestLoadError> = Vec::new();
 
-    let (builtin_inputs, read_errors) = read_manifest_inputs(builtin_dir, "tools");
+    // 决策 D10：打包态内嵌。文件系统目录存在（开发期/测试/便携覆盖）走文件系统，
+    // 否则用 include_dir 内嵌的随包清单 —— 打包后的 exe 不再需要外置 resources/。
+    let (builtin_inputs, read_errors) = if builtin_dir.join("tools").is_dir() {
+        read_manifest_inputs(builtin_dir, "tools")
+    } else {
+        read_manifest_inputs_embedded()
+    };
     errors.extend(read_errors);
 
     let builtin = validate_manifest_files(&builtin_inputs);
@@ -270,16 +329,42 @@ mod tests {
     }
 
     #[test]
-    fn missing_tools_dir_reports_error_but_returns_empty() {
+    fn missing_tools_dir_falls_back_to_embedded() {
+        // 决策 D10：打包态内嵌 —— 目录不存在时用内嵌清单，不再报“找不到清单目录”。
         let root =
             std::env::temp_dir().join(format!("devkit-manifest-missing-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let result = load_manifests(&root, None, true);
-        assert!(result.tools.is_empty());
-        assert_eq!(result.errors.len(), 1);
-        assert!(result.errors[0].message.contains("找不到清单目录"));
+        assert!(!result.tools.is_empty(), "应回退到内嵌清单，实际 0 个工具");
+        assert!(
+            result.errors.is_empty(),
+            "内嵌清单应全部合法：{:?}",
+            result.errors
+        );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn embedded_manifests_complete() {
+        // 仓库 resources/manifest 的全部随包清单都进了二进制（决策 D10）。
+        let json_count = EMBEDDED_MANIFESTS
+            .get_dir("tools")
+            .map(|dir| {
+                dir.files()
+                    .filter(|file| {
+                        file.path()
+                            .extension()
+                            .map(|ext| ext == "json")
+                            .unwrap_or(false)
+                    })
+                    .count()
+            })
+            .unwrap_or(0);
+        assert!(
+            json_count >= 25,
+            "内嵌 tools 清单应 ≥ 25 份，实际 {json_count}"
+        );
     }
 
     #[test]

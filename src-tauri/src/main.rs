@@ -46,7 +46,40 @@ fn get_app_info() -> devkit_types::AppInfo {
 #[tauri::command]
 fn signal_ready() -> bool {
     println!("[devkit] renderer ready");
+    SMOKE_READY.store(true, std::sync::atomic::Ordering::SeqCst);
     true
+}
+
+/// 冒烟看门狗（release.yml 用，对齐 TS 版 DEVKIT_SMOKE 机制）。
+///
+/// - `DEVKIT_SMOKE=1`：等到 signal_ready（渲染挂载回执）后延时 `DEVKIT_SMOKE_DELAY_MS`
+///   （默认 12000ms）以退出码 0 结束；60s 内一直收不到 → 退出码 1（渲染没挂起来）。
+/// - 与 Electron 版的差异（附录 E.11 偏离 4）：Tauri 拿不到渲染进程 console 错误流，
+///   也没有 webContents.capturePage 截图等价物，判据收敛为「IPC 回执到达 + 无 panic」；
+///   视觉核对交给 R7 真机手工清单（决策 D13）。
+static SMOKE_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn start_smoke_watchdog() {
+    if std::env::var("DEVKIT_SMOKE").as_deref() != Ok("1") {
+        return;
+    }
+    std::thread::spawn(|| {
+        let delay = std::env::var("DEVKIT_SMOKE_DELAY_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(12_000);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while !SMOKE_READY.load(std::sync::atomic::Ordering::SeqCst) {
+            if std::time::Instant::now() >= deadline {
+                eprintln!("[devkit] 冒烟失败：60s 内未收到 signal_ready（渲染未挂载）");
+                std::process::exit(1);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(delay));
+        println!("[devkit] 冒烟通过：界面已挂载，signal_ready 已到达");
+        std::process::exit(0);
+    });
 }
 
 fn load_manifests() -> ManifestLoadResult {
@@ -932,6 +965,7 @@ async fn import_offline_pack(
 #[tauri::command]
 async fn export_profile(
     request: Option<devkit_types::profile::ExportProfileRequest>,
+    app: tauri::AppHandle,
 ) -> Result<ExportProfileResult, String> {
     let manifests = load_manifests();
     let config = config_view();
@@ -945,6 +979,7 @@ async fn export_profile(
     .await;
     let installed = list_installed();
     let include_git = request
+        .as_ref()
         .map(|request| request.include_git_identity)
         .unwrap_or(false);
     let profile = devkit_core::profile::collect_profile(
@@ -959,68 +994,139 @@ async fn export_profile(
         },
     );
 
-    // 保存到默认位置（应用层后续接保存对话框；先用 dataRoot）
-    let file = devkit_core::app_paths::get_data_root()
-        .join(devkit_core::profile::default_profile_file_name());
+    // 传了 filePath 就直接写（脚本化迁移用），否则弹保存对话框（TS 同语义）
+    let direct = request
+        .and_then(|request| request.file_path)
+        .filter(|path| !path.trim().is_empty());
+    let target: PathBuf = match direct {
+        Some(path) => {
+            let path = PathBuf::from(path.trim());
+            if !path.is_absolute() {
+                return Err("档案输出路径必须是绝对路径".to_string());
+            }
+            path
+        }
+        None => {
+            use tauri_plugin_dialog::DialogExt;
+            let picked = app
+                .dialog()
+                .file()
+                .set_title("导出环境档案")
+                .set_file_name(devkit_core::profile::default_profile_file_name())
+                .add_filter("JSON", &["json"])
+                .blocking_save_file();
+            match picked {
+                Some(file) => file.into_path().map_err(|error| error.to_string())?,
+                None => {
+                    return Ok(ExportProfileResult {
+                        ok: false,
+                        file_path: None,
+                        profile: None,
+                        error: Some("已取消".to_string()),
+                    })
+                }
+            }
+        }
+    };
+
     let text = serde_json::to_string_pretty(&profile).map_err(|error| error.to_string())?;
-    std::fs::write(&file, format!("{text}\n")).map_err(|error| format!("写档案失败：{error}"))?;
-    devkit_core::logging::global().info("profile", &format!("档案已导出：{}", file.display()));
+    std::fs::write(&target, format!("{text}\n")).map_err(|error| format!("写档案失败：{error}"))?;
+    devkit_core::logging::global().info("profile", &format!("档案已导出：{}", target.display()));
     Ok(ExportProfileResult {
         ok: true,
-        file_path: Some(file.display().to_string()),
+        file_path: Some(target.display().to_string()),
         profile: Some(profile),
         error: None,
     })
 }
 
 #[tauri::command]
-fn import_profile() -> Result<ImportProfileResult, String> {
-    // 无对话框时的默认路径：dataRoot 下最近一份档案；接对话框后由前端传路径
-    let dir = devkit_core::app_paths::get_data_root();
-    let Ok(entries) = std::fs::read_dir(&dir) else {
+async fn import_profile(app: tauri::AppHandle) -> Result<ImportProfileResult, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("导入环境档案")
+        .add_filter("JSON", &["json"])
+        .blocking_pick_file();
+    let Some(file) = picked else {
         return Ok(ImportProfileResult {
             ok: false,
             file_path: None,
             profile: None,
             description: Vec::new(),
             diff: None,
-            error: Some("找不到档案目录".to_string()),
+            error: Some("已取消".to_string()),
         });
     };
-    let mut candidates: Vec<PathBuf> = entries
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name()
-                .map(|name| name.to_string_lossy().starts_with("devkit-profile-"))
-                .unwrap_or(false)
-        })
-        .collect();
-    candidates.sort();
-    let Some(path) = candidates.pop() else {
-        return Ok(ImportProfileResult {
-            ok: false,
-            file_path: None,
-            profile: None,
-            description: Vec::new(),
+    let path = file.into_path().map_err(|error| error.to_string())?;
+    let file_path = path.display().to_string();
+
+    let load = |file_path: &str| -> Result<ImportProfileResult, String> {
+        let text =
+            std::fs::read_to_string(file_path).map_err(|error| format!("读档案失败：{error}"))?;
+        let raw: serde_json::Value =
+            serde_json::from_str(&text).map_err(|error| format!("档案不是合法 JSON：{error}"))?;
+        // 别人给的档案不能直接信：走一遍白名单清洗
+        let profile = devkit_core::profile::sanitize_profile(&raw)?;
+        let description = devkit_core::profile::describe_profile(&profile);
+        Ok(ImportProfileResult {
+            ok: true,
+            file_path: Some(file_path.to_string()),
+            profile: Some(profile),
+            description,
             diff: None,
-            error: Some("没有找到已导出的档案".to_string()),
-        });
+            error: None,
+        })
     };
 
-    let text = std::fs::read_to_string(&path).map_err(|error| format!("读档案失败：{error}"))?;
-    let raw: serde_json::Value =
-        serde_json::from_str(&text).map_err(|error| format!("档案不是合法 JSON：{error}"))?;
-    let profile = devkit_core::profile::sanitize_profile(&raw)?;
-    let description = devkit_core::profile::describe_profile(&profile);
-    Ok(ImportProfileResult {
-        ok: true,
-        file_path: Some(path.display().to_string()),
-        profile: Some(profile.clone()),
-        description,
-        diff: None,
-        error: None,
-    })
+    match load(&file_path) {
+        Ok(mut result) => {
+            // 档案 vs 本机：缺什么、版本差什么（TS 同语义，给应用页先看清再决定）
+            let manifests = load_manifests();
+            let programs = devkit_sys::registry::get_installed_programs().unwrap_or_default();
+            let detections = devkit_core::detect::detect_all(
+                &manifests.tools,
+                &programs,
+                devkit_core::detect::DetectAllOptions { concurrency: None },
+                None,
+            )
+            .await;
+            let installed = list_installed();
+            let profile = match result.profile.as_ref() {
+                Some(profile) => profile,
+                None => {
+                    return Ok(ImportProfileResult {
+                        ok: false,
+                        file_path: Some(file_path),
+                        profile: None,
+                        description: Vec::new(),
+                        diff: None,
+                        error: Some("档案清洗后为空".to_string()),
+                    })
+                }
+            };
+            let diff = devkit_core::profile::diff_profile(
+                profile,
+                &devkit_core::profile::DiffContext {
+                    tools: &manifests.tools,
+                    detections: &detections,
+                    installed: &installed,
+                },
+            );
+            result.diff = Some(diff);
+            devkit_core::logging::global().info("profile", &format!("档案已导入：{file_path}"));
+            Ok(result)
+        }
+        Err(message) => Ok(ImportProfileResult {
+            ok: false,
+            file_path: Some(file_path),
+            profile: None,
+            description: Vec::new(),
+            diff: None,
+            error: Some(message),
+        }),
+    }
 }
 
 #[tauri::command]
@@ -1051,7 +1157,9 @@ fn apply_profile_command(
 /// 通过 broadcast 订阅日志通道。
 fn start_log_forwarder(app: tauri::AppHandle) {
     let mut receiver = devkit_core::logging::global().subscribe();
-    tokio::spawn(async move {
+    // 注意：setup 钩子不在 tokio runtime 上下文里，必须走 tauri 的 async_runtime，
+    // 否则打包态启动即 panic（"there is no reactor running"，冒烟实测抓到）
+    tauri::async_runtime::spawn(async move {
         loop {
             match receiver.recv().await {
                 Ok(entry) => {
@@ -1080,8 +1188,10 @@ pub fn run() {
             );
             devkit_core::app_paths::set_data_root_override(config.data_root);
             start_log_forwarder(app.handle().clone());
+            start_smoke_watchdog();
             Ok(())
         })
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             install: Arc::new(Mutex::new(None)),
             elevation: Arc::new(devkit_core::elevation::RealElevation),
