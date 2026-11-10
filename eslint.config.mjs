@@ -20,9 +20,9 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
-  // 主进程 / 预加载 / 脚本：Node 环境
+  // 脚本与根配置：Node 环境
   {
-    files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'scripts/**/*.ts', '*.ts'],
+    files: ['scripts/**/*.ts', '*.ts'],
     languageOptions: {
       globals: { ...globals.node }
     },

@@ -21,7 +21,7 @@
 | ![环境体检](docs/images/screenshot-doctor.png) | ![环境档案](docs/images/screenshot-profile.png) |
 
 > [!WARNING]
-> **技术预览（v0.6.x）· 安装包未签名 —— 欢迎试用，但请先读完这一段**
+> **技术预览（v1.0.0 · Rust/Tauri 2 重构版）· 安装包未签名 —— 欢迎试用，但请先读完这一段**
 >
 > - **安装包没有代码签名。** Windows SmartScreen 会弹「Windows 已保护你的电脑」。
 >   这是**预期行为**（不是文件损坏、也不是被篡改），点「更多信息」→「仍要运行」即可。
@@ -80,7 +80,7 @@
 ## 快速开始
 
 1. 从 [Releases](https://github.com/xinghe-labs/devkit/releases/latest) 下载
-   `devkit-<版本>-setup.exe`（安装版）或 `-portable.exe`（免安装）
+   `devkit-<版本>-setup.exe`（安装版；安装包自带 WebView2 bootstrapper，系统缺 WebView2 也能装）
 2. （首次运行被 SmartScreen 拦时）点「更多信息」→「仍要运行」
 3. 选一个预设（前端 / Java / AI 编码…）或自己勾选 → 点「安装」
 4. 装完用「环境体检」确认 PATH 与命令解析没问题

@@ -27,7 +27,7 @@ body:
       label: 你用的是哪个形态
       options:
         - 安装版（devkit-x.y.z-setup.exe）
-        - 便携版（devkit-x.y.z-portable.exe）
+        - 便携版（v0.6.x 及更早版本的 devkit-x.y.z-portable.exe）
         - 从源码跑（pnpm dev）
     validations:
       required: true

@@ -1,7 +1,7 @@
 # devkit — 一键开发环境部署器 · 需求与设计规格
 
-> 状态：**v0.9 · M0~M4 主体功能 + AI agent + 环境体检/换机迁移**（清单 25 项 / 22 项可装；端到端安装、激活、卸载、预设、离线包、热更新、提权、AI agent、体检与迁移均已实现）
-> 定位：开源（MIT）· Windows x64 · Electron 桌面端 · 打包 exe 分发
+> 状态：**v1.0.0 · Rust/Tauri 2 迁移完成**（v0.9 Electron 形态的 M0~M4 全量功能平移至 Rust：端到端安装、激活、卸载、预设、离线包、热更新、提权、AI agent、体检与迁移；迁移决策与偏离清单见 MIGRATION-RUST.md）
+> 定位：开源（MIT）· Windows x64 · Tauri 2（Rust + WebView2）桌面端 · 打包 exe 分发
 > 最低支持：**Windows 10 22H2 (build 19045) x64** 及以上（含 Win11 全版本）
 > 实测记录：[docs/VERIFICATION.md](./docs/VERIFICATION.md) · 市场调研：[docs/market-research.md](./docs/market-research.md)
 
@@ -34,7 +34,7 @@
 
 ### 2.1 In Scope（做）
 
-- Windows x64 桌面 GUI（Electron）
+- Windows x64 桌面 GUI（Tauri 2：Rust 核心 + 系统 WebView2，安装包内嵌 bootstrapper）
 - 常用开发软件的**检测 / 选择 / 下载 / 静默安装 / 配置 / 自检**
 - **每个软件可选安装版本**（清单提供多个版本，默认推荐 LTS/稳定版）
 - **卸载已装项**（仅卸载，不做回滚，见 FR-16）
@@ -317,12 +317,16 @@
 > `%USERPROFILE%\.devkit\current\<tool>` 这个 junction，PATH 里的条目始终指向它，
 > 所以"切版本 = 只改 junction 指向"。功能是完整的，缺的只是命令行入口。
 >
-> 没补的理由：CLI 要复用激活逻辑（junction + PATH 条目 + 环境变量 + 新终端验证），
+> 没补的理由（已过时，见下方更新）：CLI 要复用激活逻辑（junction + PATH 条目 + 环境变量 + 新终端验证），
 > 而那套逻辑依赖 Electron 的 `app.getPath()` 等主进程能力。直接搬一份到 CLI 就是
 > **同一份知识两处实现** —— 本项目已经因为这类重复吃过一次亏（离线包与执行器的
 > 文件名规则不一致，导致离线装 VS Code 必然失败）。正确做法是先把激活逻辑抽成
 > 不依赖 Electron 的模块，而这需要真机验证版本切换（当前环境做不到）。
 > 在那之前，把声明改成事实，而不是留一个假 ✅。
+>
+> **【v1.0.0 更新】CLI 已补上**：Rust 迁移（MIGRATION-RUST.md）期间 `devkit-cli`
+> 落地了 `install`/`detect-report`/`make-update-index`/`verify-update` 子命令，
+> 与 GUI 共用同一套 `devkit-core`（激活、计划、下载、校验和），无双实现。
 
 ### FR-12 离线模式
 - 提供**离线包制作器**：devkit 内置功能，在**有网的机器上**运行，按勾选项下载并打包成 `devkit-offline-<devkit版本>-<日期>.zip`
@@ -332,7 +336,7 @@
 - **仓库不发布任何离线包**
 
 ### FR-13 自动更新
-- `electron-updater` + GitHub Releases
+- **半自动更新**：启动时拉 GitHub Releases 的 `latest.json`（本项目产出，带 SHA-256/体积/runtime 字段）→ 横幅提示 → 一键下载 + 强制 SHA-256 校验 → 拉起安装包。**刻意不做静默自动更新**（理由与边界见 §13.4；Rust 版同样不引入 tauri-plugin-updater）
 - 启动时静默检查，有新版提示；用户可关闭自动检查
 - 更新失败不影响主功能
 
@@ -428,22 +432,23 @@
 
 | 层 | 选型 | 理由 |
 |---|---|---|
-| 桌面框架 | **Electron** | 用户已确认；自带 Chromium+Node，新电脑零依赖 |
-| 构建 | **electron-vite** | 主/预加载/渲染三端 HMR，开发快 |
-| 打包 | **electron-builder** | NSIS + portable 双 target，自动更新成熟 |
-| 语言 | **TypeScript**（strict） | 主进程与 UI 共享类型 |
+| 桌面框架 | **Tauri 2（Rust）+ WebView2** | 安装包 ≈6MB（对比 Electron ≈100MB）；系统 WebView，新电脑零 Chromium 依赖；安装包内嵌 WebView2 bootstrapper 兼容旧镜像 |
+| 核心 | **Rust workspace**（devkit-core / devkit-types / devkit-manifest / devkit-cli） | 强类型 + 所有权消灭资源泄漏；GUI/CLI 共用同一套核心 |
+| 构建 | **Vite**（渲染端）+ Tauri CLI | 渲染端 HMR；`tauri dev` / `tauri build` 一键拉起 |
+| 打包 | **tauri bundler（NSIS）** | 单 target，安装包自带 WebView2 bootstrapper |
+| 语言 | **TypeScript**（strict，渲染端）+ **Rust**（核心与系统操作） | UI 层 TS 共享类型；系统层 Rust |
 | UI | **React + Ant Design** | 表单/表格/进度/步骤条开箱即用 |
 | 状态 | **Zustand** | 轻量，适合这种规模 |
 | i18n | **i18next + react-i18next** | 中英双语 |
-| 更新 | **electron-updater** | GitHub provider |
-| 系统操作 | Node `child_process` + PowerShell | 实时流式输出 |
-| 测试 | **Vitest** + Playwright(Electron) | 见 §11 |
+| 更新 | **半自动 latest.json**（自研协议，刻意不用 updater 插件） | 见 §13.4 |
+| 系统操作 | Rust `std::process` + PowerShell | 实时流式输出（CommandRunner） |
+| 测试 | **Vitest**（TS 渲染端/共享层）+ **cargo test**（Rust 核心，354 用例） | 见 §11 |
 
 ### 6.2 进程模型
 
 ```
-主进程 (Node)
- ├─ 清单加载与校验 (manifest)
+Rust 核心（devkit-app 进程内）
+ ├─ 清单加载与校验 (devkit-manifest: 编译期内嵌 + 外部目录覆盖)
  ├─ 环境检测 (detect)
  ├─ 下载器 (downloader: 断点续传/校验和/镜像回退/代理)
  ├─ 安装提供者 (providers: Direct / Scoop / Winget)
@@ -454,10 +459,11 @@
  ├─ 预检 (preflight)
  ├─ 版本管理 (version)
  ├─ 离线包 (offline)
- ├─ 提权助手 (elevate) ←→ 提权 PowerShell 子进程（仅白名单操作）
- └─ 日志与报告 (report)
-        ↕ IPC (contextBridge, 白名单通道 + 参数校验)
-预加载 (preload)  — 仅暴露类型化 API，无 nodeIntegration
+ ├─ 热更新 (hotupdate) / 提权助手 (elevation) ←→ 提权 PowerShell 子进程（仅白名单操作）
+ ├─ 预设方案 (presets) / 换机迁移 (profile)
+ └─ 日志与报告 (logging/report)
+        ↕ Tauri IPC（invoke 命令面，48 通道，参数强类型 + deny_unknown_fields）
+渲染层适配层 (tauri-adapter.ts) — 同 Electron 版 DevkitApi 契约，window.devkit 不存在时自动挂载
         ↕
 渲染进程 (React)  — 纯 UI，不碰系统
 ```
@@ -480,12 +486,19 @@
 devkit/
 ├─ SPEC.md
 ├─ package.json
-├─ tsconfig.json
-├─ electron.vite.config.ts
-├─ electron-builder.yml
+├─ tsconfig.json / tsconfig.web.json / tsconfig.test.json
+├─ vite.config.ts                        # 渲染端构建（Tauri beforeBuildCommand 调用）
+├─ src-tauri/                            # Rust workspace
+│  ├─ tauri.conf.json
+│  ├─ src/（devkit-app：Tauri 命令面 + IPC）
+│  └─ crates/
+│     ├─ devkit-core/                    # 核心：detect/plan/executor/configure/...
+│     ├─ devkit-types/                   # 跨端强类型（serde）
+│     ├─ devkit-manifest/                # 清单解析/校验（编译期内嵌）
+│     └─ devkit-cli/                     # CLI：install/detect-report/make-update-index/verify-update
 ├─ .github/workflows/
-│  ├─ ci.yml                         # PR: lint + typecheck + test + manifest schema 校验
-│  └─ release.yml                    # 打 tag: 构建 NSIS + portable 并发布 Release
+│  ├─ ci.yml                         # PR: TS 门禁 + Rust 门禁（含 manifest-check）+ Tauri 冒烟
+│  └─ release.yml                    # 打 tag: tauri build NSIS → 签名 → Release + latest.json
 ├─ resources/
 │  ├─ manifest/
 │  │  ├─ tools/                      # 每个软件一个 json（核心数据）
@@ -756,7 +769,7 @@ devkit/
 ### M0 — 骨架（可运行的空壳）
 **状态**：✅ 已完成（提交 `e61c761`）
 
-**产出**：仓库初始化、Electron+React+TS+AntD 跑起来、三端 IPC 打通（含参数校验）、i18n 骨架（含回退规则）、日志模块、manifest 加载与 JSON Schema 校验、真实环境检测、列表展示（含版本下拉）
+**产出**：仓库初始化、React+TS+AntD 渲染层跑起来、IPC 打通（含参数校验；v1.0.0 起为 Tauri invoke 命令面）、i18n 骨架（含回退规则）、日志模块、manifest 加载与 JSON Schema 校验、真实环境检测、列表展示（含版本下拉）
 **验收**：`pnpm dev` 能打开窗口，看到真实检测出的本机已装软件列表（含版本号），中英可切换且无 `undefined`，manifest 校验失败能被 CI 拦截
 
 ### M1a — 端到端闭环（零风险，不碰系统）
@@ -799,7 +812,7 @@ M1a 可以先在开发机上真实验证，M1b 必须在干净环境里做。
 ### M4 — 发布
 **状态**：✅ 已完成（NSIS + portable 实测产出；CI/发布流水线；更新检查为提示式，见 §13.4）
 
-**产出**：NSIS + portable 双产物、GitHub Actions 自动构建发布、**半自动更新**（启动检查 → 横幅提示 → 一键下载并强制 SHA-256 校验 → 拉起安装包；**刻意不用 electron-updater**，见 §13.4）、README 与使用文档、双语补全、贡献指南
+**产出**（v0.x Electron 形态实录；v1.0.0 起为 Tauri 单形态）：NSIS 产物、GitHub Actions 自动构建发布、**半自动更新**（启动检查 → 横幅提示 → 一键下载并强制 SHA-256 校验 → 拉起安装包；**刻意不用 updater 插件**，见 §13.4）、README 与使用文档、双语补全、贡献指南
 **验收**：GitHub Release 下载 exe 能在干净机器运行；旧版本能检测到并更新
 
 ---
@@ -818,14 +831,14 @@ M1a 可以先在开发机上真实验证，M1b 必须在干净环境里做。
 ### 11.2 标准命令
 ```bash
 pnpm install      # 安装依赖
-pnpm dev          # 开发模式（三端 HMR）
-pnpm build        # 构建（不打包）
-pnpm dist         # 打包出 NSIS + portable
+pnpm dev          # 开发模式（tauri dev：Rust + 渲染端 HMR）
+pnpm build        # 构建（tauri build；加 --no-bundle 只出 exe 不打包）
 pnpm lint         # ESLint
-pnpm typecheck    # tsc --noEmit
-pnpm test         # Vitest 单元测试
-pnpm test:e2e     # Playwright Electron 端到端（M2 之后启用）
-pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
+pnpm typecheck    # tsc --noEmit（根/web/test 三份配置）
+pnpm test         # Vitest 单元测试（TS 侧）
+cargo test --workspace  # Rust 核心单元测试（src-tauri 下）
+pnpm manifest:check  # 校验所有 manifest（Rust 实现：devkit-manifest manifest-check）
+pnpm detect       # 终端环境检测报告（devkit-cli detect-report）
 ```
 
 ### 11.3 测试策略
@@ -835,12 +848,12 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
   - 参数模板：非法占位符必须被拒绝
   - executor：状态机流转、并发上限、取消语义、续跑时跳过已成功项
   - 路径工具：中文路径 / 含空格路径 / 长路径
-- **端到端（Playwright + Electron）**：M2 之后覆盖"选择 → 预检 → 安装 → 报告"主流程（用 mock provider，不真装软件）
+- **端到端**：v1.0.0 起 CI 冒烟覆盖「渲染挂载 + signal_ready IPC 回执 + 无 panic」（DEVKIT_SMOKE 看门狗，Tauri 拿不到渲染进程 console 错误流，视觉核对依赖真机手工清单）；Playwright 端到端（选择 → 预检 → 安装 → 报告，mock provider）留待后续
 - **真实安装测试**：只能在虚拟机里做，见 §12
 
 ### 11.4 CI（GitHub Actions）
-- `ci.yml`（PR / push 触发）：`pnpm lint` → `pnpm typecheck` → `pnpm manifest:check` → `pnpm test`。任一失败阻断合并
-- `release.yml`（打 tag 触发）：构建 NSIS + portable，上传 GitHub Release，生成 `latest.yml` 供 electron-updater 使用
+- `ci.yml`（PR / push 触发）：TS 门禁（typecheck/lint/test）+ Rust 门禁（fmt/clippy/test/manifest-check）+ Tauri 冒烟。任一失败阻断合并
+- `release.yml`（打 tag 触发）：`tauri build` 出 NSIS（webviewInstallMode=embedBootstrapper），SignPath 签名（未配置时跳过并警告），上传 GitHub Release，生成 `latest.json`（带 SHA-256/体积/runtime 字段；签名后重算索引）
 
 ### 11.5 代码与提交规范
 - ESLint + Prettier；TypeScript `strict: true`
@@ -864,7 +877,7 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 | 镜像速度差异巨大 | 用户等几分钟 | 实测：华为云 8.2 MB/s、官方源 191 KB/s、阿里云 162 KB/s，相差 40 倍。镜像偏好必须可选，且要能一键切 |
 | Docker Desktop 需 WSL2 + 重启 | 体验断点 | 依赖检查 + pending.json 续跑（FR-17）+ 明确提示 |
 | 并发安装 MSI 互斥 | 失败 | 默认串行 |
-| Electron 包体积大 | 下载慢 | 接受；或用 NSIS web installer 变体 |
+| Tauri/WebView2 兼容性 | 旧系统无 WebView2 | 安装包内嵌 WebView2 bootstrapper（webviewInstallMode=embedBootstrapper），缺运行时也能装 |
 | `installScope` 判断错误 | 用户级/系统级装错位置 | M2 逐项实测并修正 manifest（**当前清单中的 scope 值尚未逐项验证**） |
 
 ---
@@ -952,7 +965,7 @@ pnpm manifest:check  # 校验所有 manifest 是否符合 JSON Schema
 | 23 | 下载缓存该放哪 | 放在 `getDataRoot()` 下面（默认 `%USERPROFILE%\.devkit\downloads`），**不是** `%APPDATA%`。理由：它是批量产物（实测 1 GB 级），而 `%APPDATA%` 在系统盘上；而且必须让界面与命令行脚本用**同一个**缓存 |
 | 24 | 根目录能不能改 | 能。优先级：环境变量 `DEVKIT_DATA_ROOT` → 设置里的 `dataRoot` → 默认 `%USERPROFILE%\.devkit`。`versions` / `downloads` / `current` / `bin` 全部跟着走 |
 | 25 | 改根目录之后旧数据怎么办 | **不自动迁移、也不识别**。设置页里明确提示这一点（避免用户以为"改了就会搬"）。要迁移就手工搬目录，或重新安装 |
-| 26 | `%APPDATA%\devkit` 里那 30 MB 是什么 | **Electron/Chromium 自己的 profile**（Cache / Code Cache / GPUCache / ShaderCache / Local Storage / Preferences…）。只要开窗口就会生成，不是 devkit 放的，也删不干净（删了下次启动会重建） |
+| 26 | `%APPDATA%\devkit` 里怎么这么小 | v1.0.0（Tauri）起不再有 Electron/Chromium profile（Cache/GPUCache 那几十 MB 没了），目录里只剩日志/设置/状态等 devkit 自己的文件；WebView2 的浏览器缓存放在系统侧 WebView2 数据目录，不占这里 |
 
 ### 13.7 AI agent 的发行方式与供应链边界（v0.6）
 
@@ -990,7 +1003,7 @@ junction 只删链接 / PATH 只动自有条目 / 热更新不合并 install-act
 | # | 问题 | 结论 |
 |---|---|---|
 | 15 | 清单热更新的安全边界 | 只接受「版本 / 地址 / SHA-256 / 体积 / 发布日期 / 安装范围 / 镜像」七类字段；`detect`、`install`、`activate`、`verify` **永远来自本地清单**，远程无权修改。合并结果必须再通过同一套 Schema 与语义校验才落盘 |
-| 16 | 自动更新做到什么程度 | **不做静默自动更新，做半自动**。理由三条：① SPEC 自己就定过「静默替换开发环境里的二进制不是个安全行为」；② 未签名时静默下载的安装包照样会被 SmartScreen 拦，静默没有意义；③ 但「得自己回 GitHub 找下载页」确实太麻烦。最终形态：**启动自动检查 → 顶部横幅 → 一键下载（强制校验 SHA-256）→ 直接拉起安装程序**。更新源支持 `latest.json`（本项目产出，带 checksums）与 electron-builder 的 `latest.yml`；`update:install` 只允许拉起 `<dataRoot>\\updates` 之内的 exe，否则「打开更新包」就成了任意程序执行通道 |
+| 16 | 自动更新做到什么程度 | **不做静默自动更新，做半自动**。理由三条：① SPEC 自己就定过「静默替换开发环境里的二进制不是个安全行为」；② 未签名时静默下载的安装包照样会被 SmartScreen 拦，静默没有意义；③ 但「得自己回 GitHub 找下载页」确实太麻烦。最终形态：**启动自动检查 → 顶部横幅 → 一键下载（强制校验 SHA-256）→ 直接拉起安装程序**。更新源为 `latest.json`（本项目产出，带 checksums 与 runtime 字段；v1.0.0 Rust 版协议向前兼容，另带 `runtime: "tauri"` 标记）；`update:install` 只允许拉起 `<dataRoot>\\updates` 之内的 exe，否则「打开更新包」就成了任意程序执行通道 |
 | 17 | 提权模型的落地形态 | job/result **文件协议**：主进程把所有需要管理员的步骤写成一个 job 文件，由一个提升后的 PowerShell 进程顺序执行完再写结果。装 3 个 MSI 从弹 3 次 UAC 变成弹 1 次；提权进程与主进程不共享任何状态 |
 
 ## 13. 已确认决策

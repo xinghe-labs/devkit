@@ -588,7 +588,7 @@ export function SettingsDrawer() {
           </Title>
           <div>
             <Text type="secondary" style={{ fontSize: 12.5 }}>
-              devkit v{info?.version ?? '—'} · Electron {info?.electronVersion ?? '—'} · Node{' '}
+              devkit v{info?.version ?? '—'} · {info?.electronVersion ?? '—'} · Rustc{' '}
               {info?.nodeVersion ?? '—'}
             </Text>
           </div>

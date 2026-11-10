@@ -1,5 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- import 形式无法让单文件分析的程序并入声明，此处必须用文件引用（见 MIGRATION-RUST.md 附录 E.4）
-/// <reference path="../../preload/index.d.ts" />
+// window.devkit 的全局类型声明在 devkit-global.d.ts（R7 起，preload 已删）
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'

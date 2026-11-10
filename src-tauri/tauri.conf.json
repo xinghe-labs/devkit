@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "io.github.devkit",
   "build": {
-    "beforeDevCommand": "pnpm dev:renderer",
+    "beforeDevCommand": "pnpm exec vite",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm build:renderer",
+    "beforeBuildCommand": "pnpm exec vite build",
     "frontendDist": "../dist/renderer"
   },
   "app": {

@@ -18,8 +18,8 @@ import { createWriteStream, mkdirSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pipeline } from 'node:stream/promises'
-import { requestStream } from '../src/main/core/downloader/http'
-import { sha256File } from '../src/main/core/downloader/checksum'
+import { requestStream } from './lib/http'
+import { sha256File } from './lib/checksum'
 
 const MANIFEST_DIR = resolve('resources/manifest/tools')
 const CACHE_DIR = resolve('node_modules/.cache/devkit-manifest')

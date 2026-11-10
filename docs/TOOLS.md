@@ -214,27 +214,26 @@ CLI 工具（AI 编码 agent、pnpm、deno…）只留最新版 —— 那些工
 ### 常用命令
 
 ```bash
-pnpm install         # 安装依赖（.npmrc 已配好 Electron 国内镜像）
-pnpm dev             # 开发模式，三端 HMR
-pnpm typecheck       # 类型检查（主进程 + 渲染进程）
+pnpm install         # 安装依赖（渲染端构建用；无需 Electron/Chromium 二进制）
+pnpm dev             # 开发模式（tauri dev：Rust + 渲染端 HMR）
+pnpm typecheck       # 类型检查（web + test 两份 tsconfig）
 pnpm lint            # ESLint
-pnpm test            # Vitest 单元测试
-pnpm detect          # 在终端打印本机环境检测报告（不开界面，排查检测规则用）
-pnpm install:tool    # 在终端真实安装一个工具（不开界面，排查安装失败用）
-pnpm manifest:check  # 校验所有清单是否符合 JSON Schema
-pnpm manifest:refresh # 从官方渠道刷新清单里的版本 / 地址 / SHA-256
-pnpm build           # 构建（不打包）
-pnpm dist            # 打包出 NSIS 安装版 + 便携版
+pnpm test            # Vitest 单元测试（TS 侧）
+cargo test --workspace  # Rust 核心单元测试（src-tauri 下）
+pnpm detect          # 终端环境检测报告（devkit-cli detect-report，排查检测规则用）
+pnpm install:tool    # 终端真实安装一个工具（devkit-cli install，排查安装失败用）
+pnpm manifest:check  # 校验所有 manifest（devkit-manifest manifest-check）
+pnpm manifest:refresh # 从官方渠道刷新清单里的版本 / 地址 / SHA-256（Rust 版未实现，仍走 TS 脚本）
+pnpm build           # 构建并打包（tauri build：NSIS 安装包）
 ```
 
 排查界面问题：
 
 ```bash
-# 启动后自动退出；渲染进程只要报过 error，退出码就是 1（界面白屏不会再算"成功"）
-DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 node_modules/electron/dist/electron.exe .
+# 构建后直接跑 exe：启动后自动退出；渲染只要报过 error、signal_ready 未到达或发生 panic，退出码就是 1
+pnpm build --no-bundle
+DEVKIT_SMOKE=1 DEVKIT_SMOKE_DELAY_MS=20000 ./src-tauri/target/release/devkit-app.exe
 ```
-
-> 若 `pnpm install` 卡在 Electron 下载：`ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm install`
 
 ---
 

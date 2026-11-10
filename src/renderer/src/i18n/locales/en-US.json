@@ -197,7 +197,7 @@
     "apply": "Apply",
     "configured": "Configured",
     "updateFeed": "Update feed",
-    "updateFeedHint": "Points at a latest.json or latest.yml; empty disables the check",
+    "updateFeedHint": "Points at a latest.json (since v1.0.0 the Rust updater accepts this format only); empty disables the check",
     "checkUpdate": "Check for updates",
     "downloadUpdate": "Download {{version}}",
     "storage": "Storage",

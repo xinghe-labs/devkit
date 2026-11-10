@@ -197,7 +197,7 @@
     "apply": "配置",
     "configured": "已配置",
     "updateFeed": "更新源",
-    "updateFeedHint": "指向一个 latest.json 或 latest.yml；留空表示关闭检查",
+    "updateFeedHint": "指向一个 latest.json（v1.0.0 起 Rust 更新器只认这个格式）；留空表示关闭检查",
     "checkUpdate": "检查更新",
     "downloadUpdate": "下载 {{version}}",
     "storage": "存储",

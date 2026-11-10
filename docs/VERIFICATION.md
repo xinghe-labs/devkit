@@ -1019,6 +1019,31 @@ ExpandString；热更新不合并 detect/install/activate；提权脚本不混�
 - ~~GitHub Release 发布~~ → §3.10 已在 GitHub 上跑通 `release.yml` 并发布 v0.1.0
 - ~~更新检查的端到端~~ → §3.19 仓库转公开后，匿名取 `latest.json` + 下载资产 + 核对 SHA-256，全链路通过
 
+### 5.1 v1.0.0 Rust/Tauri 形态的验证状态（R7 切换时点）
+
+**本机已实测（开发机，Windows 11 中文系统）**：
+
+| 项 | 结果 |
+| --- | --- |
+| TS 门禁 | typecheck（三份 tsconfig）/ lint / Vitest 75 用例全绿 |
+| Rust 门禁 | fmt / clippy -D warnings / cargo test 354 用例全绿 |
+| 清单校验 | `devkit-manifest manifest-check`：25 项全部通过 Schema + 语义校验 |
+| CLI | `devkit-cli detect-report`：25 工具真实检测（含 registry/PATH 三种探测） |
+| 构建 | `pnpm build --no-bundle`（vite build + cargo release）产出 devkit-app.exe |
+| 打包态冒烟 | `DEVKIT_SMOKE=1`：signal_ready IPC 回执到达，退出码 0 |
+| NSIS 安装包 | tauri bundler 实测 6.12 MiB；静默安装/卸载实测（R6） |
+| 更新索引 | `make-update-index` 产出 latest.json（sha256/size/runtime:"tauri"字段齐全） |
+| Electron 删除 | src/main + src/preload + 4 个依赖 + 5 个脚本删除后全门禁复跑全绿 |
+
+**虚拟机欠账（继承 §5 并新增，全部需要干净 VM）**：
+
+| # | 未验证项 | 来源 |
+| --- | --- | --- |
+| 7 | **旧版（v0.6.2 Electron）→ v1.0.0（Tauri）升级路径**：latest.json 的 runtime 字段变化后旧客户端提示、新安装包覆盖安装、数据目录延续性（%APPDATA%\devkit 与 %USERPROFILE%\.devkit 两棵树） | R6 顺延 |
+| 8 | Tauri 提权链路真机 UAC（单次弹窗 / SHA-256 复验 / nonce 校验三条不变式） | R5 单元层已覆盖（FakeElevation 注入），`tests/real_elevation.rs` 有 #[ignore] 真机用例 |
+| 9 | WebView2 缺失机器（旧 Win10 镜像）装 embedBootstrapper 安装包的 bootstrapper 下载链路 | R6 新增（webviewInstallMode） |
+| 1-4, 6 | 原清单不变：MSI 机器级、exe-nsis-silent 模板、新终端 node -v、还原点、6 个新版本条目 | §5 原有 |
+
 ---
 
 ## 6. 本机被改动了什么（可回退性）

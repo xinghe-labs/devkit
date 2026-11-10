@@ -41,9 +41,8 @@ Download from [Releases](https://github.com/xinghe-labs/devkit/releases):
 
 | File | Use |
 | --- | --- |
-| `devkit-<version>-setup.exe` | Installer (Start Menu / desktop shortcut, supports the in-app update flow) |
-| `devkit-<version>-portable.exe` | Portable, no install |
-| `latest.json` | Update index (SHA-256 + size of both artifacts) |
+| `devkit-<version>-setup.exe` | Installer with embedded WebView2 bootstrapper (Start Menu / desktop shortcut, supports the in-app update flow) |
+| `latest.json` | Update index (SHA-256 + size of the artifact) |
 
 ### How it works
 

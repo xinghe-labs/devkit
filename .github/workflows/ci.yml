@@ -9,9 +9,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Tauri 单形态（R7 切换后）：不再有 Electron 运行时、electron-builder 与 portable 包。
 jobs:
   check:
-    name: lint / typecheck / manifest / test
+    name: lint / typecheck / test（TS 侧）
     runs-on: windows-latest
 
     steps:
@@ -24,15 +25,8 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: 安装依赖
+      - name: 安装依赖（渲染端构建/测试用）
         run: pnpm install --frozen-lockfile
-        env:
-          # 校验任务不需要 Electron 运行时二进制（约 250MB），跳过下载以加速 CI。
-          # 需要跑界面冒烟的是下面的 smoke 任务，它必须下载。
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-
-      - name: 清单校验（JSON Schema + 语义约束）
-        run: pnpm manifest:check
 
       - name: 类型检查
         run: pnpm typecheck
@@ -44,7 +38,7 @@ jobs:
         run: pnpm test
 
   rust:
-    name: rust（fmt / clippy / test）
+    name: rust（fmt / clippy / test / manifest-check）
     runs-on: windows-latest
 
     steps:
@@ -65,12 +59,17 @@ jobs:
 
       - name: cargo test
         working-directory: src-tauri
-        run: cargo test
+        run: cargo test --workspace
+
+      # 清单校验的权威实现（编译期内嵌 manifest 的同一套解析器，决策 D10）
+      - name: 清单校验（Rust 侧）
+        working-directory: src-tauri
+        run: cargo run --release -p devkit-manifest --bin manifest-check
 
   smoke:
-    name: 界面冒烟（渲染进程不得报错）
+    name: 界面冒烟（渲染挂载 + IPC 回执）
     runs-on: windows-latest
-    needs: check
+    needs: [check, rust]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -82,42 +81,28 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: 安装依赖（需要 Electron 运行时）
+      # 冒烟只跑 devkit-app.exe，不打 NSIS 安装包
+      - name: 确保 Rust stable
+        shell: pwsh
+        run: rustup default stable
+
+      - name: 安装依赖（vite 构建用）
         run: pnpm install --frozen-lockfile
 
-      - name: 构建
-        run: pnpm build
+      - name: 构建（vite + cargo，不打包）
+        run: pnpm build --no-bundle
 
-      # pnpm 的 store 命中缓存时（reused N / downloaded 0），electron 的 postinstall
-      # 不会真正执行，node_modules/electron/dist 会是空的 —— 实测就是这个原因让冒烟任务红掉。
-      # 所以这里不依赖 postinstall，显式确保二进制存在。
-      - name: 确保 Electron 运行时存在
+      - name: 启动应用并断言渲染挂载（DEVKIT_SMOKE）
         shell: pwsh
         run: |
-          $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
-          if (-not (Test-Path $exe)) {
-            Write-Host "electron 二进制缺失，手动触发下载（用官方源，CI runner 在海外）"
-            $mirror = 'https://github.com/electron/electron'
-            $env:ELECTRON_MIRROR = "$mirror/electron/releases/download/"
-            node node_modules/electron/install.js
-          }
-          if (-not (Test-Path $exe)) {
-            Get-ChildItem node_modules/electron -Recurse -Depth 1 |
-              Select-Object FullName
-            throw "Electron 运行时仍然缺失：$exe"
-          }
-          Write-Host "electron.exe 就绪：$exe"
-
-      - name: 启动应用并断言界面无报错
-        shell: pwsh
-        run: |
-          # DEVKIT_SMOKE 下：渲染进程只要报过 error，退出码就是 1。
-          # 这样"界面白屏"不会再被当成启动成功。
+          # DEVKIT_SMOKE 下：60s 内渲染层 signal_ready IPC 回执到达即退出码 0，
+          # 否则 1（渲染没挂起来）。Tauri 拿不到渲染进程 console 错误流，
+          # 视觉核对依赖真机手工清单（决策 D13）。
           $env:DEVKIT_SMOKE = '1'
           $env:DEVKIT_SMOKE_DELAY_MS = '20000'
-          $exe = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
-          $process = Start-Process -FilePath $exe -ArgumentList '.' `
-            -WorkingDirectory $PWD -PassThru -Wait
+          $exe = Join-Path $PWD 'src-tauri/target/release/devkit-app.exe'
+          if (-not (Test-Path $exe)) { throw "找不到 $exe" }
+          $process = Start-Process -FilePath $exe -WorkingDirectory $PWD -PassThru -Wait
           if ($process.ExitCode -ne 0) {
             throw "冒烟测试失败，退出码 $($process.ExitCode)"
           }

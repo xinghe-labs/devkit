@@ -17,7 +17,7 @@
   "include": [
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
-    "src/preload/index.d.ts",
+    "src/renderer/src/devkit-global.d.ts",
     "scripts/**/*.test.ts"
   ]
 }

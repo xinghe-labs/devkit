@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react'
 
 /**
  * Tauri 版 renderer 构建配置（MIGRATION-RUST.md 附录 E.4）。
- * electron-vite 配置保留不动（TS 版可构建性承诺，R7 统一删除）。
- * alias 与 electron.vite.config.ts renderer 段逐字对齐。
+ * R7 已删除 Electron 形态（src/main、src/preload、electron.vite.config.ts）。
+ * beforeDevCommand/beforeBuildCommand（tauri.conf.json）调用本配置。
  */
 const sharedDir = resolve(__dirname, 'src/shared')
 

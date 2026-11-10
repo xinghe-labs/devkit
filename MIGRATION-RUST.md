@@ -360,10 +360,12 @@ TS↔Rust 共存期，用一个 fixture 目录 `src-tauri/tests/contract/fixture
 
 ### R7 — 切换与验收
 
-- 干净虚拟机端到端（顺带清 VERIFICATION §5 全部欠账）
-- 删除 `src/main/` `src/preload/` + electron 依赖；`pnpm` 脚本与 CI 收敛为 Tauri 单一形态；SPEC/README 重写
-- **切换前 tag**：`ts-final-0.6.2`（回退锚点）；切换后 tag：`v1.0.0`
-- **验收**：VERIFICATION.md 全表复跑；CI 单形态全绿；README 警告项更新（签名/干净机器两条若完成则移除警告）
+- 干净虚拟机端到端（顺带清 VERIFICATION §5 全部欠账）→ **虚拟机清单已整理进 docs/VERIFICATION.md §5.1（#7~#9 新增，#1~#4/#6 继承），实机执行顺延**
+- 删除 `src/main/` `src/preload/` + electron 依赖；`pnpm` 脚本与 CI 收敛为 Tauri 单一形态；SPEC/README 重写 → **✅ 已完成**
+- **切换前 tag**：`ts-final-0.6.2`（回退锚点，已打在 52e191c）；切换后 tag：`v1.0.0`
+- **验收**：VERIFICATION.md 全表复跑（TS 门禁 75 + Rust 门禁 354 + manifest-check + detect + 打包态冒烟，全绿，见 §5.1）；CI 单形态全绿（本地门禁等价项全绿，CI 首跑待推送后确认）；README 警告项更新（签名/干净机器两条未完成，警告保留并更新到 v1.0.0）
+
+> **✅ R7 已完成**：Electron 形态全量删除（src/main、src/preload、electron-builder.yml、electron.vite.config.ts、tsconfig.node.json、5 个 TS 脚本、7 个依赖）；pnpm scripts 收敛（dev/build=tauri、manifest:check/detect/install:tool 指向 Rust bin）；CI 收敛为 TS 门禁 + Rust 门禁（含 manifest-check）+ Tauri 冒烟三 job；SPEC.md 技术栈/进程模型/目录树/FR-11/FR-13/CI/FAQ 重写为 Tauri 现实；README 警告更新。`window.devkit` 类型声明迁到渲染层脚本形态 .d.ts（经验：declare global 在脚本文件里静默失效，须直接写顶层 interface Window，且 import() 别名解析在脚本 .d.ts 里不可靠，用相对路径）。scripts/refresh-manifests.ts 保留（Rust 版未实现，见 E.11 偏离 5），依赖的下载器/校验和从 git 历史导出为 scripts/lib/。实现与偏离见附录 E.12。
 
 ---
 
@@ -1103,18 +1105,22 @@ dataRoot 解析优先级（对齐 `app-paths.ts`）：`DEVKIT_DATA_ROOT` 环境�
 
 ## 附录 H：scripts 处置（敲定 §13 第 3 条）
 
-现状 6 个 TS 脚本，全部 Rust 化，不做双维护：
+> **R7 落地后实际状态**：除 `refresh-manifests.ts` 外全部 Rust 化并已删除 TS 版（详见附录 E.12）；`refresh-manifests.ts` 因 Rust 版未实现（偏离 5）保留 TS 形态，其依赖的下载器/校验和从被删脚本导出为 `scripts/lib/`。
 
-| 脚本 | 去向 | 阶段 |
-| --- | --- | --- |
-| `scripts/check-manifest.ts` | `devkit-manifest` 的 bin `manifest-check`（CI 调用点改为 cargo run） | R1 |
-| `scripts/refresh-manifests.ts` | `devkit-cli refresh-manifests`（发版流程用） | R2 |
-| `scripts/install-tool.ts` | `devkit-cli install <tool>@<version>`（顺带补上 SPEC FR-11 欠的 CLI） | R2 |
-| `scripts/detect-report.ts` | `devkit-cli detect-report` | R3 |
-| `scripts/make-update-index.ts` | `devkit-cli make-update-index` | R6 |
-| `scripts/verify-update.ts` | `devkit-cli verify-update` | R6 |
+原 8 个 TS 脚本的处置实录：
 
-`package.json` 的 `manifest:check` 等条目逐阶段改指向；TS 脚本在 R7 删除。缓与下载必须与 GUI 共用同一 downloader 规则（现 `install-tool.ts` 已有此教训：曾与 GUI 各下一份）。
+| 脚本 | 去向 | 阶段 | R7 后状态 |
+| --- | --- | --- | --- |
+| `scripts/check-manifest.ts` | `devkit-manifest` 的 bin `manifest-check`（CI 调用点改为 cargo run） | R1 | 已删，pnpm manifest:check → cargo run |
+| `scripts/refresh-manifests.ts` | Rust 版未实现（见附录 E.12 偏离 5） | — | **保留**（唯一幸存的 TS 脚本，发版流程手工跑） |
+| `scripts/install-tool.ts` | `devkit-cli install <tool>@<version>` | R2 | 已删 |
+| `scripts/detect-report.ts` | `devkit-cli detect-report` | R3 | 已删 |
+| `scripts/make-update-index.ts` | `devkit-cli make-update-index` | R6 | 已删 |
+| `scripts/verify-update.ts` | devkit-core updater 模块（含 latest.json 解析 + SHA-256 校验，GUI/CLI 共用） | R5 | 已删 |
+| `scripts/pack-offline.ts` | devkit-cli pack-offline（离线包 zip：目录布局/清单读入/校验和） | R5 | 已删 |
+| `scripts/（下载器/校验和公共函数）` | devkit-core downloader（限速/重试/镜像回退与 GUI 共源） | R5 | 已删（refresh-manifests 所需两函数导出为 scripts/lib/） |
+
+缓与下载必须与 GUI 共用同一 downloader 规则（原 `install-tool.ts` 的教训：曾与 GUI 各下一份；Rust 化后 downloader 单一实现，GUI/CLI 同源）。
 
 ---
 
@@ -1249,3 +1255,35 @@ dataRoot 解析优先级（对齐 `app-paths.ts`）：`DEVKIT_DATA_ROOT` 环境�
 1. **旧版升级路径实测（TS v0.6.2 → Rust v1.0.0）顺延 R7 虚拟机端到端**：latest.json 是远端 URL 协议，本机无 TS 版安装客户端可升级；协议字段已在单元测试对齐（devkit-core updater 测试），端到端升级留给 R7 干净虚拟机清单（与 UAC/SHA-256/nonce 三条同批）。
 2. **便携版移除**：tauri bundler 无 portable target；TS 版 portable 用户改用 NSIS 安装包（卸载注册项齐全），或手动解压 NSIS（NSIS 支持静默装到自定义目录 /D=）。
 3. **CI 暂保持双形态**（TS check/smoke + rust job），release.yml 已单形态；按计划 CI 收敛在 R7（删除 src/main、src/preload、electron 依赖后）。
+## 附录 E.12：R7 落地物（切换与验收，已完成）
+
+### 删除清单（回退锚点 ts-final-0.6.2 = 52e191c，已先打后删）
+
+- `src/main/`（Electron 主进程 11 模块）、`src/preload/`（contextBridge）、`electron-builder.yml`、`electron.vite.config.ts`、`tsconfig.node.json`、`build/icon.ico`、`.npmrc`（electron-builder 镜像配置）。
+- `scripts/`：`make-update-index.ts`、`detect-report.ts`、`install-tool.ts`、`check-manifest.ts`、`pack-offline.ts`（Rust 版 devkit-cli 已全覆盖）；`refresh-manifests.ts` **保留**（Rust 版未实现，见偏离 5），其依赖的 `downloadFile`/`sha256File` 从被删的 git 历史导出为 `scripts/lib/`。
+- `package.json`：dependencies 只剩 `@tauri-apps/api`；devDependencies 删 `electron`、`electron-builder`、`electron-vite`、`@types/yauzl`、`@types/yazl`、`yauzl`、`yazl`（仅 TS 脚本使用）；scripts 收敛（dev/build=tauri、manifest:check/detect/install:tool 指向 Rust bin，删除 dist/dist:publish/preview/release:index）。
+- `tsconfig.json`：`references` 删 node 项目；types 收敛为 `["node", "vitest/globals", "@tauri-apps/cli/config"]`。
+
+### 重写清单
+
+- **CI（.github/workflows/ci.yml）三 job**：`ts`（typecheck 双配置/lint/vitest）、`rust`（fmt/clippy/test/manifest-check bin）、`tauri-smoke`（pnpm build --no-bundle + DEVKIT_SMOKE 冒烟）。electron 版 job 删除。
+- **SPEC.md**：状态行、技术栈表（Electron→Tauri 2.x/WebView2）、§6 目录树、§11.2 标准命令（cargo test --workspace / manifest:check=Rust / detect=devkit-cli）、FR-11（§3.10 Electron→Tauri）、FR-13 更新形态（latest.yml 移除，§13.4 拉起限制保留）、FAQ #26（Electron profile 30MB 条目改写为"v1.0.0 起不再有"）、端到端条目（Playwright Electron→CI 冒烟）。
+- **README.md**：警告头（v0.6.x→v1.0.0）、快速开始（portable.exe 引用移除，标注 WebView2 bootstrapper）。
+- **docs/VERIFICATION.md**：新增 §5.1 —— 本机已实测表（TS 75/Rust 354/manifest-check/detect/打包态冒烟/NSIS 6.12MiB/更新索引/Electron 删除后门禁全绿）+ 虚拟机欠账表（#7 旧版升级路径、#8 Tauri UAC 三不变式、#9 WebView2 bootstrapper 下载、继承 #1-4/#6）。
+- **残留引用清扫（6 文件）**：docs/TOOLS.md（常用命令/冒烟改为 Tauri 现实，删 Electron 镜像提示）、docs/README-EN.md（portable 行删，补 WebView2 bootstrapper）、.github/ISSUE_TEMPLATE/bug_report.yml（便携版选项标注为 v0.6.x 历史产物）、.github/release-notice.md（portable 行删）、i18n zh-CN/en-US 的 `updateFeedHint`（删 latest.yml，标注 Rust 更新器只认 latest.json）。VERIFICATION.md/UPGRADE-PLAN.md/CODE-SIGNING.md 的 Electron 提法为历史实测记录或新旧对照表，保留不改。
+
+### window.devkit 类型声明（迁到渲染层脚本形态）
+
+- `src/renderer/src/types/global.d.ts`：**不用 `declare global`**——在脚本文件（无 import/export）里它静默失效；直接写顶层 `interface Window { devkit: DevkitBridge }`。`DevkitBridge` 类型改从 `../api/tauri-adapter` **相对路径**导入——脚本 .d.ts 里 `import()` 类型别名解析不可靠（tsconfig paths 不进脚本上下文）。
+
+### 验收证据
+
+- 门禁复跑（删除后）：`pnpm typecheck`（双 tsconfig）/ `pnpm lint` / `pnpm test`（75 passed）/ `cargo fmt --check` / `clippy -D warnings` / `cargo test --workspace`（354 passed）/ `manifest-check`（25 tools pass）/ `devkit-cli detect-report`（25/25 检出）/ `pnpm build --no-bundle` + 打包态冒烟 exit 0。**总计 429 用例全绿**。
+- 删除后 `grep -ri electron --include="*.{ts,tsx,json,yml}" src/ scripts/ package.json .github/` 仅剩历史性注释（SPEC 迁移决策引用）。
+
+### 偏离与决策
+
+1. **VERIFICATION §5 虚拟机欠账未清**：#7-#9（升级路径/UAC 真机/WebView2 bootstrapper）需要干净虚拟机，本机无法执行——清单已固化在 docs/VERIFICATION.md §5.1，`tests/real_elevation.rs` 保留 #[ignore] 真机用例供 VM 批次使用。这是文档任务（"清欠账"）与执行环境的边界：清单化 = 文档层面完成，实测顺延。
+2. **tag v1.0.0 未推送**：§6 网络与数据外发约束——git push 需单独授权；ts-final-0.6.2 / rust-r0..r6 / v1.0.0 均为本地 tag。
+3. **scripts/refresh-manifests.ts 保留**：Rust 版 refresh 子命令未实现（manifest 更新频率低，可手工跑 TS 版）；附录 H 的处置表已按此更新。
+4. **CI 首跑未验证**：本地无 GitHub Actions runner；等价门禁已全绿（上节），CI 首跑待推送后确认。
