@@ -40,7 +40,10 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "minimatch": "^11.0.1"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
