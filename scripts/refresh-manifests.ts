@@ -146,7 +146,9 @@ async function probeCandidate(url: string): Promise<Probe> {
  * 不一致就直接报错交人处理。体积一致 + SHA-256 校验，镜像返回了不同文件是拦得住的
  * —— 真不一致时安装阶段会以"校验失败"拒绝，而不是装上一个来源不明的文件。
  */
-async function chooseHashSource(candidates: string[]): Promise<{ url: string; total: number | null }> {
+async function chooseHashSource(
+  candidates: string[]
+): Promise<{ url: string; total: number | null }> {
   const probes = await Promise.all(candidates.map((url) => probeCandidate(url)))
   const usable = probes.filter((probe) => probe.speed > 0)
 
@@ -168,13 +170,17 @@ async function chooseHashSource(candidates: string[]): Promise<{ url: string; to
   const best = usable.sort((a, b) => b.speed - a.speed)[0]
   for (const probe of usable) {
     if (probe.url === best.url) continue
-    console.log(`  · 选 ${best.url.split('/')[2]}（${(best.speed / 1024).toFixed(0)} KB/s），跳过 ${probe.url.split('/')[2]}`)
+    console.log(
+      `  · 选 ${best.url.split('/')[2]}（${(best.speed / 1024).toFixed(0)} KB/s），跳过 ${probe.url.split('/')[2]}`
+    )
   }
   return { url: best.url, total: best.total }
 }
 
 /** 下载到本地缓存并算 SHA-256 与体积（源由 chooseHashSource 选） */
-async function downloadAndHash(candidates: string[]): Promise<{ sha256: string; sizeBytes: number }> {
+async function downloadAndHash(
+  candidates: string[]
+): Promise<{ sha256: string; sizeBytes: number }> {
   mkdirSync(CACHE_DIR, { recursive: true })
   const chosen = await chooseHashSource(candidates)
   const name = chosen.url.split('/').pop()?.split('?')[0] ?? 'blob'
@@ -453,9 +459,18 @@ const SPECS: ToolSpec[] = [
         recommended: true,
         url: (v) => `https://nodejs.org/dist/v${v}/node-v${v}-win-x64.zip`,
         mirrors: (v) => [
-          { name: 'huaweicloud', url: `https://mirrors.huaweicloud.com/nodejs/v${v}/node-v${v}-win-x64.zip` },
-          { name: 'aliyun', url: `https://mirrors.aliyun.com/nodejs-release/v${v}/node-v${v}-win-x64.zip` },
-          { name: 'tuna', url: `https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v${v}/node-v${v}-win-x64.zip` }
+          {
+            name: 'huaweicloud',
+            url: `https://mirrors.huaweicloud.com/nodejs/v${v}/node-v${v}-win-x64.zip`
+          },
+          {
+            name: 'aliyun',
+            url: `https://mirrors.aliyun.com/nodejs-release/v${v}/node-v${v}-win-x64.zip`
+          },
+          {
+            name: 'tuna',
+            url: `https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v${v}/node-v${v}-win-x64.zip`
+          }
         ],
         // 三条 LTS 线：24（Active LTS）、22（Maintenance LTS）、20（更老的遗留项目）。
         // nodejs 的 index.json 按时间倒序，所以每条线第一次出现的那个就是该线最新补丁。
@@ -498,7 +513,8 @@ const SPECS: ToolSpec[] = [
     name: { 'zh-CN': 'Python', 'en-US': 'Python' },
     description: {
       'zh-CN': '通用编程语言运行时，自带 pip。用户级安装，不改系统 PATH。',
-      'en-US': 'General purpose language runtime with pip bundled. Per-user install, no system PATH edits.'
+      'en-US':
+        'General purpose language runtime with pip bundled. Per-user install, no system PATH edits.'
     },
     homepage: 'https://www.python.org',
     license: { spdx: 'PSF-2.0', redistributable: true },
@@ -525,10 +541,18 @@ const SPECS: ToolSpec[] = [
       ]
     },
     installScope: 'user',
-    install: { type: 'exe-custom', template: 'exe-python-silent', params: { includeLauncher: '1', includePip: '1' } },
+    install: {
+      type: 'exe-custom',
+      template: 'exe-python-silent',
+      params: { includeLauncher: '1', includePip: '1' }
+    },
     // 刻意不设 PYTHONHOME：它会让 Python 忽略自身的相对路径，还会干扰 venv 与 py 启动器
     activate: { pathEntries: ['{currentDir}', '{currentDir}\\Scripts'] },
-    verify: { cmd: '{installDir}\\python.exe', args: ['--version'], expectRegex: 'Python \\d+\\.\\d+' },
+    verify: {
+      cmd: '{installDir}\\python.exe',
+      args: ['--version'],
+      expectRegex: 'Python \\d+\\.\\d+'
+    },
     notes: {
       'zh-CN':
         '用官方 exe 安装器 + /quiet InstallAllUsers=0，装到版本目录里，不需要管理员。刻意传 PrependPath=0：PATH 交给 devkit 的激活机制统一管理，避免安装器和 devkit 抢着写 PATH。',
@@ -557,7 +581,10 @@ const SPECS: ToolSpec[] = [
         recommended: true,
         url: (v) => `https://www.python.org/ftp/python/${v}/python-${v}-amd64.exe`,
         mirrors: (v) => [
-          { name: 'huaweicloud', url: `https://mirrors.huaweicloud.com/python/${v}/python-${v}-amd64.exe` }
+          {
+            name: 'huaweicloud',
+            url: `https://mirrors.huaweicloud.com/python/${v}/python-${v}-amd64.exe`
+          }
         ],
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       },
@@ -566,7 +593,10 @@ const SPECS: ToolSpec[] = [
         channel: 'stable',
         url: (v) => `https://www.python.org/ftp/python/${v}/python-${v}-amd64.exe`,
         mirrors: (v) => [
-          { name: 'huaweicloud', url: `https://mirrors.huaweicloud.com/python/${v}/python-${v}-amd64.exe` }
+          {
+            name: 'huaweicloud',
+            url: `https://mirrors.huaweicloud.com/python/${v}/python-${v}-amd64.exe`
+          }
         ],
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       }
@@ -602,24 +632,35 @@ const SPECS: ToolSpec[] = [
         recommended: true,
         url: (v) => `https://go.dev/dl/go${v}.windows-amd64.zip`,
         mirrors: (v) => [
-          { name: 'huaweicloud', url: `https://mirrors.huaweicloud.com/go/${v}/go${v}.windows-amd64.zip` },
+          {
+            name: 'huaweicloud',
+            url: `https://mirrors.huaweicloud.com/go/${v}/go${v}.windows-amd64.zip`
+          },
           { name: 'aliyun', url: `https://mirrors.aliyun.com/golang/go${v}.windows-amd64.zip` }
         ],
         // Go 的官方政策是「每个大版本支持到再出两个大版本为止」，
         // 所以 dl/?mode=json 返回的 stable 正好就是该留的那两条。
         maxVersions: 2,
         discover: async () => {
-          const data = await fetchJson<{ version: string; stable: boolean }[]>('https://go.dev/dl/?mode=json')
+          const data = await fetchJson<{ version: string; stable: boolean }[]>(
+            'https://go.dev/dl/?mode=json'
+          )
           return data
             .filter((item) => item.stable)
             .map((item) => ({ version: item.version.replace(/^go/, '') }))
         },
         resolve: async (version) => {
           const data = await fetchJson<
-            { version: string; stable: boolean; files: { filename: string; sha256: string; size: number }[] }[]
+            {
+              version: string
+              stable: boolean
+              files: { filename: string; sha256: string; size: number }[]
+            }[]
           >('https://go.dev/dl/?mode=json')
           const entry = data.find((item) => item.version === `go${version}`)
-          const file = entry?.files.find((item) => item.filename === `go${version}.windows-amd64.zip`)
+          const file = entry?.files.find(
+            (item) => item.filename === `go${version}.windows-amd64.zip`
+          )
           if (!file) throw new Error(`go 官方源里找不到 go${version}.windows-amd64.zip`)
           return { sha256: file.sha256, sizeBytes: file.size }
         }
@@ -655,7 +696,11 @@ const SPECS: ToolSpec[] = [
     installScope: 'user',
     install: { type: 'zip', template: 'zip-into-version-dir', params: { stripComponents: '1' } },
     activate: { pathEntries: ['{currentDir}\\bin'], env: { JAVA_HOME: '{currentDir}' } },
-    verify: { cmd: '{installDir}\\bin\\java.exe', args: ['-version'], expectRegex: 'version "\\d+' },
+    verify: {
+      cmd: '{installDir}\\bin\\java.exe',
+      args: ['-version'],
+      expectRegex: 'version "\\d+'
+    },
     notes: {
       'zh-CN':
         '用 Adoptium 官方 API 取 ZIP 与 SHA-256（API 返回的 checksum 就是 sha256）。装两份 LTS 就能演示版本切换：激活 21 后 java -version 就是 21。',
@@ -714,7 +759,11 @@ const SPECS: ToolSpec[] = [
       pathEntries: ['{currentDir}\\cargo\\bin'],
       env: { CARGO_HOME: '{currentDir}\\cargo', RUSTUP_HOME: '{currentDir}\\rustup' }
     },
-    verify: { cmd: '{installDir}\\cargo\\bin\\rustc.exe', args: ['--version'], expectRegex: 'rustc \\d+\\.\\d+' },
+    verify: {
+      cmd: '{installDir}\\cargo\\bin\\rustc.exe',
+      args: ['--version'],
+      expectRegex: 'rustc \\d+\\.\\d+'
+    },
     notes: {
       'zh-CN':
         'rustup-init 本身很小，真正下载工具链是在安装过程中（约 300 MB，取决于网络）。用 CARGO_HOME / RUSTUP_HOME 把工具链整个关进版本目录，--no-modify-path 保证它不去改 PATH。',
@@ -726,7 +775,8 @@ const SPECS: ToolSpec[] = [
         want: 'latest',
         channel: 'stable',
         recommended: true,
-        url: () => 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
+        url: () =>
+          'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
         mirrors: () => [
           {
             name: 'tuna',
@@ -744,7 +794,8 @@ const SPECS: ToolSpec[] = [
         resolve: async (_v, candidates) => {
           const text = await fetchText(`${candidates[0]}.sha256`)
           const hash = text.trim().split(/\s+/)[0]
-          if (!/^[a-f0-9]{64}$/i.test(hash)) throw new Error(`rustup 校验和格式异常：${text.slice(0, 80)}`)
+          if (!/^[a-f0-9]{64}$/i.test(hash))
+            throw new Error(`rustup 校验和格式异常：${text.slice(0, 80)}`)
           return { sha256: hash.toLowerCase(), sizeBytes: 0 }
         }
       }
@@ -775,14 +826,16 @@ const SPECS: ToolSpec[] = [
     verify: { cmd: '{installDir}\\bin\\mvn.cmd', args: ['-v'], expectRegex: 'Apache Maven \\d+' },
     notes: {
       'zh-CN': 'Apache 只发布 .sha512，没有 .sha256，所以 SHA-256 由本地下载后计算（约 9 MB）。',
-      'en-US': 'Apache only publishes .sha512, so the SHA-256 is computed locally after downloading (~9 MB).'
+      'en-US':
+        'Apache only publishes .sha512, so the SHA-256 is computed locally after downloading (~9 MB).'
     },
     versions: [
       {
         want: 'latest',
         channel: 'stable',
         recommended: true,
-        url: (v) => `https://archive.apache.org/dist/maven/maven-3/${v}/binaries/apache-maven-${v}-bin.zip`,
+        url: (v) =>
+          `https://archive.apache.org/dist/maven/maven-3/${v}/binaries/apache-maven-${v}-bin.zip`,
         mirrors: (v) => [
           {
             name: 'huaweicloud',
@@ -831,7 +884,8 @@ const SPECS: ToolSpec[] = [
     verify: { cmd: '{installDir}\\bin\\gradle.bat', args: ['-v'], expectRegex: 'Gradle \\d+' },
     notes: {
       'zh-CN': '版本、下载地址与 SHA-256 都取自官方 https://services.gradle.org/versions/current。',
-      'en-US': 'Version, URL and SHA-256 all come from the official https://services.gradle.org/versions/current.'
+      'en-US':
+        'Version, URL and SHA-256 all come from the official https://services.gradle.org/versions/current.'
     },
     versions: [
       {
@@ -840,16 +894,27 @@ const SPECS: ToolSpec[] = [
         recommended: true,
         url: (v) => `https://services.gradle.org/distributions/gradle-${v}-bin.zip`,
         mirrors: (v) => [
-          { name: 'aliyun', url: `https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-${v}-bin.zip` }
+          {
+            name: 'aliyun',
+            url: `https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-${v}-bin.zip`
+          }
         ],
         // 两条线：9.x（当前活跃）与 8.x（大量存量项目用 wrapper 钉着，官方仍在发安全修复）。
         maxVersions: 2,
         discover: async () => {
           const data = await fetchJson<
-            { version: string; snapshot?: boolean; nightly?: boolean; rcFor?: string; milestoneFor?: string; broken?: boolean }[]
+            {
+              version: string
+              snapshot?: boolean
+              nightly?: boolean
+              rcFor?: string
+              milestoneFor?: string
+              broken?: boolean
+            }[]
           >('https://services.gradle.org/versions/all')
           const stable = data.filter(
-            (item) => !item.snapshot && !item.nightly && !item.rcFor && !item.milestoneFor && !item.broken
+            (item) =>
+              !item.snapshot && !item.nightly && !item.rcFor && !item.milestoneFor && !item.broken
           )
           const seen = new Set<string>()
           const picked: DiscoveredVersion[] = []
@@ -869,7 +934,9 @@ const SPECS: ToolSpec[] = [
           )
           const sha256 = text.trim().split(/\s+/)[0]
           if (!/^[0-9a-f]{64}$/i.test(sha256)) {
-            throw new Error(`gradle ${version} 的 .sha256 内容不像一个 SHA-256：${text.slice(0, 60)}`)
+            throw new Error(
+              `gradle ${version} 的 .sha256 内容不像一个 SHA-256：${text.slice(0, 60)}`
+            )
           }
           return { sha256, sizeBytes: 0 }
         }
@@ -894,10 +961,15 @@ const SPECS: ToolSpec[] = [
     installScope: 'user',
     install: { type: 'zip', template: 'zip-into-version-dir', params: { stripComponents: '1' } },
     activate: { pathEntries: ['{currentDir}\\bin'] },
-    verify: { cmd: '{installDir}\\bin\\cmake.exe', args: ['--version'], expectRegex: 'cmake version \\d+' },
+    verify: {
+      cmd: '{installDir}\\bin\\cmake.exe',
+      args: ['--version'],
+      expectRegex: 'cmake version \\d+'
+    },
     notes: {
       'zh-CN': 'cmake.org 官方目录里有 .sha256 文件，直接取，不下载整个压缩包。',
-      'en-US': 'cmake.org publishes .sha256 files next to each archive, so no full download is needed.'
+      'en-US':
+        'cmake.org publishes .sha256 files next to each archive, so no full download is needed.'
     },
     versions: [
       {
@@ -928,7 +1000,9 @@ const SPECS: ToolSpec[] = [
           const version = zipName.match(/^cmake-(\d+\.\d+\.\d+)-/)?.[1]
           if (!version) throw new Error(`无法从 ${zipName} 解析 cmake 版本号`)
           const minor = version.split('.').slice(0, 2).join('.')
-          const text = await fetchText(`https://cmake.org/files/v${minor}/cmake-${version}-SHA-256.txt`)
+          const text = await fetchText(
+            `https://cmake.org/files/v${minor}/cmake-${version}-SHA-256.txt`
+          )
           const hash = pickHash(text, zipName)
           if (!hash) throw new Error(`cmake 的 SHA-256 清单里没有 ${zipName}`)
           return { sha256: hash, sizeBytes: 0 }
@@ -959,8 +1033,10 @@ const SPECS: ToolSpec[] = [
     activate: { pathEntries: ['{currentDir}'] },
     verify: { cmd: '{installDir}\\ninja.exe', args: ['--version'], expectRegex: '\\d+\\.\\d+' },
     notes: {
-      'zh-CN': '官方 release 里只有一个 ninja.exe，用单文件模板只保留它。GitHub 不提供校验和，本地计算。',
-      'en-US': 'The official release is a zip containing a single ninja.exe. GitHub publishes no checksum, so it is computed locally.'
+      'zh-CN':
+        '官方 release 里只有一个 ninja.exe，用单文件模板只保留它。GitHub 不提供校验和，本地计算。',
+      'en-US':
+        'The official release is a zip containing a single ninja.exe. GitHub publishes no checksum, so it is computed locally.'
     },
     versions: [
       {
@@ -968,7 +1044,9 @@ const SPECS: ToolSpec[] = [
         channel: 'stable',
         recommended: true,
         url: (v) => `https://github.com/ninja-build/ninja/releases/download/v${v}/ninja-win.zip`,
-        discover: async () => [{ version: (await githubLatestTag('ninja-build/ninja')).replace(/^v/, '') }],
+        discover: async () => [
+          { version: (await githubLatestTag('ninja-build/ninja')).replace(/^v/, '') }
+        ],
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       }
     ]
@@ -982,7 +1060,8 @@ const SPECS: ToolSpec[] = [
     name: { 'zh-CN': 'Git', 'en-US': 'Git' },
     description: {
       'zh-CN': '分布式版本控制，含 Git Bash 与 Git LFS（PortableGit 自解压版）。',
-      'en-US': 'Distributed version control with Git Bash and Git LFS (PortableGit self-extracting build).'
+      'en-US':
+        'Distributed version control with Git Bash and Git LFS (PortableGit self-extracting build).'
     },
     homepage: 'https://git-scm.com',
     license: { spdx: 'GPL-2.0-only', redistributable: true },
@@ -1004,7 +1083,11 @@ const SPECS: ToolSpec[] = [
     activate: {
       pathEntries: ['{currentDir}\\cmd', '{currentDir}\\mingw64\\bin', '{currentDir}\\usr\\bin']
     },
-    verify: { cmd: '{installDir}\\cmd\\git.exe', args: ['--version'], expectRegex: 'git version \\d+' },
+    verify: {
+      cmd: '{installDir}\\cmd\\git.exe',
+      args: ['--version'],
+      expectRegex: 'git version \\d+'
+    },
     notes: {
       'zh-CN':
         '用 PortableGit 自解压包而不是安装器：它是 7-Zip 自解压格式，-o 指定目录即可，不写注册表、不需要管理员、不覆盖系统里已有的 Git。',
@@ -1016,7 +1099,8 @@ const SPECS: ToolSpec[] = [
         want: 'latest',
         channel: 'stable',
         recommended: true,
-        url: (v) => `https://github.com/git-for-windows/git/releases/download/v${v}.windows.1/PortableGit-${v}-64-bit.7z.exe`,
+        url: (v) =>
+          `https://github.com/git-for-windows/git/releases/download/v${v}.windows.1/PortableGit-${v}-64-bit.7z.exe`,
         mirrors: (v) => [
           {
             name: 'huaweicloud',
@@ -1106,11 +1190,17 @@ const SPECS: ToolSpec[] = [
         want: 'latest',
         channel: 'stable',
         recommended: true,
-        url: (v) => `https://github.com/denoland/deno/releases/download/v${v}/deno-x86_64-pc-windows-msvc.zip`,
+        url: (v) =>
+          `https://github.com/denoland/deno/releases/download/v${v}/deno-x86_64-pc-windows-msvc.zip`,
         mirrors: (v) => [
-          { name: 'npmmirror', url: `https://registry.npmmirror.com/-/binary/deno/v${v}/deno-x86_64-pc-windows-msvc.zip` }
+          {
+            name: 'npmmirror',
+            url: `https://registry.npmmirror.com/-/binary/deno/v${v}/deno-x86_64-pc-windows-msvc.zip`
+          }
         ],
-        discover: async () => [{ version: (await githubLatestTag('denoland/deno')).replace(/^v/, '') }],
+        discover: async () => [
+          { version: (await githubLatestTag('denoland/deno')).replace(/^v/, '') }
+        ],
         // GitHub release 资产在国内经常直接连不上，因此从 npmmirror 下载后本地算哈希
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       }
@@ -1143,11 +1233,17 @@ const SPECS: ToolSpec[] = [
         want: 'latest',
         channel: 'stable',
         recommended: true,
-        url: (v) => `https://github.com/oven-sh/bun/releases/download/bun-v${v}/bun-windows-x64.zip`,
+        url: (v) =>
+          `https://github.com/oven-sh/bun/releases/download/bun-v${v}/bun-windows-x64.zip`,
         mirrors: (v) => [
-          { name: 'npmmirror', url: `https://registry.npmmirror.com/-/binary/bun/bun-v${v}/bun-windows-x64.zip` }
+          {
+            name: 'npmmirror',
+            url: `https://registry.npmmirror.com/-/binary/bun/bun-v${v}/bun-windows-x64.zip`
+          }
         ],
-        discover: async () => [{ version: (await githubLatestTag('oven-sh/bun')).replace(/^bun-v/, '') }],
+        discover: async () => [
+          { version: (await githubLatestTag('oven-sh/bun')).replace(/^bun-v/, '') }
+        ],
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       }
     ]
@@ -1195,10 +1291,7 @@ const SPECS: ToolSpec[] = [
           const html = await fetchText('https://sqlite.org/download.html')
           // 注意：模板字面量里的 \d 会被当成普通字符 d，所以这里用 [0-9] 并且用字符串拼接
           const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          const pattern = new RegExp(
-            `PRODUCT,[0-9.]+,[^,]*${escaped},([0-9]+),([a-f0-9]{64})`,
-            'i'
-          )
+          const pattern = new RegExp(`PRODUCT,[0-9.]+,[^,]*${escaped},([0-9]+),([a-f0-9]{64})`, 'i')
           const match = html.match(pattern)
           if (!match) throw new Error(`sqlite 下载页里没有 ${name} 的校验和`)
           return { sha256: match[2].toLowerCase(), sizeBytes: Number(match[1]) }
@@ -1306,8 +1399,7 @@ const SPECS: ToolSpec[] = [
         want: 'latest',
         channel: 'stable',
         recommended: true,
-        url: () =>
-          'https://update.code.visualstudio.com/latest/win32-x64-user/stable',
+        url: () => 'https://update.code.visualstudio.com/latest/win32-x64-user/stable',
         discover: async () => {
           const info = await fetchJson<{ productVersion: string }>(
             'https://update.code.visualstudio.com/api/update/win32-x64-user/stable/latest'
@@ -1337,7 +1429,8 @@ const SPECS: ToolSpec[] = [
     name: { 'zh-CN': 'Claude Code', 'en-US': 'Claude Code' },
     description: {
       'zh-CN': 'Anthropic 的终端 AI 编码助手。装进版本目录，不污染全局 npm。',
-      'en-US': 'Anthropic terminal AI coding agent. Installed into a version directory; your global npm stays clean.'
+      'en-US':
+        'Anthropic terminal AI coding agent. Installed into a version directory; your global npm stays clean.'
     },
     homepage: 'https://www.npmjs.com/package/@anthropic-ai/claude-code',
     detect: {
@@ -1458,7 +1551,9 @@ const SPECS: ToolSpec[] = [
           const info = await npmInfo('@github/copilot', 'latest')
           return [{ version: info.version, url: info.officialTarball }]
         },
-        mirrors: (v) => [{ name: 'npmmirror', url: npmTarballFor(NPM_MIRROR, '@github/copilot', v) }],
+        mirrors: (v) => [
+          { name: 'npmmirror', url: npmTarballFor(NPM_MIRROR, '@github/copilot', v) }
+        ],
         resolve: async (_v, candidates) => downloadAndHash(candidates)
       }
     ]
@@ -1519,7 +1614,8 @@ const SPECS: ToolSpec[] = [
     name: { 'zh-CN': 'OpenCode', 'en-US': 'OpenCode' },
     description: {
       'zh-CN': '开源的终端 AI 编码 agent，单文件可执行，不需要 Node.js。',
-      'en-US': 'Open-source terminal AI coding agent shipped as a single executable; no Node.js needed.'
+      'en-US':
+        'Open-source terminal AI coding agent shipped as a single executable; no Node.js needed.'
     },
     homepage: 'https://opencode.ai',
     license: { spdx: 'MIT', redistributable: true },
@@ -1578,7 +1674,8 @@ const SPECS: ToolSpec[] = [
     name: { 'zh-CN': 'Codex CLI', 'en-US': 'Codex CLI' },
     description: {
       'zh-CN': 'OpenAI 的终端 AI 编码 agent，官方提供单文件可执行，不需要 Node.js。',
-      'en-US': 'OpenAI terminal AI coding agent, shipped as a standalone executable; no Node.js needed.'
+      'en-US':
+        'OpenAI terminal AI coding agent, shipped as a standalone executable; no Node.js needed.'
     },
     homepage: 'https://github.com/openai/codex',
     license: { spdx: 'Apache-2.0', redistributable: true },
@@ -1704,7 +1801,8 @@ async function buildTool(spec: ToolSpec): Promise<Record<string, unknown>> {
       for (const [index, discovered] of targets.entries()) {
         const version = discovered.version
         const url = discovered.url ?? source.url(version)
-        if (!url) throw new Error(`${spec.id} 的下载地址为空（discover 没有给出 url，url() 也返回了空）`)
+        if (!url)
+          throw new Error(`${spec.id} 的下载地址为空（discover 没有给出 url，url() 也返回了空）`)
         const mirrorList = source.mirrors?.(version, url) ?? []
         const hashed = await source.resolve(version, [url, ...mirrorList.map((item) => item.url)])
 

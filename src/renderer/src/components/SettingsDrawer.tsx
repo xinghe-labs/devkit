@@ -307,9 +307,7 @@ export function SettingsDrawer() {
             <Popconfirm
               title={t('settings.hotUpdateConfirm')}
               description={t('settings.hotUpdateConfirmHint', {
-                host: settings.manifestHotUpdateUrl
-                  ? hostOfUrl(settings.manifestHotUpdateUrl)
-                  : ''
+                host: settings.manifestHotUpdateUrl ? hostOfUrl(settings.manifestHotUpdateUrl) : ''
               })}
               okText={t('settings.hotUpdateRun')}
               cancelText={t('common.cancel')}
@@ -411,7 +409,9 @@ export function SettingsDrawer() {
                         type="primary"
                         loading={busy}
                         disabled={item.configured}
-                        onClick={() => void applySystemConfig({ id: 'machine-path', machinePathMode: 'add' })}
+                        onClick={() =>
+                          void applySystemConfig({ id: 'machine-path', machinePathMode: 'add' })
+                        }
                       >
                         {t('settings.machinePathSync')}
                       </Button>
@@ -456,7 +456,9 @@ export function SettingsDrawer() {
               >
                 <div style={{ minWidth: 0 }}>
                   <Space size={6}>
-                    <Text>{localizedText(item.label, normalizeLocale(i18n.language), item.id)}</Text>
+                    <Text>
+                      {localizedText(item.label, normalizeLocale(i18n.language), item.id)}
+                    </Text>
                     {item.requiresAdmin ? <Tag color="gold">{t('tool.requiresAdmin')}</Tag> : null}
                     {item.configured ? <Tag color="green">{t('settings.configured')}</Tag> : null}
                     {item.devkitModified ? (
